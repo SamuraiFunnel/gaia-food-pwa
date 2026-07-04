@@ -6,9 +6,10 @@ Niente Jest, niente build, niente `node_modules`: coerente con la filosofia dell
 ## Come si lancia
 
 ```bash
-npm test              # tutti i test (unit + integrazione)
+npm test              # tutti i test (unit + integrazione) — NON serve un browser
 npm run test:watch    # ri-esegue a ogni modifica
 npm run test:coverage # con report di copertura
+npm run test:e2e      # smoke end-to-end del flusso critico (richiede Chrome, gira a parte)
 ```
 
 Il runner scopre da solo i file in `test/`. Ogni file gira in un **processo isolato**
@@ -20,9 +21,21 @@ Il runner scopre da solo i file in `test/`. Ogni file gira in un **processo isol
 |------|---------|---------------|
 | `domain.test.mjs` | Unit (logica pura del server) | `slugify`, `num`/`str`, `EMAIL_RE`, `cleanVideo`/`cleanSeasonal`/`normalizePatch` (difesa da payload malformati), `throttle` (rate-limit), **`custodiSummary`** (credito €8/radicato, commissione €7,80, livelli, stato del seme per età) |
 | `api.test.mjs` | Integrazione (HTTP reale su porta effimera + cartella dati usa-e-getta) | login email, sessione/cookie, profilo (nome/città/lingua/notifiche/zona), **referral Custodi**, waitlist, candidature, producers, permessi 401/403, **rate-limit 429**, Google 503 senza client id |
+| `staff.test.mjs` | Integrazione (rotte STAFF/admin) | login staff + 429, **producers CRUD** (create/patch/foto/video/delete), **revisione candidature**, GET waitlist, logout |
+| `google.test.mjs` | Integrazione (`fetch` mockato) | login Google: successo (utente creato + cookie), `aud` errato, email non verificata, tokeninfo non-ok, rete giù (502), idToken mancante |
 | `i18n.test.mjs` | Unit (front-end) | `t()` (fallback di chiave + interpolazione), `setLang()` (switch IT↔EN), `detectLang()` (scelta salvata > lingua dispositivo > EN) |
+| `../e2e/smoke.mjs` | **E2E** (Chrome headless, CDP) | flusso reale Splash → pop-up login → email → zona Abruzzo → Home con produttori → sessione riconosciuta dal backend |
 
-Copertura attuale: `i18n.js` ~100% righe · `server.js` ~74% righe.
+Copertura backend (unit+integrazione): `server.js` ~92% righe · `i18n.js` ~100% righe · ~94% complessivo.
+
+## Cosa ha già trovato il testing
+
+- **Reload al primo avvio** (index.html): alla prima visita il service worker, quando prende il
+  controllo, ricarica la pagina una volta (`controllerchange → location.reload()`). È un flicker
+  una-tantum per l'utente reale; l'E2E lo "scalda" prima di partire. Fix consigliato: ricaricare
+  solo su un **aggiornamento** del SW, non al primo claim. (da decidere con Daniele)
+- Il `try/catch` attorno a `localStorage` in `detectLang()` è **necessario** (Node 25 ha un
+  `localStorage` nativo che lancia senza `--localstorage-file`): confermato da un test.
 
 ## Come è testabile il server senza dipendenze
 
@@ -40,8 +53,9 @@ const server = http.createServer(requestHandler).listen(0); // porta effimera
 I bucket del rate-limit sono in memoria e per-IP. Nei test che ne dipendono si passa un
 `x-forwarded-for` diverso per test → bucket indipendenti, nessun accoppiamento tra test.
 
-## Prossimi strati (da decidere con Daniele)
+## Prossimi strati possibili (da decidere con Daniele)
 
-- Rotte **staff/admin** (mutazioni producers, revisione candidature, upload foto/video): richiedono sessione staff → coprire con login admin nei test di integrazione.
-- **E2E UI** dei flussi critici (splash → login pop-up → home → dettaglio produttore → salva): formalizzare gli script CDP esistenti in un test ripetibile.
-- Verifica **idToken Google** con `fetch` mockato (percorso di successo, oggi coperto solo il 503).
+- Applicare il **fix del reload SW** al primo avvio (vedi sopra) e coprirlo con un test.
+- Altri flussi E2E: dettaglio produttore → salva, ricerca/filtri, sezione Custodi, cambio lingua.
+- Verifica **idToken Google** con firma reale (oggi il `fetch` è mockato: è il compromesso giusto
+  per non dipendere dalla rete, ma un test "contract" contro un token di prova sarebbe un plus).

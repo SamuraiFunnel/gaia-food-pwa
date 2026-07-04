@@ -164,6 +164,27 @@ test('rate-limit: /api/auth/email oltre 10/min dallo stesso IP → 429', async (
   assert.equal(statuses.at(-1), 429, `ultima richiesta dovrebbe essere 429, statuses=${statuses.join(',')}`);
 });
 
+// -------------------------------------------------- avatar
+test('avatar: senza login 401, data-url invalido 400, valido → 200 con picture', async () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  assert.equal((await api('POST', '/api/auth/avatar', { body: { dataUrl: PNG } })).status, 401);
+  const cookie = await signIn('avatar@x.it', 'av1');
+  assert.equal((await api('POST', '/api/auth/avatar', { cookie, body: { dataUrl: 'nope' } })).status, 400);
+  const r = await api('POST', '/api/auth/avatar', { cookie, body: { dataUrl: PNG } });
+  assert.equal(r.status, 200);
+  assert.match(r.json.user.picture, /^assets\/photos\/users\//);
+});
+
+// -------------------------------------------------- static file server
+test('statico: index, asset JS, SPA fallback; config.json mai servito (403)', async () => {
+  const home = await api('GET', '/');
+  assert.equal(home.status, 200);
+  assert.match(home.headers['content-type'], /text\/html/);
+  assert.equal((await api('GET', '/js/i18n.js')).status, 200);    // asset reale del repo
+  assert.equal((await api('GET', '/una/rotta/spa')).status, 200);  // non-file, non-api → fallback index
+  assert.equal((await api('GET', '/data/config.json')).status, 403); // segreti mai serviti
+});
+
 // -------------------------------------------------- API inesistente
 test('rotta API inesistente → 404', async () => {
   assert.equal((await api('GET', '/api/non-esiste')).status, 404);
