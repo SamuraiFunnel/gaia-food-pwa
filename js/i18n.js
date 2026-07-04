@@ -7,14 +7,16 @@ import IT from './i18n/it.js';
 const LOADERS = {
   it: () => Promise.resolve({ default: IT }),
   en: () => import('./i18n/en.js'),
-  // de: () => import('./i18n/de.js'),   ← futura (basta creare il file)
-  // zh: () => import('./i18n/zh.js'),
+  de: () => import('./i18n/de.js'),
+  zh: () => import('./i18n/zh.js'),
 };
 export const SUPPORTED = Object.keys(LOADERS);
 // Lingue mostrate nello switcher (in ordine). Estendere qui quando si aggiunge un dizionario.
 export const LANGS = [
   { code: 'it', flag: '🇮🇹', label: 'Italiano' },
   { code: 'en', flag: '🇬🇧', label: 'English' },
+  { code: 'de', flag: '🇩🇪', label: 'Deutsch' },
+  { code: 'zh', flag: '🇨🇳', label: '中文' },
 ];
 const RTL = ['ar', 'he', 'fa', 'ur'];
 const DEFAULT_UNSUPPORTED = 'en'; // turista con locale non supportato → inglese

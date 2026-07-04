@@ -9,7 +9,10 @@ import { fileURLToPath } from 'node:url';
 import { t, detectLang, setLang, getLang, SUPPORTED, LANGS } from '../js/i18n.js';
 import IT from '../js/i18n/it.js';
 import EN from '../js/i18n/en.js';
+import DE from '../js/i18n/de.js';
+import ZH from '../js/i18n/zh.js';
 
+const DICTS = { en: EN, de: DE, zh: ZH }; // tutte le lingue non-IT, confrontate con IT (base)
 const jsDir = fileURLToPath(new URL('../js', import.meta.url));
 
 test('SUPPORTED / LANGS coerenti', () => {
@@ -68,25 +71,31 @@ test('detectLang(): scelta salvata ha la precedenza', () => {
 test('detectLang(): senza scelta salvata usa la lingua del dispositivo, con fallback EN', () => {
   withGlobals(['it-IT', 'en-US'], null, (setNav) => {
     assert.equal(detectLang(), 'it');
-    setNav(['de-DE', 'en-US']); // de non supportato → primo supportato = en
-    assert.equal(detectLang(), 'en');
-    setNav(['fr-FR']);          // nessuno supportato → default en
+    setNav(['de-DE', 'en-US']); // de ora è supportato → de
+    assert.equal(detectLang(), 'de');
+    setNav(['zh-CN', 'en-US']); // zh ora è supportato → zh
+    assert.equal(detectLang(), 'zh');
+    setNav(['fr-FR', 'es-ES']); // nessuno supportato → default en
     assert.equal(detectLang(), 'en');
   });
 });
 
 // ---------------- parità dizionari & copertura chiavi (anti-drift IT/EN) ----------------
-test('parità dizionari: IT ed EN hanno esattamente le stesse chiavi', () => {
-  const missingInEn = Object.keys(IT).filter((k) => !(k in EN)).sort();
-  const missingInIt = Object.keys(EN).filter((k) => !(k in IT)).sort();
-  assert.deepEqual(missingInEn, [], 'chiavi in IT ma non in EN: ' + missingInEn.join(', '));
-  assert.deepEqual(missingInIt, [], 'chiavi in EN ma non in IT: ' + missingInIt.join(', '));
+test('parità dizionari: ogni lingua ha esattamente le chiavi di IT', () => {
+  for (const [code, D] of Object.entries(DICTS)) {
+    const missing = Object.keys(IT).filter((k) => !(k in D)).sort();
+    const extra = Object.keys(D).filter((k) => !(k in IT)).sort();
+    assert.deepEqual(missing, [], `[${code}] chiavi in IT ma non in ${code}: ` + missing.join(', '));
+    assert.deepEqual(extra, [], `[${code}] chiavi in ${code} ma non in IT: ` + extra.join(', '));
+  }
 });
 
-test('placeholder coerenti: ogni {param} di IT esiste anche in EN', () => {
-  const ph = (s) => (String(s).match(/\{(\w+)\}/g) || []).sort();
-  for (const k of Object.keys(IT)) {
-    if (k in EN) assert.deepEqual(ph(EN[k]), ph(IT[k]), `placeholder diversi per la chiave "${k}"`);
+test('placeholder coerenti: ogni {param} di IT esiste in ogni lingua', () => {
+  const ph = (s) => (String(s).match(/\{\w+\}/g) || []).sort();
+  for (const [code, D] of Object.entries(DICTS)) {
+    for (const k of Object.keys(IT)) {
+      if (k in D) assert.deepEqual(ph(D[k]), ph(IT[k]), `[${code}] placeholder diversi per "${k}"`);
+    }
   }
 });
 
