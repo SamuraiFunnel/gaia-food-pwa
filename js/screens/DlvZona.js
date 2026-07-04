@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar, initMap } from '../components.js';
 import { getState, results } from '../store.js';
+import { t } from '../i18n.js';
 
 /* =====================================================================
    DlvZona — #/consegna/zona
@@ -18,7 +19,7 @@ export function DlvZona() {
 
   // Indirizzo salvato di default (Casa tua) — primo comune coperto
   const home = {
-    label: 'Casa tua',
+    label: t('dlvZona.homeLabel'),
     address: `Via del Lago 7, ${comuni[0] || 'Villetta Barrea'} (AQ)`,
   };
 
@@ -51,9 +52,9 @@ export function DlvZona() {
       <div class="dz-out dz-in">
         <div class="dz-ic">${Icon('check', { size: 19, color: '#fff', stroke: 2.6 })}</div>
         <div class="dz-tx">
-          <div class="dz-t">Sei nella zona di consegna</div>
-          <div class="dz-p">I produttori sono tutti vicini, dentro ${zone.label}.</div>
-          ${list ? `<div class="dz-near tnum">${list} · entro la zona</div>` : ''}
+          <div class="dz-t">${t('dlvZona.inTitle')}</div>
+          <div class="dz-p">${t('dlvZona.inBody', { zone: zone.label })}</div>
+          ${list ? `<div class="dz-near tnum">${t('dlvZona.inNear', { list })}</div>` : ''}
         </div>
       </div>`;
     }
@@ -62,8 +63,8 @@ export function DlvZona() {
       <div class="dz-out dz-edge">
         <div class="dz-ic">${Icon('map-pin', { size: 18, color: '#fff', stroke: 2.2 })}</div>
         <div class="dz-tx">
-          <div class="dz-t">Sei al confine della zona</div>
-          <div class="dz-p">Ti copriamo, ma sei ai bordi di ${zone.label}: alcuni giorni di consegna potrebbero non essere disponibili. Puoi sempre andare a ritirare dal produttore.</div>
+          <div class="dz-t">${t('dlvZona.edgeTitle')}</div>
+          <div class="dz-p">${t('dlvZona.edgeBody', { zone: zone.label })}</div>
         </div>
       </div>`;
     }
@@ -72,10 +73,10 @@ export function DlvZona() {
     <div class="dz-out dz-off">
       <div class="dz-ic">${Icon('info', { size: 18, color: '#fff', stroke: 2.2 })}</div>
       <div class="dz-tx">
-        <div class="dz-t">Per ora non arriviamo qui</div>
-        <div class="dz-p">Questo indirizzo è fuori da ${zone.label}. La consegna sta crescendo comune per comune: lasciaci la tua zona e ti avvisiamo appena ci arriviamo. Intanto puoi andare a ritirare di persona.</div>
+        <div class="dz-t">${t('dlvZona.outTitle')}</div>
+        <div class="dz-p">${t('dlvZona.outBody', { zone: zone.label })}</div>
         <button class="btn btn-block dz-bell" data-bell style="background:var(--terra-deep);color:#fff;margin-top:12px">
-          ${Icon('bell', { size: 17, color: '#fff', stroke: 2 })} Avvisami quando arrivate
+          ${Icon('bell', { size: 17, color: '#fff', stroke: 2 })} ${t('dlvZona.notifyMe')}
         </button>
       </div>
     </div>`;
@@ -149,15 +150,15 @@ export function DlvZona() {
   <div class="screen no-nav">
     ${StatusBar()}
     <div class="toprow">
-      <button class="iconbtn" data-back aria-label="Indietro">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
+      <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
       <span></span>
     </div>
 
     <div class="scroll">
       <div class="pad">
-        <h1 class="h1">Controlliamo la <em>tua zona</em></h1>
+        <h1 class="h1">${t('dlvZona.title')}</h1>
         <p class="muted mt8" style="font-size:14px;line-height:1.5">
-          La consegna parte dentro ${zone.label}. Dicci dove sei e vediamo se ci arriviamo.
+          ${t('dlvZona.subtitle', { zone: zone.label })}
         </p>
       </div>
 
@@ -165,27 +166,27 @@ export function DlvZona() {
       <div class="pad mt16">
         <div class="dz-soon">
           <div class="dz-si">${Icon('truck', { size: 17, color: '#fff', stroke: 2 })}</div>
-          <div class="dz-st"><b>Consegna in arrivo.</b> Stiamo aprendo la consegna comune per comune. Dove non c'è ancora, puoi ritirare dal produttore.</div>
+          <div class="dz-st">${t('dlvZona.soonBanner')}</div>
         </div>
       </div>
 
       <!-- indirizzo Casa tua -->
       <div class="pad mt16">
-        <div class="eyebrow" style="margin-bottom:10px">Indirizzo</div>
+        <div class="eyebrow" style="margin-bottom:10px">${t('dlvZona.addressEyebrow')}</div>
         <div class="dz-addr">
           <div class="dz-home">${Icon('home', { size: 20, color: '#fff', stroke: 2.1 })}</div>
           <div class="dz-info">
             <div class="dz-lab" data-lab>${home.label}</div>
             <div class="dz-line" data-line>${home.address}</div>
           </div>
-          <button class="dz-change" data-toggle>Cambia</button>
+          <button class="dz-change" data-toggle>${t('dlvZona.change')}</button>
         </div>
 
         <!-- editor indirizzo (suggerimenti tutti intra-zona) -->
         <div class="dz-edit" data-edit>
           <label class="search mt12">
             ${Icon('search', { size: 19, color: 'var(--terra-deep)', stroke: 2 })}
-            <input type="text" inputmode="search" placeholder="Via, civico o comune in ${zone.label}" data-q aria-label="Cerca il tuo indirizzo" />
+            <input type="text" inputmode="search" placeholder="${t('dlvZona.searchPlaceholder', { zone: zone.label })}" data-q aria-label="${t('dlvZona.searchAria')}" />
           </label>
           <div class="dz-sugg" data-sugg></div>
           <p class="dz-empty" data-empty style="display:none"></p>
@@ -208,7 +209,7 @@ export function DlvZona() {
     <!-- CTA: conferma indirizzo -> slot -->
     <div class="cta-sticky">
       <button class="btn btn-grad btn-block" data-confirm>
-        Conferma indirizzo ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.2 })}
+        ${t('dlvZona.confirm')} ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.2 })}
       </button>
     </div>
   </div>`;
@@ -230,7 +231,7 @@ export function DlvZona() {
     const outcome = el.querySelector('[data-outcome]');
     const confirm = el.querySelector('[data-confirm]');
 
-    const STAG = { in: 'In zona', edge: 'Al confine', out: 'Fuori zona' };
+    const STAG = { in: t('dlvZona.tagIn'), edge: t('dlvZona.tagEdge'), out: t('dlvZona.tagOut') };
 
     const renderSugg = (q = '') => {
       const ql = q.trim().toLowerCase();
@@ -238,7 +239,7 @@ export function DlvZona() {
       if (!rows.length) {
         sugg.innerHTML = '';
         empty.style.display = 'block';
-        empty.textContent = `Nessun indirizzo trovato in ${zone.label} per "${q}". Controlla l'ortografia, oppure scegli un comune dalla lista.`;
+        empty.textContent = t('dlvZona.noResults', { zone: zone.label, q });
         // mostra comunque la lista completa come uscita
         sugg.innerHTML = PLACES.map(rowHtml).join('');
         return;
@@ -257,7 +258,7 @@ export function DlvZona() {
     // apri/chiudi editor
     toggle.onclick = () => {
       const open = editBox.classList.toggle('show');
-      toggle.textContent = open ? 'Chiudi' : 'Cambia';
+      toggle.textContent = open ? t('dlvZona.close') : t('dlvZona.change');
       if (open) { renderSugg(''); input.focus(); }
     };
 
@@ -277,7 +278,7 @@ export function DlvZona() {
       updateConfirm();
       // richiudi l'editor dopo la scelta
       editBox.classList.remove('show');
-      toggle.textContent = 'Cambia';
+      toggle.textContent = t('dlvZona.change');
     };
 
     // "Avvisami" nello stato fuori-zona (causa + rimedio + conferma)
@@ -287,7 +288,7 @@ export function DlvZona() {
       bell.onclick = () => {
         bell.disabled = true;
         bell.style.opacity = '.85';
-        bell.innerHTML = `${Icon('check-circle', { size: 17, color: '#fff', stroke: 2.2 })} Ti avviseremo`;
+        bell.innerHTML = `${Icon('check-circle', { size: 17, color: '#fff', stroke: 2.2 })} ${t('dlvZona.willNotify')}`;
       };
     }
     bindBell();
@@ -299,8 +300,8 @@ export function DlvZona() {
       confirm.style.opacity = off ? '.5' : '';
       confirm.style.pointerEvents = off ? 'none' : '';
       confirm.innerHTML = off
-        ? `Indirizzo fuori zona`
-        : `Conferma indirizzo ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.2 })}`;
+        ? t('dlvZona.outOfZone')
+        : `${t('dlvZona.confirm')} ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.2 })}`;
     }
     updateConfirm();
 

@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar, ProducerCard, BottomNav } from '../components.js';
 import { getState, results, userZoneIsActive } from '../store.js';
+import { t } from '../i18n.js';
 
 /* ---------------- RICERCA (#/ricerca) ----------------
    Ricerca con correzione typo: l'utente ha scritto "lacte".
@@ -34,17 +35,17 @@ export function Ricerca() {
   const resultsBlock = n > 0
     ? `<div class="pad mt22">
          <div class="block-h">
-           <div class="eyebrow">${n} ${n === 1 ? 'produttore' : 'produttori'} per &ldquo;${CORRECTION}&rdquo;</div>
-           <span class="muted" style="font-size:12px">per distanza</span>
+           <div class="eyebrow">${t('ricerca.resultsCount', { n, label: n === 1 ? t('ricerca.producer') : t('ricerca.producers'), q: CORRECTION })}</div>
+           <span class="muted" style="font-size:12px">${t('ricerca.byDistance')}</span>
          </div>
          <div class="gap8 mt12">${list.map(ProducerCard).join('')}</div>
        </div>`
     : `<div class="pad mt22">
          <div class="rs-empty">
            ${Icon('search', { size: 38, color: 'var(--faint)' })}
-           <div class="rs-empty-t serif">Nessun produttore di ${CORRECTION} qui vicino</div>
-           <p class="muted">Nella tua zona (${getState().zone?.comuni?.[0] || 'la tua zona'} e dintorni) non c'&egrave; ancora un produttore verificato per questa ricerca.</p>
-           <a class="btn btn-outline btn-block mt12" href="#/home">Sfoglia tutti i produttori vicini</a>
+           <div class="rs-empty-t serif">${t('ricerca.emptyTitle', { q: CORRECTION })}</div>
+           <p class="muted">${t('ricerca.emptyBody', { zone: getState().zone?.comuni?.[0] || t('ricerca.yourZone') })}</p>
+           <a class="btn btn-outline btn-block mt12" href="#/home">${t('ricerca.browseAll')}</a>
          </div>
        </div>`;
 
@@ -83,22 +84,22 @@ export function Ricerca() {
       ${StatusBar()}
 
       <div class="rs-searchrow">
-        <button class="iconbtn" data-back aria-label="Indietro">${Icon('arrow-left', { size: 20 })}</button>
+        <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 20 })}</button>
         <div class="rs-field">
           ${Icon('search', { size: 19, color: 'var(--terra-deep)' })}
           <span class="rs-q">${TYPO}</span>
-          <button class="rs-clear" data-clear aria-label="Cancella la ricerca"><span>${Icon('x', { size: 14, color: 'var(--muted)' })}</span></button>
+          <button class="rs-clear" data-clear aria-label="${t('ricerca.clearSearch')}"><span>${Icon('x', { size: 14, color: 'var(--muted)' })}</span></button>
         </div>
       </div>
 
       <div class="scroll">
         <div class="pad mt16">
           <div class="rs-didyou">
-            Forse cercavi:
+            ${t('ricerca.didYouMean')}
             <button class="rs-fix" data-fix>${CORRECTION.charAt(0).toUpperCase() + CORRECTION.slice(1)} ${Icon('chevron-right', { size: 15, color: 'var(--verde-deep)' })}</button>
           </div>
           <div class="rs-syns">
-            <span class="rs-lbl">Anche:</span>
+            <span class="rs-lbl">${t('ricerca.also')}</span>
             ${synChips}
           </div>
         </div>
@@ -109,8 +110,8 @@ export function Ricerca() {
           <a class="rs-cv" href="#/cibovero">
             <span class="rs-cv-ic">${Icon('play', { size: 16, color: '#fff' })}</span>
             <span class="rs-cv-b">
-              <span class="rs-cv-t">Cerca anche su Cibo Vero</span>
-              <span class="rs-cv-s">Storie e visite sul ${CORRECTION} crudo</span>
+              <span class="rs-cv-t">${t('ricerca.searchOnCiboVero')}</span>
+              <span class="rs-cv-s">${t('ricerca.ciboVeroSub', { q: CORRECTION })}</span>
             </span>
             ${Icon('chevron-right', { size: 19, color: 'var(--faint2)' })}
           </a>

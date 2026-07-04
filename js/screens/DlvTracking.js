@@ -1,5 +1,6 @@
 import { Icon } from '../icons.js';
 import { StatusBar } from '../components.js';
+import { t } from '../i18n.js';
 
 /* ---------------- DlvTracking — Tracking del mezzo (#/consegna/tracking) ----------------
    Banner "anteprima": la consegna non è ancora attiva, questa è una previsione.
@@ -88,10 +89,10 @@ export function DlvTracking() {
       : `<span class="tk-dot home">${Icon('home', { size: 14, color: 'var(--ink-soft)', stroke: 2.1 })}</span>`;
 
   const tlLabel = (s) => s.state === 'done'
-    ? '<span class="tk-st done">Raccolto</span>'
+    ? `<span class="tk-st done">${t('dlvTracking.stateDone')}</span>`
     : s.state === 'active'
-      ? '<span class="tk-st active">In corso</span>'
-      : '<span class="tk-st home">In arrivo</span>';
+      ? `<span class="tk-st active">${t('dlvTracking.stateActive')}</span>`
+      : `<span class="tk-st home">${t('dlvTracking.stateHome')}</span>`;
 
   const timeline = stops.map((s, i) => `
     <div class="tk-step ${s.state}${i === stops.length - 1 ? ' last' : ''}">
@@ -171,30 +172,30 @@ export function DlvTracking() {
   <div class="screen no-nav">
     ${StatusBar()}
     <div class="tk-top-row">
-      <button class="iconbtn" data-back aria-label="Indietro">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
+      <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
       <div>
-        <h1 class="h1" style="margin:0">In <em>arrivo</em></h1>
-        <div class="muted" style="font-size:12.5px;margin-top:2px">Il mezzo sta facendo il giro dei produttori.</div>
+        <h1 class="h1" style="margin:0">${t('dlvTracking.title')}</h1>
+        <div class="muted" style="font-size:12.5px;margin-top:2px">${t('dlvTracking.subtitle')}</div>
       </div>
     </div>
 
     <div class="tk-banner">
       ${Icon('info', { size: 18, color: 'var(--terra-deep)', stroke: 2 })}
-      <span><strong>Anteprima.</strong> La consegna non è ancora attiva nella tua zona: questo è un esempio di come seguirai il mezzo in tempo reale.</span>
+      <span>${t('dlvTracking.previewBanner')}</span>
     </div>
 
     <div class="scroll">
       <div class="tk-mapwrap">
         ${routeMap}
-        <div class="tk-prog">${Icon('check-circle', { size: 14, color: 'var(--verde)', stroke: 2.2 })} ${done}/${total} tappe</div>
+        <div class="tk-prog">${Icon('check-circle', { size: 14, color: 'var(--verde)', stroke: 2.2 })} ${t('dlvTracking.stops', { done, total })}</div>
         <div class="tk-eta">
-          <div class="lbl">Arrivo stimato</div>
-          <div class="val tnum">${eta}<span>oggi</span></div>
+          <div class="lbl">${t('dlvTracking.eta')}</div>
+          <div class="val tnum">${eta}<span>${t('dlvTracking.today')}</span></div>
         </div>
       </div>
 
       <div class="pad mt22">
-        <div class="eyebrow tk-tappe-t">Le tappe del giro</div>
+        <div class="eyebrow tk-tappe-t">${t('dlvTracking.stopsTitle')}</div>
         <div class="tk-card">
           <div class="tk-steps">
             ${timeline}
@@ -204,10 +205,10 @@ export function DlvTracking() {
 
       <div class="pad gap8 mt22" style="padding-bottom:26px">
         <button class="btn btn-grad btn-block" data-notify>
-          ${Icon('bell', { size: 18, color: '#fff', stroke: 2 })} Avvisami quando parte davvero
+          ${Icon('bell', { size: 18, color: '#fff', stroke: 2 })} ${t('dlvTracking.notify')}
         </button>
         <button class="btn btn-outline btn-block" data-home>
-          ${Icon('home', { size: 18, color: 'var(--ink)', stroke: 2 })} Torna alla home
+          ${Icon('home', { size: 18, color: 'var(--ink)', stroke: 2 })} ${t('dlvTracking.backHome')}
         </button>
       </div>
     </div>
@@ -222,7 +223,7 @@ export function DlvTracking() {
     if (notify) notify.onclick = () => {
       notify.disabled = true;
       notify.style.opacity = '.85';
-      notify.innerHTML = `${Icon('check-circle', { size: 18, color: '#fff', stroke: 2.2 })} Ti avviseremo alla partenza`;
+      notify.innerHTML = `${Icon('check-circle', { size: 18, color: '#fff', stroke: 2.2 })} ${t('dlvTracking.notifyDone')}`;
     };
   }
 

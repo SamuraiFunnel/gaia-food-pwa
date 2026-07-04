@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar, Photo } from '../components.js';
 import { producerById } from '../store.js';
+import { t } from '../i18n.js';
 
 /* ---------------- PLAYER · rotta #/video/<id> ----------------
    3 capitoli del produttore (Presentazione / Storia / Metodo).
@@ -9,7 +10,11 @@ import { producerById } from '../store.js';
    No-nav. [data-back]. Auto-contenuto: stile specifico inline,
    resto riusa il design-system di css/app.css. */
 
-const TYPE_LABEL = { presentazione: 'Presentazione', storia: 'Storia', metodo: 'Metodo' };
+// Etichetta del capitolo (tipo video) localizzata; null se il tipo non è mappato → il chiamante applica il proprio fallback.
+const typeLabel = (type) => {
+  const KEY = { presentazione: 'producer.videoPresentazione', storia: 'producer.videoStoria', metodo: 'producer.videoMetodo' };
+  return KEY[type] ? t(KEY[type]) : null;
+};
 
 export function Player(id, startIndex = null) {
   const p = producerById(id);
@@ -21,9 +26,9 @@ export function Player(id, startIndex = null) {
         <div class="toprow"><button class="iconbtn" data-back>${Icon('arrow-left', { size: 18 })}</button></div>
         <div class="center" style="padding:70px 30px">
           ${Icon('play', { size: 44, color: 'var(--faint)' })}
-          <h2 class="h2 mt16">Video non disponibile</h2>
-          <p class="muted mt8">Non troviamo il produttore di questo video: forse il link è vecchio o la scheda è stata aggiornata.</p>
-          <a class="btn btn-grad btn-block mt22" href="#/home" data-link>${Icon('home', { size: 18, color: '#fff' })} Torna alla scoperta</a>
+          <h2 class="h2 mt16">${t('player.notAvailableTitle')}</h2>
+          <p class="muted mt8">${t('player.notAvailableBody')}</p>
+          <a class="btn btn-grad btn-block mt22" href="#/home" data-link>${Icon('home', { size: 18, color: '#fff' })} ${t('player.backToDiscovery')}</a>
         </div></div>`,
       onMount(el) {
         const b = el.querySelector('[data-back]'); if (b) b.onclick = () => history.back();
@@ -46,10 +51,10 @@ export function Player(id, startIndex = null) {
     const src = v.src || '';
     const yt = src.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{6,})/);
     const vi = src.match(/vimeo\.com\/(\d+)/);
-    if (yt) return `<iframe class="pl-embed" src="https://www.youtube.com/embed/${yt[1]}" title="Video del produttore" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
-    if (vi) return `<iframe class="pl-embed" src="https://player.vimeo.com/video/${vi[1]}" title="Video del produttore" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+    if (yt) return `<iframe class="pl-embed" src="https://www.youtube.com/embed/${yt[1]}" title="${t('player.videoTitle')}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+    if (vi) return `<iframe class="pl-embed" src="https://player.vimeo.com/video/${vi[1]}" title="${t('player.videoTitle')}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
     const poster = posterOf(v);
-    return `<video class="pl-video" controls playsinline preload="metadata"${poster ? ` poster="${poster}"` : ''}><source src="${src}">Il tuo browser non riproduce questo video.</video>`;
+    return `<video class="pl-video" controls playsinline preload="metadata"${poster ? ` poster="${poster}"` : ''}><source src="${src}">${t('player.videoUnsupported')}</video>`;
   };
 
   const stage = (i) => {
@@ -58,36 +63,36 @@ export function Player(id, startIndex = null) {
     const tone = v.tone || p.tone || 'paesaggio';
     const dur = v.duration && v.duration !== '—' ? v.duration : '';
     const hasVideo = !coming && !!v.src;
-    const label = (TYPE_LABEL[v.type] || 'Video') + (coming ? ' · in arrivo' : (dur ? ' · ' + dur : ''));
+    const label = (typeLabel(v.type) || t('player.videoGeneric')) + (coming ? ' · ' + t('player.comingInline') : (dur ? ' · ' + dur : ''));
     const player = hasVideo
       ? `<div class="pl-stage pl-stage--live">${mediaHtml(v)}</div>`
       : `
       <div class="pl-stage">
         ${Photo(tone, label, 'pl-photo')}
         ${coming
-          ? `<div class="pl-soon">${Icon('clock', { size: 15, color: '#fff' })} In arrivo</div>`
+          ? `<div class="pl-soon">${Icon('clock', { size: 15, color: '#fff' })} ${t('common.comingSoon')}</div>`
           : `<div class="pl-play">${Icon('play', { size: 28, color: '#fff' })}</div>`}
         <div class="pl-track">
           <div class="pl-bar"><i style="width:${coming ? 0 : 22}%"></i></div>
-          <div class="pl-time tnum"><span class="pl-preview">${coming ? 'in arrivo' : 'anteprima'}</span><span>${dur || '—'}</span></div>
+          <div class="pl-time tnum"><span class="pl-preview">${coming ? t('player.comingInline') : t('player.preview')}</span><span>${dur || '—'}</span></div>
         </div>
       </div>`;
     return `
       ${player}
       <div class="pl-head pad">
-        <div class="eyebrow" style="color:var(--terra-deep)">${TYPE_LABEL[v.type] || 'Video'}${dur ? ` · <span class="tnum">${dur}</span>` : ''}</div>
-        <h1 class="h1 mt8" style="font-size:25px">${v.title && v.title !== '—' ? v.title : (TYPE_LABEL[v.type] || 'Capitolo in arrivo')}</h1>
-        <div class="muted mt8" style="font-size:13px">${p.name}${verifyDate ? ` · Verificato sul campo · ${verifyDate}` : ''}</div>
-        ${coming ? `<div class="muted mt8" style="font-size:13px">Questo capitolo non è ancora stato girato. Intanto puoi guardare gli altri o andare a conoscere ${p.name} di persona.</div>` : ''}
+        <div class="eyebrow" style="color:var(--terra-deep)">${typeLabel(v.type) || t('player.videoGeneric')}${dur ? ` · <span class="tnum">${dur}</span>` : ''}</div>
+        <h1 class="h1 mt8" style="font-size:25px">${v.title && v.title !== '—' ? v.title : (typeLabel(v.type) || t('player.chapterComing'))}</h1>
+        <div class="muted mt8" style="font-size:13px">${p.name}${verifyDate ? ` · ${t('player.verifiedField')} · ${verifyDate}` : ''}</div>
+        ${coming ? `<div class="muted mt8" style="font-size:13px">${t('player.chapterNotShot', { name: p.name })}</div>` : ''}
       </div>`;
   };
 
   /* ---- tab bar (segment) ---- */
   const tabs = (cur) => videos.map((v, i) => {
     const coming = v.state === 'coming';
-    const dur = coming ? 'In arrivo' : (v.duration && v.duration !== '—' ? v.duration : '—');
+    const dur = coming ? t('common.comingSoon') : (v.duration && v.duration !== '—' ? v.duration : '—');
     return `<button class="pl-tab${i === cur ? ' active' : ''}" data-tab="${i}">
-      <span class="pl-tab-t">${TYPE_LABEL[v.type] || ('Cap. ' + (i + 1))}</span>
+      <span class="pl-tab-t">${typeLabel(v.type) || t('player.chapterShort', { n: i + 1 })}</span>
       <span class="pl-tab-d tnum">${dur}</span>
     </button>`;
   }).join('');
@@ -145,13 +150,13 @@ export function Player(id, startIndex = null) {
         </div>
 
         <div class="pl-body">
-          <p class="story">${p.story || 'La storia di questo produttore arriva presto, raccontata sul campo.'}</p>
+          <p class="story">${p.story || t('player.storyFallback')}</p>
         </div>
       </div>
 
       <div class="pl-actions">
-        <button class="btn btn-ink btn-block" data-card>${Icon('arrow-left', { size: 18, color: '#fff' })} Torna alla scheda</button>
-        <button class="btn btn-block" style="color:var(--verde-deep);background:transparent;box-shadow:none" data-map>${Icon('map-pin', { size: 16, color: 'var(--verde-deep)' })} Trova sulla mappa</button>
+        <button class="btn btn-ink btn-block" data-card>${Icon('arrow-left', { size: 18, color: '#fff' })} ${t('player.backToCard')}</button>
+        <button class="btn btn-block" style="color:var(--verde-deep);background:transparent;box-shadow:none" data-map>${Icon('map-pin', { size: 16, color: 'var(--verde-deep)' })} ${t('player.findOnMap')}</button>
       </div>
     </div>`,
 

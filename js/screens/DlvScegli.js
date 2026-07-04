@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar, Photo, VerifyBadge } from '../components.js';
 import { results } from '../store.js';
+import { t } from '../i18n.js';
 
 const km = n => String(n).replace('.', ',');
 
@@ -45,7 +46,7 @@ export function DlvScegli() {
     const on = i === selected;
     return `
     <button class="dl-card${on ? ' on' : ''}" data-opt="${i}" role="radio"
-      aria-checked="${on}" aria-label="${o.title}, da ${shortName(o.p.name)}, ${km(o.p.km)} km">
+      aria-checked="${on}" aria-label="${t('dlvScegli.optAria', { title: o.title, name: shortName(o.p.name), km: km(o.p.km) })}">
       <span class="dl-poster">
         ${Photo(o.tone, '', 'dl-photo')}
         <span class="dl-tag">${o.label}</span>
@@ -73,11 +74,10 @@ export function DlvScegli() {
   const emptyHtml = `
     <div class="dl-empty">
       ${Icon('truck', { size: 40, color: 'var(--faint)' })}
-      <div class="dl-empty-t serif">Ancora nessun punto da consegnare qui</div>
-      <p class="muted">Nella tua zona non ci sono ancora produttori verificati per la consegna.
-        Per ora puoi andare a ritirare di persona dai produttori vicini.</p>
+      <div class="dl-empty-t serif">${t('dlvScegli.emptyTitle')}</div>
+      <p class="muted">${t('dlvScegli.emptyBody')}</p>
       <a class="btn btn-grad btn-block mt12" href="#/home" data-link>
-        ${Icon('map-pin', { size: 17, color: '#fff' })} Vai ai produttori vicini</a>
+        ${Icon('map-pin', { size: 17, color: '#fff' })} ${t('dlvScegli.emptyCta')}</a>
     </div>`;
 
   const hasOptions = options.length > 0;
@@ -143,34 +143,33 @@ export function DlvScegli() {
   <div class="screen no-nav">
     ${StatusBar()}
     <div class="toprow">
-      <button class="iconbtn" data-back aria-label="Indietro">${Icon('arrow-left', { size: 18 })}</button>
-      <span class="dl-step">Passo 1 di 2 · Consegna</span>
+      <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 18 })}</button>
+      <span class="dl-step">${t('dlvScegli.step')}</span>
       <span style="width:42px"></span>
     </div>
     <div class="scroll">
       <div class="pad mt8">
         <div class="dl-soon" role="note">
           <span class="dl-soon-ic">${Icon('truck', { size: 17, color: 'var(--terra-deep)', stroke: 1.9 })}</span>
-          <span class="dl-soon-tx"><b>Consegna · funzione in arrivo.</b> Stai vedendo un'anteprima:
-            puoi comporre la scelta, l'attivazione nella tua zona arriverà presto.</span>
+          <span class="dl-soon-tx">${t('dlvScegli.soonBanner')}</span>
         </div>
       </div>
 
       <div class="pad mt16">
-        <h1 class="h1">Scegli 1 dei <em>${options.length || 4} punti.</em></h1>
+        <h1 class="h1">${t('dlvScegli.title', { n: options.length || 4 })}</h1>
         <p class="muted mt8" style="font-size:14.5px;line-height:1.5;color:var(--ink-soft)">
-          Un mezzo lo ritira dal produttore e te lo porta a casa, restando nella tua zona.</p>
+          ${t('dlvScegli.subtitle')}</p>
       </div>
 
       ${hasOptions ? `
       <div class="pad mt16">
-        <div class="dl-grid" id="dl-grid" role="radiogroup" aria-label="Alimento da consegnare">
+        <div class="dl-grid" id="dl-grid" role="radiogroup" aria-label="${t('dlvScegli.foodGroupAria')}">
           ${options.map(optCard).join('')}
         </div>
       </div>
 
       <div class="pad mt16">
-        <div class="eyebrow" style="margin-bottom:10px">Lo ritiriamo da</div>
+        <div class="eyebrow" style="margin-bottom:10px">${t('dlvScegli.pickupFrom')}</div>
         <div class="dl-summary" id="dl-summary">${summaryHtml(options[selected])}</div>
       </div>
       ` : `<div class="pad mt16">${emptyHtml}</div>`}
@@ -180,9 +179,9 @@ export function DlvScegli() {
     ${hasOptions ? `
     <div class="dl-foot">
       <button class="dl-continua" id="dl-continua">
-        Continua ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.3 })}
+        ${t('dlvScegli.continue')} ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.3 })}
       </button>
-      <div class="dl-foot-note">Nessun pagamento ora · contatto sempre diretto col produttore</div>
+      <div class="dl-foot-note">${t('dlvScegli.footNote')}</div>
     </div>` : ''}
   </div>`;
 

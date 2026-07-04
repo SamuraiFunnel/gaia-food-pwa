@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar } from '../components.js';
 import { getState, results } from '../store.js';
+import { t } from '../i18n.js';
 
 /* ---------------- FILTRI (bottom-sheet) ---------------- */
 export function Filtri() {
@@ -17,7 +18,7 @@ export function Filtri() {
   const MIN = 5, MAX = 30;
 
   const chipsHtml = () => {
-    const all = `<button class="fl-chip ${draft.category === null ? 'on' : ''}" data-cat="">Tutte</button>`;
+    const all = `<button class="fl-chip ${draft.category === null ? 'on' : ''}" data-cat="">${t('filtri.all')}</button>`;
     const rest = cats.map(c =>
       `<button class="fl-chip ${draft.category === c.id ? 'on' : ''}" data-cat="${c.id}">${Icon(c.glyph, { size: 15 })}${c.label}</button>`
     ).join('');
@@ -82,36 +83,36 @@ export function Filtri() {
     <div class="fl-sheet">
       <div class="fl-grip"></div>
       <div class="fl-head">
-        <h2 class="h2">Filtra</h2>
-        <button class="fl-x" data-back aria-label="Chiudi i filtri">${Icon('x', { size: 18, color: 'var(--ink-soft)', stroke: 2.2 })}</button>
+        <h2 class="h2">${t('filtri.title')}</h2>
+        <button class="fl-x" data-back aria-label="${t('filtri.close')}">${Icon('x', { size: 18, color: 'var(--ink-soft)', stroke: 2.2 })}</button>
       </div>
 
-      <div class="eyebrow" style="margin-bottom:11px">Categoria</div>
+      <div class="eyebrow" style="margin-bottom:11px">${t('filtri.category')}</div>
       <div class="fl-chips" id="fl-chips">${chipsHtml()}</div>
 
       <div class="fl-lbl">
-        <span class="eyebrow">Raggio</span>
+        <span class="eyebrow">${t('filtri.radius')}</span>
         <span class="fl-val tnum" id="fl-radius-val">${draft.radius} km</span>
       </div>
       <div class="fl-range">
         <div class="fl-track"><div class="fl-fill" id="fl-fill" style="width:${((draft.radius - MIN) / (MAX - MIN)) * 100}%"></div></div>
         <input type="range" id="fl-radius" min="${MIN}" max="${MAX}" step="1" value="${draft.radius}"
-          aria-label="Raggio di ricerca in chilometri">
+          aria-label="${t('filtri.radiusAria')}">
       </div>
       <div class="fl-scale"><span>${MIN} km</span><span>${MAX} km</span></div>
 
       <div class="fl-toggle">
-        <span class="fl-tl">${Icon('clock', { size: 19, color: 'var(--muted2)', stroke: 1.9 })} Aperto ora</span>
-        <button class="fl-sw" id="fl-open" role="switch" aria-checked="${draft.openNow}" aria-label="Solo aperti ora"><span class="knob"></span></button>
+        <span class="fl-tl">${Icon('clock', { size: 19, color: 'var(--muted2)', stroke: 1.9 })} ${t('filtri.openNow')}</span>
+        <button class="fl-sw" id="fl-open" role="switch" aria-checked="${draft.openNow}" aria-label="${t('filtri.openNowAria')}"><span class="knob"></span></button>
       </div>
       <div class="fl-toggle" style="margin-bottom:4px">
-        <span class="fl-tl">${Icon('leaf', { size: 19, color: 'var(--verde-deep)', stroke: 1.9 })} Di stagione adesso</span>
-        <button class="fl-sw" id="fl-seasonal" role="switch" aria-checked="${draft.seasonal}" aria-label="Solo prodotti di stagione adesso"><span class="knob"></span></button>
+        <span class="fl-tl">${Icon('leaf', { size: 19, color: 'var(--verde-deep)', stroke: 1.9 })} ${t('filtri.seasonal')}</span>
+        <button class="fl-sw" id="fl-seasonal" role="switch" aria-checked="${draft.seasonal}" aria-label="${t('filtri.seasonalAria')}"><span class="knob"></span></button>
       </div>
 
       <div class="fl-acts">
-        <button class="btn btn-outline" id="fl-reset" style="flex:none">Azzera</button>
-        <button class="btn btn-grad" id="fl-apply" style="flex:1">Mostra <span id="fl-count" class="tnum">${countMatch()}</span> luoghi</button>
+        <button class="btn btn-outline" id="fl-reset" style="flex:none">${t('filtri.reset')}</button>
+        <button class="btn btn-grad" id="fl-apply" style="flex:1">${t('filtri.showPlaces', { n: `<span id="fl-count" class="tnum">${countMatch()}</span>` })}</button>
       </div>
     </div>
   </div>`;

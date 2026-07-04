@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar } from '../components.js';
 import { getState, submitCandidatura } from '../store.js';
+import { t } from '../i18n.js';
 
 /* Form candidatura produttore — passo 1/2 (rotta #/candidati/form) */
 export function Form() {
@@ -22,7 +23,7 @@ export function Form() {
         <span class="frow-lb">${label}</span>
         <input class="frow-in" type="${type}" data-contact="${field}" placeholder="${placeholder}" autocomplete="off">
       </span>
-      <button type="button" class="fswitch${on ? ' on' : ''}" data-toggle role="switch" aria-checked="${on}" aria-label="Pubblica ${label}">
+      <button type="button" class="fswitch${on ? ' on' : ''}" data-toggle role="switch" aria-checked="${on}" aria-label="${t('form.publishAria', { label })}">
         <span class="fknob"></span>
       </button>
     </div>`;
@@ -93,61 +94,61 @@ export function Form() {
     ${StatusBar()}
 
     <div class="frm-progress">
-      <button type="button" class="frm-back" data-back aria-label="Indietro">${Icon('arrow-left', { size: 21, stroke: 2.1 })}</button>
+      <button type="button" class="frm-back" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 21, stroke: 2.1 })}</button>
       <div class="frm-bar" role="progressbar" aria-valuenow="1" aria-valuemin="1" aria-valuemax="2"><i></i></div>
-      <span class="frm-step">Passo 1/2</span>
+      <span class="frm-step">${t('form.step')}</span>
     </div>
 
     <div class="scroll">
       <div class="pad mt12">
-        <h1 class="h1">Raccontaci la <em>tua azienda</em></h1>
-        <p class="muted mt8" style="font-size:13.5px">Bastano pochi dati. Verremo a verificare di persona prima di pubblicare la tua scheda.</p>
+        <h1 class="h1">${t('form.title')}</h1>
+        <p class="muted mt8" style="font-size:13.5px">${t('form.subtitle')}</p>
       </div>
 
       <div class="pad mt22" style="display:flex;flex-direction:column;gap:18px">
 
         <label class="ffield">
-          <span class="flabel">Nome azienda</span>
-          <input class="finput" id="fname" type="text" placeholder="Es. Azienda Agricola di Claudio" autocomplete="organization">
+          <span class="flabel">${t('form.nameLabel')}</span>
+          <input class="finput" id="fname" type="text" placeholder="${t('form.namePlaceholder')}" autocomplete="organization">
         </label>
 
         <label class="ffield">
-          <span class="flabel">Comune / posizione</span>
+          <span class="flabel">${t('form.placeLabel')}</span>
           <span class="finput-ic">
             ${Icon('map-pin', { size: 18, color: 'var(--terra-deep)', stroke: 2 })}
-            <input id="fplace" type="text" placeholder="Es. Villetta Barrea (AQ)" autocomplete="address-level2">
+            <input id="fplace" type="text" placeholder="${t('form.placePlaceholder')}" autocomplete="address-level2">
           </span>
         </label>
 
         <div class="ffield">
-          <span class="flabel">Cosa produci</span>
+          <span class="flabel">${t('form.catsLabel')}</span>
           <div class="fchips" id="fcats">${catChips}</div>
         </div>
 
         <div class="ffield">
-          <span class="flabel">Foto (almeno una)</span>
+          <span class="flabel">${t('form.photosLabel')}</span>
           <div class="fphotos" id="fphotos">
             <div class="fthumb"><div class="photo" data-tone="pascolo"><div class="pgrain"></div></div><span class="fthumb-rm">${Icon('x', { size: 13, stroke: 2.4 })}</span></div>
             <div class="fthumb"><div class="photo" data-tone="uova"><div class="pgrain"></div></div><span class="fthumb-rm">${Icon('x', { size: 13, stroke: 2.4 })}</span></div>
-            <button type="button" class="fadd" id="fadd" aria-label="Aggiungi foto">
+            <button type="button" class="fadd" id="fadd" aria-label="${t('form.addPhotoAria')}">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             </button>
           </div>
         </div>
 
         <div class="ffield">
-          <span class="flabel">Contatti · cosa pubblicare</span>
+          <span class="flabel">${t('form.contactsLabel')}</span>
           <div class="fcontacts" id="fcontacts">
-            ${contactRow('message-circle', 'var(--verde)', 'WhatsApp', 'whatsapp', 'tel', 'Numero · es. 393331234567', true)}
-            ${contactRow('phone', 'var(--terra-deep)', 'Telefono', 'phone', 'tel', 'Es. +39 0864 12345', true)}
-            ${contactRow('mail', 'var(--muted2)', 'Email', 'email', 'email', 'Es. info@tuazienda.it', false, true)}
+            ${contactRow('message-circle', 'var(--verde)', 'WhatsApp', 'whatsapp', 'tel', t('form.phWhatsapp'), true)}
+            ${contactRow('phone', 'var(--terra-deep)', t('form.contactPhone'), 'phone', 'tel', t('form.phPhone'), true)}
+            ${contactRow('mail', 'var(--muted2)', t('form.contactEmail'), 'email', 'email', t('form.phEmail'), false, true)}
           </div>
         </div>
 
         <button type="button" class="fconsent" id="fconsent" role="checkbox" aria-checked="true">
           <span class="fcheck on" aria-hidden="true">${Icon('check', { size: 16, stroke: 2.6 })}</span>
-          <p>Acconsento alla pubblicazione dei contatti che ho selezionato sulla mia scheda.
-            <span class="req">Obbligatorio per ricevere richieste dai vicini.</span>
+          <p>${t('form.consentText')}
+            <span class="req">${t('form.consentReq')}</span>
           </p>
         </button>
 
@@ -157,7 +158,7 @@ export function Form() {
 
     <div class="frm-cta">
       <button type="button" class="btn btn-grad btn-block" id="fsubmit">
-        Invia candidatura ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.3 })}
+        ${t('form.submit')} ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.3 })}
       </button>
     </div>
   </div>`;
@@ -218,14 +219,14 @@ export function Form() {
       }
       submit.disabled = true;
       const orig = submit.innerHTML;
-      submit.textContent = 'Invio…';
+      submit.textContent = t('form.submitting');
       try {
         await submitCandidatura({ name, place, categories, contact });
         location.hash = '#/candidati/stato';
       } catch (e) {
         submit.disabled = false;
         submit.innerHTML = orig;
-        alert('Non siamo riusciti a inviare la candidatura: ' + (e.message || 'riprova') + '.');
+        alert(t('form.submitError', { reason: e.message || t('common.retry') }));
       }
     };
   }

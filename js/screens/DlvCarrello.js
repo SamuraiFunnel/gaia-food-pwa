@@ -1,5 +1,6 @@
 import { Icon } from '../icons.js';
 import { StatusBar, Photo, VerifyBadge } from '../components.js';
+import { t } from '../i18n.js';
 
 /* ---------------- DlvCarrello — Carrello multi-produttore (#/consegna/carrello) ----------------
    Prodotti raggruppati per produttore. Niente prezzi (regola prodotto).
@@ -30,7 +31,7 @@ export function DlvCarrello() {
   const countItems = () => cart.reduce((s, g) => s + g.items.reduce((a, it) => a + it.qty, 0), 0);
   const subtitle = () => {
     const np = countProducers(), ni = countItems();
-    return `${np} ${np === 1 ? 'produttore' : 'produttori'} · ${ni} ${ni === 1 ? 'prodotto' : 'prodotti'}`;
+    return `${np} ${np === 1 ? t('dlvCarrello.producerOne') : t('dlvCarrello.producerMany')} · ${ni} ${ni === 1 ? t('dlvCarrello.productOne') : t('dlvCarrello.productMany')}`;
   };
 
   const itemRow = (g, it) => `
@@ -40,10 +41,10 @@ export function DlvCarrello() {
         <div class="dc-iname">${it.name}</div>
         <div class="dc-iunit">${it.unit}</div>
       </div>
-      <div class="dc-step" role="group" aria-label="Quantità ${it.name}">
-        <button class="dc-mn" data-act="dec" aria-label="Togli uno">${Icon('x', { size: 15, color: 'var(--ink-soft)', stroke: 2.4 })}</button>
+      <div class="dc-step" role="group" aria-label="${t('dlvCarrello.qtyAria', { name: it.name })}">
+        <button class="dc-mn" data-act="dec" aria-label="${t('dlvCarrello.decAria')}">${Icon('x', { size: 15, color: 'var(--ink-soft)', stroke: 2.4 })}</button>
         <span class="dc-qty tnum" data-qty aria-live="polite">${it.qty}</span>
-        <button class="dc-pl" data-act="inc" aria-label="Aggiungi uno">${Icon('check', { size: 15, color: '#fff', stroke: 2.6 })}</button>
+        <button class="dc-pl" data-act="inc" aria-label="${t('dlvCarrello.incAria')}">${Icon('check', { size: 15, color: '#fff', stroke: 2.6 })}</button>
       </div>
     </div>`;
 
@@ -117,9 +118,9 @@ export function DlvCarrello() {
   <div class="screen no-nav">
     ${StatusBar()}
     <div class="dc-top">
-      <button class="iconbtn" data-back aria-label="Indietro">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
+      <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
       <div class="dc-ttl">
-        <h1 class="h1">Il tuo carrello</h1>
+        <h1 class="h1">${t('dlvCarrello.title')}</h1>
         <div class="dc-sub" data-sub>${subtitle()}</div>
       </div>
     </div>
@@ -130,16 +131,16 @@ export function DlvCarrello() {
           ${cart.map(group).join('')}
           <div class="dc-note">
             ${Icon('truck', { size: 20, color: 'var(--verde-deep)', stroke: 2 })}
-            <span>Un mezzo ritira da <strong>entrambi</strong> e porta tutto a casa tua.</span>
+            <span>${t('dlvCarrello.oneVehicle')}</span>
           </div>
         </div>
 
         <div class="dc-empty" data-empty style="display:none">
           <div class="e-ic">${Icon('bookmark', { size: 24, color: 'var(--faint)', stroke: 2 })}</div>
-          <div class="e-t">Il carrello è vuoto</div>
-          <p class="e-p">Hai tolto tutti i prodotti. Torna ai produttori vicini per scegliere cosa farti portare a casa.</p>
+          <div class="e-t">${t('dlvCarrello.emptyTitle')}</div>
+          <p class="e-p">${t('dlvCarrello.emptyBody')}</p>
           <button class="btn btn-grad btn-block" data-go-home>
-            ${Icon('map-pin', { size: 18, color: '#fff', stroke: 2 })} Scopri i produttori vicini
+            ${Icon('map-pin', { size: 18, color: '#fff', stroke: 2 })} ${t('dlvCarrello.emptyCta')}
           </button>
         </div>
       </div>
@@ -148,7 +149,7 @@ export function DlvCarrello() {
 
     <div class="cta-sticky" data-cta>
       <button class="btn btn-ink btn-block" data-next>
-        Scegli quando riceverlo ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.3 })}
+        ${t('dlvCarrello.next')} ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.3 })}
       </button>
     </div>
   </div>`;

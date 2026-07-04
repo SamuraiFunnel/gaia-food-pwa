@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar, Photo } from '../components.js';
 import { markHubSeen } from '../store.js';
+import { t } from '../i18n.js';
 
 /* ---------------- HUB D'INGRESSO — "Cosa vuoi fare?" ----------------
    Look = design-lab/hub/V1-velo-scuro.html ("velo scuro").
@@ -186,25 +187,25 @@ export function Hub() {
         <div class="hub-wrap">
 
           <section class="intro">
-            <span class="eyebrow2">Benvenuto in Gaia Food</span>
-            <h1 class="title">Cosa vuoi <em>fare?</em></h1>
-            <p class="subtitle">Tre modi per vivere il cibo vero. Per ora si parte dal primo.</p>
+            <span class="eyebrow2">${t('hub.welcome')}</span>
+            <h1 class="title">${t('hub.title')} <em>${t('hub.titleEm')}</em></h1>
+            <p class="subtitle">${t('hub.subtitle')}</p>
           </section>
 
           <section class="cards">
 
             <!-- 1 · ATTIVA → #/home -->
-            <a class="hcard active" href="#/home" data-link data-fn="#/home" aria-label="Trova un produttore — esplora la mappa">
+            <a class="hcard active" href="#/home" data-link data-fn="#/home" aria-label="${t('hub.card1Aria')}">
               <img class="bg" src="./assets/hub/trova.jpg" loading="lazy" decoding="async"
-                   alt="Pascolo all'alba con mucche e un casolare di pietra ai piedi della montagna">
+                   alt="${t('hub.card1Alt')}">
               <div class="scrim" aria-hidden="true"></div>
-              <span class="tag">${svgPinTag}Attiva</span>
+              <span class="tag">${svgPinTag}${t('hub.tagActive')}</span>
               <div class="body">
                 <div class="row">
                   <div>
-                    <h2>Trova un produttore</h2>
-                    <p>Esplora la mappa e scopri chi produce vero, vicino a te.</p>
-                    <span class="pickline"><span class="dot" aria-hidden="true"></span>Inizia da qui</span>
+                    <h2>${t('hub.card1Title')}</h2>
+                    <p>${t('hub.card1Desc')}</p>
+                    <span class="pickline"><span class="dot" aria-hidden="true"></span>${t('hub.card1Cta')}</span>
                   </div>
                   <span class="go" aria-hidden="true">${svgGo}</span>
                 </div>
@@ -213,31 +214,31 @@ export function Hub() {
 
             <!-- 2 · BLOCCATA → #/consegna/non-disponibile -->
             <a class="hcard locked" href="#/consegna/non-disponibile" data-link data-fn
-               aria-label="Ricevi a casa — in arrivo, non ancora disponibile">
+               aria-label="${t('hub.card2Aria')}">
               <img class="bg" src="./assets/hub/ricevi.jpg" loading="lazy" decoding="async"
-                   alt="Ape carico di casse di frutta, verdura e pane: la consegna a casa dai produttori">
+                   alt="${t('hub.card2Alt')}">
               <div class="veil" aria-hidden="true"></div>
               <div class="lockwrap" aria-hidden="true"><span class="lock">${svgLock}</span></div>
-              <span class="tag">${svgSpark}In arrivo</span>
+              <span class="tag">${svgSpark}${t('common.comingSoon')}</span>
               <div class="body">
-                <h2>Ricevi a casa</h2>
-                <p>Ordina dai produttori: un mezzo ritira e porta tutto a casa tua.</p>
-                <span class="soonline">${svgClock}Presto disponibile</span>
+                <h2>${t('hub.card2Title')}</h2>
+                <p>${t('hub.card2Desc')}</p>
+                <span class="soonline">${svgClock}${t('hub.soon')}</span>
               </div>
             </a>
 
             <!-- 3 · BLOCCATA → #/percorso -->
             <a class="hcard locked" href="#/percorso" data-link data-fn
-               aria-label="Lungo il Percorso — in arrivo, non ancora disponibile">
+               aria-label="${t('hub.card3Aria')}">
               <img class="bg" src="./assets/hub/percorso.jpg" loading="lazy" decoding="async"
-                   alt="Strada di campagna tra le colline verso la montagna al tramonto: il viaggio tra i produttori">
+                   alt="${t('hub.card3Alt')}">
               <div class="veil" aria-hidden="true"></div>
               <div class="lockwrap" aria-hidden="true"><span class="lock">${svgLock}</span></div>
-              <span class="tag">${svgSpark}In arrivo</span>
+              <span class="tag">${svgSpark}${t('common.comingSoon')}</span>
               <div class="body">
-                <h2>Lungo il Percorso</h2>
-                <p>Scegli le tappe e viaggia tra i produttori del territorio.</p>
-                <span class="soonline">${svgClock}Presto disponibile</span>
+                <h2>${t('hub.card3Title')}</h2>
+                <p>${t('hub.card3Desc')}</p>
+                <span class="soonline">${svgClock}${t('hub.soon')}</span>
               </div>
             </a>
 

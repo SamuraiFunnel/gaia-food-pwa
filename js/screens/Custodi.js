@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar } from '../components.js';
 import { custodiMe } from '../store.js';
+import { t } from '../i18n.js';
 
 /* ---------------- Referral "a semi" · due schermate distinte ----------------
    - 'cliente'    → "Invita un amico": pagina SEMPLICE (nessun credito/cruscotto).
@@ -11,25 +12,25 @@ import { custodiMe } from '../store.js';
    (Nota: un domani "Invita un amico" potrà avere una gamification a crediti in base a dove
     compra l'amico — da elaborare; per ora la pagina resta semplice.) */
 
-const SLAB = { radicato: 'Radicato', germoglio: 'Germoglio', seme: 'Seme' };
+const SLAB = () => ({ radicato: t('custodi.stateRadicato'), germoglio: t('custodi.stateGermoglio'), seme: t('custodi.stateSeme') });
 const stCls = { radicato: 'st-rad', germoglio: 'st-germ', seme: 'st-seme' };
 const eur = n => '€' + (Number(n) || 0).toFixed(2).replace(/\.00$/, '').replace('.', ',');
 
-const CFG = {
+const CFG = () => ({
   cliente: {
-    navTitle: 'Invita un amico',
-    shareCta: 'Invita un amico',
-    shareMsg: 'Ti invito in Gaia Food — il cibo vero dai produttori veri, vicino a te. Entra col mio seme:',
+    navTitle: t('settings.invite'),
+    shareCta: t('settings.invite'),
+    shareMsg: t('custodi.shareMsgCliente'),
   },
   produttore: {
-    navTitle: 'I Custodi di Gaia',
-    shareCta: 'Invita nel cerchio',
-    shareMsg: 'Entra in Gaia Food come Custode — cibo vero, filiera corta. Usa il mio seme:',
+    navTitle: t('settings.custodi'),
+    shareCta: t('custodi.shareCtaProduttore'),
+    shareMsg: t('custodi.shareMsgProduttore'),
   },
-};
+});
 
-const LINK_ROW = `<div class="cu-link" data-cu-copy role="button" tabindex="0" aria-label="Copia il tuo link">
-  ${Icon('sprout', { size: 17, color: 'var(--verde-deep)' })}<span class="lk" data-cu-linktext>il tuo link</span><span class="cp" data-cu-cplabel>COPIA</span></div>`;
+const LINK_ROW = () => `<div class="cu-link" data-cu-copy role="button" tabindex="0" aria-label="${t('custodi.copyAria')}">
+  ${Icon('sprout', { size: 17, color: 'var(--verde-deep)' })}<span class="lk" data-cu-linktext>${t('custodi.yourLink')}</span><span class="cp" data-cu-cplabel>${t('custodi.copy')}</span></div>`;
 
 /* ===== Vista SEMPLICE — "Invita un amico" (consumatore) ===== */
 function viewInvita(d, cfg) {
@@ -37,67 +38,68 @@ function viewInvita(d, cfg) {
   return `
     <div class="iv-hero">
       <div class="iv-emoji">🌿</div>
-      <h1>Invita un <em>amico</em></h1>
-      <p>Conosci qualcuno che merita cibo vero, dai produttori veri vicino a lui? Portalo dentro Gaia Food — è il regalo più semplice che puoi fargli.</p>
+      <h1>${t('custodi.inviteTitle')}</h1>
+      <p>${t('custodi.inviteIntro')}</p>
     </div>
     <button class="cu-share" type="button" data-cu-share>${Icon('share', { size: 18, color: '#fff' })} ${cfg.shareCta}</button>
-    ${LINK_ROW}
+    ${LINK_ROW()}
     <div class="iv-steps">
-      <div class="iv-step"><span class="iv-no">1</span><div><b>Condividi il tuo link</b><p>Su WhatsApp, nei messaggi, come preferisci.</p></div></div>
-      <div class="iv-step"><span class="iv-no">2</span><div><b>Il tuo amico entra</b><p>Scopre i produttori veri più vicini a lui.</p></div></div>
-      <div class="iv-step"><span class="iv-no">3</span><div><b>Mangiate meglio, insieme</b><p>Più siamo, più cresce il cibo vero sul territorio.</p></div></div>
+      <div class="iv-step"><span class="iv-no">1</span><div><b>${t('custodi.step1Title')}</b><p>${t('custodi.step1Desc')}</p></div></div>
+      <div class="iv-step"><span class="iv-no">2</span><div><b>${t('custodi.step2Title')}</b><p>${t('custodi.step2Desc')}</p></div></div>
+      <div class="iv-step"><span class="iv-no">3</span><div><b>${t('custodi.step3Title')}</b><p>${t('custodi.step3Desc')}</p></div></div>
     </div>
-    ${total ? `<div class="iv-count">${Icon('sprout', { size: 15, color: 'var(--verde-deep)' })} <b>${total}</b> ${total === 1 ? 'amico è entrato' : 'amici sono entrati'} col tuo invito. Grazie di cuore.</div>` : ''}
+    ${total ? `<div class="iv-count">${Icon('sprout', { size: 15, color: 'var(--verde-deep)' })} ${t(total === 1 ? 'custodi.countOne' : 'custodi.countMany', { n: total })}</div>` : ''}
     <div style="height:16px"></div>
   `;
 }
 
 /* ===== Vista CRUSCOTTO — "I Custodi di Gaia" (produttore) ===== */
 function personRow(p) {
-  const sub = p.state === 'radicato' ? 'Radicato · +€7,80/anno'
-    : p.state === 'germoglio' ? 'Germoglio · in maturazione' : 'Seme · appena iscritto';
+  const sub = p.state === 'radicato' ? t('custodi.personSubRadicato')
+    : p.state === 'germoglio' ? t('custodi.personSubGermoglio') : t('custodi.personSubSeme');
   return `<div class="cu-person"><span class="cu-av">${(p.name || '?')[0].toUpperCase()}</span>
     <div class="cu-pn"><b>${p.name}</b><span>${sub}</span></div>
-    <span class="cu-state ${stCls[p.state]}">${SLAB[p.state]}</span></div>`;
+    <span class="cu-state ${stCls[p.state]}">${SLAB()[p.state]}</span></div>`;
 }
 function viewGarden(d, cfg) {
   const c = d.counts || { seme: 0, germoglio: 0, radicato: 0, total: 0 };
   const cur = d.level ? d.level.min : 0, nx = d.next ? d.next.min : c.radicato;
   const pct = d.next ? Math.max(4, Math.min(100, Math.round(((c.radicato - cur) / Math.max(1, nx - cur)) * 100))) : 100;
   const goalLine = d.next
-    ? `Ancora <b style="color:var(--verde-deep)">${d.next.min - c.radicato} radicati</b> per <b>${d.next.label}</b> · commissione ricorrente finché restano attivi.`
-    : `Livello massimo. La commissione è ricorrente finché restano attivi.`;
+    ? t('custodi.goalNext', { n: d.next.min - c.radicato, label: d.next.label })
+    : t('custodi.goalMax');
   return `
     <div class="cu-hero">
       <div class="cu-emoji">🌱</div>
-      <h1>Il tuo giardino di Custode</h1>
-      <p>Porta clienti e produttori in Gaia Food: per ogni abbonato attivo ricevi una commissione reale, ricorrente.</p>
-      <span class="cu-lvl">${Icon('sprout', { size: 13, color: 'var(--verde-deep)' })} ${d.level ? d.level.label : 'Seme'}</span>
+      <h1>${t('custodi.gardenTitle')}</h1>
+      <p>${t('custodi.gardenIntro')}</p>
+      <span class="cu-lvl">${Icon('sprout', { size: 13, color: 'var(--verde-deep)' })} ${d.level ? d.level.label : t('custodi.levelSeme')}</span>
     </div>
     <div class="cu-garden">
-      <div class="cu-plant"><div class="e">🌳</div><b>${c.radicato}</b><span>Radicati</span></div>
-      <div class="cu-plant"><div class="e">🌿</div><b>${c.germoglio}</b><span>Germogli</span></div>
-      <div class="cu-plant"><div class="e">🌱</div><b>${c.seme}</b><span>Semi</span></div>
+      <div class="cu-plant"><div class="e">🌳</div><b>${c.radicato}</b><span>${t('custodi.plantRadicati')}</span></div>
+      <div class="cu-plant"><div class="e">🌿</div><b>${c.germoglio}</b><span>${t('custodi.plantGermogli')}</span></div>
+      <div class="cu-plant"><div class="e">🌱</div><b>${c.seme}</b><span>${t('custodi.plantSemi')}</span></div>
     </div>
     <div class="cu-card">
       <div class="cu-creditrow">
-        <div><div class="cu-eyebrow">Commissione maturata</div><div class="cu-credit">${eur(d.commission || 0)}</div></div>
-        <div style="text-align:right"><div style="font-size:11px;color:var(--muted)">livello</div><b style="font-family:var(--serif);color:var(--ink)">${d.level ? d.level.label : 'Seme'}</b></div>
+        <div><div class="cu-eyebrow">${t('custodi.commissionLabel')}</div><div class="cu-credit">${eur(d.commission || 0)}</div></div>
+        <div style="text-align:right"><div style="font-size:11px;color:var(--muted)">${t('custodi.levelSmall')}</div><b style="font-family:var(--serif);color:var(--ink)">${d.level ? d.level.label : t('custodi.levelSeme')}</b></div>
       </div>
       <div class="cu-bar"><i style="width:${pct}%"></i></div>
       <div class="cu-goal">${goalLine}</div>
     </div>
     <button class="cu-share" type="button" data-cu-share>${Icon('share', { size: 18, color: '#fff' })} ${cfg.shareCta}</button>
-    ${LINK_ROW}
-    <div class="cu-sec-t">Le tue persone</div>
+    ${LINK_ROW()}
+    <div class="cu-sec-t">${t('custodi.peopleTitle')}</div>
     ${c.total ? `<div class="cu-people">${(d.people || []).map(personRow).join('')}</div>`
-      : `<div class="cu-empty">Il tuo giardino è ancora pieno di terra buona. <b>Pianta il primo seme</b>: invita qualcuno e guardalo crescere.</div>`}
+      : `<div class="cu-empty">${t('custodi.gardenEmpty')}</div>`}
     <div style="height:16px"></div>
   `;
 }
 
 export function Custodi(mode = 'cliente') {
-  const cfg = CFG[mode] || CFG.cliente;
+  const cfgAll = CFG();
+  const cfg = cfgAll[mode] || cfgAll.cliente;
   const render = mode === 'produttore' ? viewGarden : viewInvita;
   return {
     html: `<div class="screen no-nav custodi">
@@ -160,12 +162,12 @@ export function Custodi(mode = 'cliente') {
       </style>
       ${StatusBar()}
       <div class="toprow">
-        <button class="iconbtn" data-back aria-label="Torna al profilo">${Icon('arrow-left', { size: 18 })}</button>
+        <button class="iconbtn" data-back aria-label="${t('custodi.backAria')}">${Icon('arrow-left', { size: 18 })}</button>
         <span class="loc" style="flex:1;justify-content:center">${Icon('sprout', { size: 17, color: 'var(--verde)' })}<b>${cfg.navTitle}</b></span>
         <span style="width:40px;flex:none"></span>
       </div>
       <div class="scroll" data-cu-root>
-        <div class="cu-load">Un attimo…</div>
+        <div class="cu-load">${t('custodi.loading')}</div>
       </div>
     </div>`,
     onMount(el) {
@@ -173,7 +175,7 @@ export function Custodi(mode = 'cliente') {
       const root = el.querySelector('[data-cu-root]');
       const flash = (node, txt) => { const o = node.textContent; node.textContent = txt; setTimeout(() => { node.textContent = o; }, 1400); };
       const copy = (text, label) => {
-        const done = () => label && flash(label, 'COPIATO ✓');
+        const done = () => label && flash(label, t('custodi.copied'));
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => {});
         else { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (_) {} ta.remove(); }
       };
@@ -191,7 +193,7 @@ export function Custodi(mode = 'cliente') {
         const linkEl = root.querySelector('[data-cu-copy]');
         if (linkEl) { const go = () => copy(shareUrl, cplabel); linkEl.onclick = go; linkEl.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }; }
       }).catch(err => {
-        root.innerHTML = `<div class="cu-empty" style="margin-top:20px">Non riesco a caricare la pagina ora (${err.message || 'riprova'}). Controlla la connessione e riprova.</div>`;
+        root.innerHTML = `<div class="cu-empty" style="margin-top:20px">${t('custodi.loadError', { msg: err.message || t('common.retry') })}</div>`;
       });
     },
   };

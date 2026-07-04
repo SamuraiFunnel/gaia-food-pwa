@@ -1,27 +1,28 @@
 import { Icon } from '../icons.js';
 import { StatusBar, Photo, BottomNav } from '../components.js';
 import { getState } from '../store.js';
+import { t } from '../i18n.js';
 
 /* ---------------- LUNGO IL PERCORSO (Gaia Road) — in arrivo ---------------- */
 export function Percorso() {
   const z = getState().zone;
-  const comune = (z && z.comuni && z.comuni[0]) || 'la tua zona';
+  const comune = (z && z.comuni && z.comuni[0]) || t('percorso.yourZone');
 
   const roadmap = [
     {
       glyph: 'navigation',
-      title: 'Imposti partenza e arrivo',
-      text: 'Scegli da dove parti e dove vai: il viaggio diventa il filo che lega i produttori.',
+      title: t('percorso.step1Title'),
+      text: t('percorso.step1Text'),
     },
     {
       glyph: 'map-pin',
-      title: 'Vedi chi è vero lungo la strada',
-      text: 'Solo produttori verificati sul campo, ordinati per quanto poco devi deviare.',
+      title: t('percorso.step2Title'),
+      text: t('percorso.step2Text'),
     },
     {
       glyph: 'check-circle',
-      title: 'Ti fermi dove ha senso',
-      text: 'Una sosta breve, cibo vero a portata di mano. Nessuna corsa, nessun intermediario.',
+      title: t('percorso.step3Title'),
+      text: t('percorso.step3Text'),
     },
   ];
 
@@ -58,14 +59,14 @@ export function Percorso() {
       <div class="scroll">
         <div class="pad mt8">
           <div class="segment">
-            <button data-go="#/home">Trova Vicino</button>
-            <button class="active">Lungo il Percorso</button>
+            <button data-go="#/home">${t('percorso.segFindNearby')}</button>
+            <button class="active">${t('percorso.segAlongRoute')}</button>
           </div>
         </div>
 
         <div class="pad mt16">
           <div style="position:relative">
-            ${Photo('paesaggio', 'illustrazione · strada di montagna, Abruzzo', 'pc-roadmap-photo')}
+            ${Photo('paesaggio', t('percorso.photoLabel'), 'pc-roadmap-photo')}
             <svg class="pc-road-line" viewBox="0 0 356 220" preserveAspectRatio="none" aria-hidden="true">
               <path d="M30 188 C90 144 70 106 140 92 C210 78 200 56 300 38" fill="none"
                 stroke="#FBF9F5" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 9" opacity=".9"></path>
@@ -76,13 +77,13 @@ export function Percorso() {
         </div>
 
         <div class="pad mt22">
-          <span class="pc-eyebrow">${Icon('clock', { size: 13, color: 'var(--terra-deep)' })} In arrivo · Gaia Road</span>
-          <h1 class="h1 mt12">Il viaggio che passa dal <em>cibo vero.</em></h1>
-          <p class="story mt8" style="font-size:15px">Imposta partenza e arrivo: ti mostriamo i produttori veri lungo la tua strada. Ci stiamo lavorando, un comune alla volta.</p>
+          <span class="pc-eyebrow">${Icon('clock', { size: 13, color: 'var(--terra-deep)' })} ${t('common.comingSoon')} · Gaia Road</span>
+          <h1 class="h1 mt12">${t('percorso.heroTitle')}</h1>
+          <p class="story mt8" style="font-size:15px">${t('percorso.heroBody')}</p>
         </div>
 
         <div class="pad mt22">
-          <div class="section-t" style="margin-bottom:6px">Come funzionerà</div>
+          <div class="section-t" style="margin-bottom:6px">${t('percorso.howItWorks')}</div>
           <div>
             ${roadmap.map(s => `
               <div class="pc-step">
@@ -98,16 +99,16 @@ export function Percorso() {
         <div class="pad mt16">
           <div class="pc-notice">
             <span style="flex:none;color:var(--celeste-deep);margin-top:1px">${Icon('info', { size: 18, color: 'var(--celeste-deep)' })}</span>
-            <div class="pc-notice-t">Per ora il percorso non è ancora attivo qui. Intanto puoi <b>trovare i produttori vicino a te</b> nella scheda Trova Vicino.</div>
+            <div class="pc-notice-t">${t('percorso.notice')}</div>
           </div>
         </div>
 
         <div class="pad mt16">
           <button class="btn btn-outline btn-block" data-notify aria-pressed="false">
-            ${Icon('bell', { size: 19, color: 'var(--verde-deep)' })} Avvisami quando parte
+            ${Icon('bell', { size: 19, color: 'var(--verde-deep)' })} ${t('percorso.notifyMe')}
           </button>
           <a class="btn btn-block mt8" href="#/home" data-link style="color:var(--muted);font-weight:600">
-            Intanto trova vicino a te ${Icon('chevron-right', { size: 16, color: 'var(--muted)' })}
+            ${t('percorso.meanwhileFindNearby')} ${Icon('chevron-right', { size: 16, color: 'var(--muted)' })}
           </a>
         </div>
         <div style="height:24px"></div>
@@ -127,7 +128,7 @@ export function Percorso() {
           notify.style.borderColor = 'var(--verde)';
           notify.style.background = 'var(--verde-pale)';
           notify.style.color = 'var(--verde-deep)';
-          notify.innerHTML = `${Icon('check-circle', { size: 19, color: 'var(--verde-deep)' })} Ti avviseremo quando parte`;
+          notify.innerHTML = `${Icon('check-circle', { size: 19, color: 'var(--verde-deep)' })} ${t('percorso.notifyDone')}`;
         };
       }
     },

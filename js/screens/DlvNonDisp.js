@@ -2,6 +2,7 @@ import { Icon } from '../icons.js';
 import { StatusBar, Photo } from '../components.js';
 import { getState, results } from '../store.js';
 import { openContact } from '../screens.js';
+import { t } from '../i18n.js';
 
 /**
  * Consegna · non disponibile (rotta #/consegna/non-disponibile).
@@ -19,7 +20,7 @@ export function DlvNonDisp() {
   // produttore verificato più vicino: è il "ritiro / contatto" naturale del rimedio.
   // results() è già ordinato per km; teniamo il primo (se manca, fallback gestito sotto).
   const near = results()[0] || null;
-  const zona = s.zone?.label || 'la tua zona';
+  const zona = s.zone?.label || t('dlvNonDisp.yourZone');
 
   const html = `
   <style>
@@ -68,39 +69,39 @@ export function DlvNonDisp() {
   <div class="screen no-nav">
     ${StatusBar()}
     <div class="toprow">
-      <button class="iconbtn" data-back type="button" aria-label="Indietro">${Icon('arrow-left', { size: 19, stroke: 2 })}</button>
+      <button class="iconbtn" data-back type="button" aria-label="${t('common.back')}">${Icon('arrow-left', { size: 19, stroke: 2 })}</button>
       <span style="width:42px"></span>
     </div>
 
-    <div class="nd-art" role="img" aria-label="Illustrazione: il mezzo sulla strada">
+    <div class="nd-art" role="img" aria-label="${t('dlvNonDisp.artAria')}">
       ${Photo('lavoro', '', '')}
       <span class="nd-badge">${Icon('truck', { size: 32, color: 'var(--verde-deep)', stroke: 2 })}</span>
     </div>
 
     <div class="nd-head">
-      <h1>La consegna non è<br>ancora <em>qui.</em></h1>
-      <p class="nd-sub">Non è ancora attiva la consegna a casa in ${zona}. Intanto puoi andare a ritirare di persona o contattare il produttore.</p>
+      <h1>${t('dlvNonDisp.title')}</h1>
+      <p class="nd-sub">${t('dlvNonDisp.sub', { zona })}</p>
     </div>
 
     <div class="nd-note" role="note">
       <span class="nd-note-ic">${Icon('info', { size: 17, color: 'var(--terra-deep)', stroke: 1.9 })}</span>
-      <span class="nd-note-tx"><b>Perché non c'è ancora.</b> Stiamo costruendo i giri del mezzo nella tua zona, restando vicini ai produttori. Non vogliamo promettere una consegna che non possiamo mantenere.</span>
+      <span class="nd-note-tx">${t('dlvNonDisp.note')}</span>
     </div>
 
     <div class="nd-foot">
       ${near ? `
       <button class="nd-cta primary" data-contact type="button">
-        ${Icon('navigation', { size: 18, color: '#fff', stroke: 2.1 })} Vai a ritirare / Contatta
+        ${Icon('navigation', { size: 18, color: '#fff', stroke: 2.1 })} ${t('dlvNonDisp.pickupOrContact')}
       </button>
       <button class="nd-cta notify" data-notify type="button">
-        ${Icon('bell', { size: 18, color: 'var(--verde-deep)', stroke: 2 })} <span data-notify-label>Avvisami quando parte la consegna</span>
+        ${Icon('bell', { size: 18, color: 'var(--verde-deep)', stroke: 2 })} <span data-notify-label>${t('dlvNonDisp.notify')}</span>
       </button>
       ` : `
       <button class="nd-cta solo" data-home type="button">
-        ${Icon('map-pin', { size: 18, color: '#fff', stroke: 2.1 })} Vai ai produttori vicini
+        ${Icon('map-pin', { size: 18, color: '#fff', stroke: 2.1 })} ${t('dlvNonDisp.goToProducers')}
       </button>
       <button class="nd-cta notify" data-notify type="button">
-        ${Icon('bell', { size: 18, color: 'var(--verde-deep)', stroke: 2 })} <span data-notify-label>Avvisami quando parte la consegna</span>
+        ${Icon('bell', { size: 18, color: 'var(--verde-deep)', stroke: 2 })} <span data-notify-label>${t('dlvNonDisp.notify')}</span>
       </button>
       `}
     </div>
@@ -123,7 +124,7 @@ export function DlvNonDisp() {
       notify.classList.add('done');
       notify.querySelector('svg')?.remove();
       notify.insertAdjacentHTML('afterbegin', Icon('check-circle', { size: 18, color: 'var(--verde-deep)', stroke: 2 }));
-      if (lbl) lbl.textContent = 'Ti avviseremo appena parte';
+      if (lbl) lbl.textContent = t('dlvNonDisp.notifyDone');
     };
   }
 

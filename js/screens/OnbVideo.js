@@ -1,5 +1,6 @@
 import { Icon } from '../icons.js';
 import { StatusBar, VideoBlock } from '../components.js';
+import { t } from '../i18n.js';
 
 /* ===== ONBOARDING — "Conosci Gaia Food" (rotta #/onboarding) =====
    Card video 16:9 + intro editoriale + 3 valori. CTA -> #/home, "Salta" -> #/home.
@@ -8,18 +9,18 @@ export function OnbVideo() {
   const values = [
     {
       icon: 'check-circle', tint: 'tv-verde',
-      title: 'Verificati sul campo',
-      desc: "Visite di persona, con la data dell'ultima ispezione su ogni scheda.",
+      title: t('onbVideo.val1Title'),
+      desc: t('onbVideo.val1Desc'),
     },
     {
       icon: 'leaf', tint: 'tv-terra',
-      title: 'Quattro alimenti veri',
-      desc: 'Latte, uova, olio e grano. Si parte dall’Abruzzo, dalla rete del territorio.',
+      title: t('onbVideo.val2Title'),
+      desc: t('onbVideo.val2Desc'),
     },
     {
       icon: 'map-pin', tint: 'tv-celeste',
-      title: 'Sulla mappa, vicino a te',
-      desc: 'Li trovi per distanza, li contatti o vai a ritirare. Dove attivo, te lo portiamo a casa.',
+      title: t('onbVideo.val3Title'),
+      desc: t('onbVideo.val3Desc'),
     },
   ];
 
@@ -63,16 +64,16 @@ export function OnbVideo() {
       ${StatusBar()}
       <div class="onb-top">
         <div>
-          <div class="eyebrow" style="color:var(--terra-deep)">Come funziona</div>
-          <h1 class="h1 mt8">Conosci <em>Gaia&nbsp;Food</em></h1>
+          <div class="eyebrow" style="color:var(--terra-deep)">${t('onbVideo.eyebrow')}</div>
+          <h1 class="h1 mt8">${t('onbVideo.title')} <em>Gaia&nbsp;Food</em></h1>
         </div>
-        <button class="onb-skip" data-skip type="button">Salta</button>
+        <button class="onb-skip" data-skip type="button">${t('onbVideo.skip')}</button>
       </div>
 
       <div class="onb-video">
         ${VideoBlock({
-          type: 'Presentazione',
-          title: 'Il cibo vero, spiegato in un minuto',
+          type: t('onbVideo.videoType'),
+          title: t('onbVideo.videoTitle'),
           duration: '1:20',
           tone: 'paesaggio',
           state: 'ready',
@@ -80,16 +81,16 @@ export function OnbVideo() {
       </div>
 
       <div class="onb-read">
-        <span class="eyebrow">Preferisci leggere?</span>
+        <span class="eyebrow">${t('onbVideo.readInstead')}</span>
         <i></i>
       </div>
-      <p class="onb-intro">Gaia Food ti fa trovare <strong>produttori veri di cibo</strong>, verificati di persona sul campo dal nostro tecnologo alimentare, <strong>vicino a casa</strong>. Ogni produttore è una storia &mdash; <em>presentazione, storia, metodo</em>: tre video per conoscerlo davvero, non una riga d’elenco.</p>
+      <p class="onb-intro">${t('onbVideo.intro')}</p>
 
       <div class="onb-vals">${valueRows}</div>
 
       <div class="onb-cta">
         <button class="btn btn-grad btn-block" data-go type="button">
-          Trova il cibo vero ${Icon('chevron-right', { size: 19, color: '#fff', stroke: 2.3 })}
+          ${t('onbVideo.cta')} ${Icon('chevron-right', { size: 19, color: '#fff', stroke: 2.3 })}
         </button>
       </div>
     </div>`,

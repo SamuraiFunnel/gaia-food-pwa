@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar } from '../components.js';
 import { getState } from '../store.js';
+import { t } from '../i18n.js';
 
 /* ---------------- CONSEGNA · Slot (rotta #/consegna/slot) ----------------
    Slot/giorno di consegna. La consegna è "in arrivo": niente prezzi, niente
@@ -29,10 +30,13 @@ export function DlvSlot() {
   // selezione iniziale: nessun giorno scelto, l'utente sceglie.
   const sel = { day: null, band: null };
 
+  const dayLabel = (d) => t(`dlvSlot.day.${d.id}`);
+  const bandLabel = (b) => t(`dlvSlot.band.${b.id}`);
+
   const dayChips = () => days.map(d => `
     <button class="ds-day" role="radio" aria-checked="false" data-day="${d.id}"
-      aria-label="Giro di ${d.label} ${d.date}">
-      <span class="ds-day-l">${d.label}</span>
+      aria-label="${t('dlvSlot.dayAria', { day: dayLabel(d), date: d.date })}">
+      <span class="ds-day-l">${dayLabel(d)}</span>
       <span class="ds-day-d tnum">${d.date}</span>
     </button>`).join('');
 
@@ -42,14 +46,14 @@ export function DlvSlot() {
     return `
     <button class="ds-band${isFull ? ' full' : ''}" role="radio"
       aria-checked="false" ${isFull ? 'aria-disabled="true" disabled' : ''}
-      data-band="${b.id}" aria-label="${b.label}, ${b.time}${isFull ? ', slot pieno' : ''}">
+      data-band="${b.id}" aria-label="${t('dlvSlot.bandAria', { label: bandLabel(b), time: b.time })}${isFull ? t('dlvSlot.bandAriaFullSuffix') : ''}">
       <span class="ds-band-main">
-        <span class="ds-band-l">${b.label}</span>
+        <span class="ds-band-l">${bandLabel(b)}</span>
         <span class="ds-band-t tnum">${b.time}</span>
       </span>
       <span class="ds-band-end">
         ${isFull
-          ? `<span class="ds-tag full">${Icon('x', { size: 13, color: 'currentColor', stroke: 2.4 })} Slot pieno</span>`
+          ? `<span class="ds-tag full">${Icon('x', { size: 13, color: 'currentColor', stroke: 2.4 })} ${t('dlvSlot.slotFull')}</span>`
           : `<span class="ds-radio"></span>`}
       </span>
     </button>`;
@@ -111,42 +115,42 @@ export function DlvSlot() {
   <div class="screen no-nav">
     ${StatusBar()}
     <div class="toprow">
-      <button class="iconbtn" data-back aria-label="Indietro">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
+      <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
       <span></span>
     </div>
     <div class="scroll">
       <div class="pad">
-        <h1 class="h1">Quando vuoi <em>riceverlo?</em></h1>
-        <p class="ds-sub">La consegna a domicilio è in arrivo nella tua zona. Scegli il giro del mezzo che ti torna meglio.</p>
+        <h1 class="h1">${t('dlvSlot.title')}</h1>
+        <p class="ds-sub">${t('dlvSlot.subtitle')}</p>
       </div>
 
       <div class="pad mt16">
         <div class="ds-banner">
           <div class="ds-b-ic">${Icon('truck', { size: 22, color: 'var(--celeste-deep)', stroke: 2 })}</div>
           <div>
-            <div class="ds-b-t">Consegna in arrivo</div>
+            <div class="ds-b-t">${t('dlvSlot.bannerTitle')}</div>
             <div class="ds-b-p">${zone.label}</div>
           </div>
         </div>
         <div class="ds-route">
           ${Icon('navigation', { size: 15, color: 'var(--muted2)', stroke: 2 })}
-          <span>Il mezzo passa nella tua zona <strong>mar · gio · sab</strong></span>
+          <span>${t('dlvSlot.route')}</span>
         </div>
       </div>
 
       <div class="pad mt22">
-        <div class="eyebrow" style="margin-bottom:11px">Giro del mezzo</div>
-        <div class="ds-days" role="radiogroup" aria-label="Giorno di consegna" data-days>
+        <div class="eyebrow" style="margin-bottom:11px">${t('dlvSlot.eyebrowDays')}</div>
+        <div class="ds-days" role="radiogroup" aria-label="${t('dlvSlot.daysAria')}" data-days>
           ${dayChips()}
         </div>
       </div>
 
       <div class="pad mt22">
-        <div class="eyebrow" style="margin-bottom:11px">Fascia oraria</div>
-        <div role="radiogroup" aria-label="Fascia oraria" data-bands>
+        <div class="eyebrow" style="margin-bottom:11px">${t('dlvSlot.eyebrowBands')}</div>
+        <div role="radiogroup" aria-label="${t('dlvSlot.eyebrowBands')}" data-bands>
           <div class="ds-empty" data-bands-empty>
             ${Icon('clock', { size: 18, color: 'var(--muted2)', stroke: 2 })}
-            <span>Scegli prima un giorno qui sopra: ti mostriamo le fasce libere di quel giro.</span>
+            <span>${t('dlvSlot.pickDayFirst')}</span>
           </div>
         </div>
       </div>
@@ -155,9 +159,9 @@ export function DlvSlot() {
     </div>
 
     <div class="cta-sticky" style="flex-direction:column;gap:6px;align-items:stretch">
-      <p class="ds-cta-hint" data-hint>Seleziona giorno e fascia per continuare.</p>
+      <p class="ds-cta-hint" data-hint>${t('dlvSlot.hintPickBoth')}</p>
       <button class="btn btn-grad btn-block" data-next disabled style="opacity:.5">
-        Vai al riepilogo ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.2 })}
+        ${t('dlvSlot.next')} ${Icon('chevron-right', { size: 18, color: '#fff', stroke: 2.2 })}
       </button>
     </div>
   </div>`;
@@ -177,11 +181,11 @@ export function DlvSlot() {
       if (ready) {
         const d = days.find(x => x.id === sel.day);
         const b = bands.find(x => x.id === sel.band);
-        hint.textContent = `${d.label} ${d.date} · ${b.time}`;
+        hint.textContent = `${dayLabel(d)} ${d.date} · ${b.time}`;
       } else if (sel.day) {
-        hint.textContent = 'Scegli una fascia oraria per continuare.';
+        hint.textContent = t('dlvSlot.hintPickBand');
       } else {
-        hint.textContent = 'Seleziona giorno e fascia per continuare.';
+        hint.textContent = t('dlvSlot.hintPickBoth');
       }
     };
 
@@ -192,7 +196,7 @@ export function DlvSlot() {
         bandsWrap.innerHTML = `
           <div class="ds-empty">
             ${Icon('clock', { size: 18, color: 'var(--muted2)', stroke: 2 })}
-            <span>Scegli prima un giorno qui sopra: ti mostriamo le fasce libere di quel giro.</span>
+            <span>${t('dlvSlot.pickDayFirst')}</span>
           </div>`;
         return;
       }

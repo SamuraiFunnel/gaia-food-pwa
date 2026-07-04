@@ -1,16 +1,17 @@
 import { Icon } from '../icons.js';
 import { StatusBar, Photo } from '../components.js';
+import { t } from '../i18n.js';
 
 export function Candidati() {
   const STEPS = [
-    { n: '01', t: 'Ti candidi, in due minuti', d: 'Dati azienda, categorie, qualche foto.' },
-    { n: '02', t: 'Il tecnologo alimentare viene a verificarti', d: 'Una visita di persona, sul campo.' },
-    { n: '03', t: 'Vai online col bollino', d: 'Verificato sul campo, con la data.' },
+    { n: '01', t: t('candidati.step1.title'), d: t('candidati.step1.desc') },
+    { n: '02', t: t('candidati.step2.title'), d: t('candidati.step2.desc') },
+    { n: '03', t: t('candidati.step3.title'), d: t('candidati.step3.desc') },
   ];
   const CERCHIAMO = [
-    'Produzione vera, niente intensivo',
-    'Disponibilità alla visita del tecnologo alimentare',
-    'Trasparenza sul metodo',
+    t('candidati.cerchiamo1'),
+    t('candidati.cerchiamo2'),
+    t('candidati.cerchiamo3'),
   ];
 
   const html = `
@@ -51,21 +52,21 @@ export function Candidati() {
       ${Photo('pascolo', '', '')}
       <div class="cnd-hero-stack">
         ${StatusBar(true)}
-        <button class="cnd-back" data-back aria-label="Indietro">
+        <button class="cnd-back" data-back aria-label="${t('common.back')}">
           ${Icon('arrow-left', { size: 20, color: '#fff', stroke: 2.1 })}
         </button>
         <div class="cnd-hero-txt">
-          <div class="cnd-eyebrow">Per chi produce davvero</div>
-          <h1 class="cnd-h1">Tu produci. <em>Noi</em> portiamo i clienti.</h1>
+          <div class="cnd-eyebrow">${t('candidati.eyebrow')}</div>
+          <h1 class="cnd-h1">${t('candidati.heroTitle')}</h1>
         </div>
       </div>
     </div>
 
     <div class="scroll">
-      <p class="cnd-lead">Le persone vogliono cibo vero ma non sanno dove trovarti. <strong>Noi sì</strong> — e non devi fare marketing.</p>
+      <p class="cnd-lead">${t('candidati.lead')}</p>
 
       <div class="cnd-sec">
-        <h2 class="cnd-sec-t">Come funziona</h2>
+        <h2 class="cnd-sec-t">${t('candidati.comeFunziona')}</h2>
         <div class="cnd-steps">
           ${STEPS.map(s => `
             <div class="cnd-step">
@@ -79,7 +80,7 @@ export function Candidati() {
       </div>
 
       <div class="cnd-sec">
-        <h2 class="cnd-sec-t">Cosa cerchiamo</h2>
+        <h2 class="cnd-sec-t">${t('candidati.cosaCerchiamo')}</h2>
         <div class="cnd-list">
           ${CERCHIAMO.map(c => `
             <div class="cnd-li">${Icon('check-circle', { size: 19, color: '#16A34A', stroke: 2.1 })}<span>${c}</span></div>`).join('')}
@@ -87,8 +88,8 @@ export function Candidati() {
       </div>
 
       <div class="cnd-cta">
-        <button class="btn-grad" data-go-form>Candidati ora</button>
-        <div class="cnd-sub">Nessun costo per candidarsi. Mai.</div>
+        <button class="btn-grad" data-go-form>${t('candidati.ctaButton')}</button>
+        <div class="cnd-sub">${t('candidati.ctaSub')}</div>
       </div>
     </div>
   </div>`;

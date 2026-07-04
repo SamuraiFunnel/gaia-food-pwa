@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar, Photo, VerifyBadge, BottomNav } from '../components.js';
 import { results } from '../store.js';
+import { t } from '../i18n.js';
 
 const km = n => String(n).replace('.', ',');
 // data verifica compatta: "12 giugno 2026" -> "12 giu"
@@ -31,7 +32,7 @@ export function CiboVero() {
   const card = ({ p, v }) => {
     const vShort = { ...p.verify, date: shortDate(p.verify.date) };
     return `
-    <a class="cv-card" href="#/video/${p.id}" data-link aria-label="Guarda: ${v.title}">
+    <a class="cv-card" href="#/video/${p.id}" data-link aria-label="${t('cibovero.watchAria', { title: v.title })}">
       <div class="cv-poster">
         ${Photo(v.tone, `${v.type} · ${v.title}`, 'cv-photo')}
         <div class="cv-play">${Icon('play', { size: 23, color: '#fff' })}</div>
@@ -45,7 +46,7 @@ export function CiboVero() {
           <span class="cv-place">${p.place} · <b class="tnum">${km(p.km)} km</b></span>
         </div>
         <button class="cv-mappa" data-mappa="${p.id}">
-          ${Icon('map-pin', { size: 15, color: 'var(--verde-deep)', stroke: 2.1 })} Trova il produttore sulla mappa
+          ${Icon('map-pin', { size: 15, color: 'var(--verde-deep)', stroke: 2.1 })} ${t('cibovero.findOnMap')}
         </button>
       </div>
     </a>`;
@@ -54,10 +55,9 @@ export function CiboVero() {
   const empty = `
     <div class="cv-empty">
       ${Icon('play', { size: 38, color: 'var(--faint)' })}
-      <div class="cv-empty-t serif">Ancora nessuna storia da guardare</div>
-      <p class="muted">Stiamo girando le prime visite ai produttori verificati della zona.
-        Intanto puoi conoscerli dalla mappa.</p>
-      <a class="btn btn-grad btn-block mt12" href="#/home" data-link>${Icon('map-pin', { size: 17, color: '#fff' })} Vai ai produttori vicini</a>
+      <div class="cv-empty-t serif">${t('cibovero.emptyTitle')}</div>
+      <p class="muted">${t('cibovero.emptyBody')}</p>
+      <a class="btn btn-grad btn-block mt12" href="#/home" data-link>${Icon('map-pin', { size: 17, color: '#fff' })} ${t('cibovero.goToProducers')}</a>
     </div>`;
 
   const list = feed.length
@@ -97,16 +97,16 @@ export function CiboVero() {
       ${StatusBar()}
       <div class="toprow">
         <span class="loc">${Icon('play', { size: 16, color: 'var(--verde)' })}<b>Cibo Vero</b></span>
-        <a class="iconbtn" href="#/profilo" data-link aria-label="Profilo">${Icon('user', { size: 18 })}</a>
+        <a class="iconbtn" href="#/profilo" data-link aria-label="${t('cibovero.profileAria')}">${Icon('user', { size: 18 })}</a>
       </div>
       <div class="scroll">
         <div class="pad mt8">
           <div class="eyebrow">Cibo Vero</div>
-          <h1 class="h1 mt8">Guarda chi c'è <em>dietro</em> il cibo.</h1>
+          <h1 class="h1 mt8">${t('cibovero.h1')}</h1>
         </div>
         <div class="pad mt22">
           <div class="gap8" style="gap:18px" id="cv-list">${list}</div>
-          ${feed.length ? `<div class="cv-foot mt16">Altre storie in arrivo — stiamo girando le prime visite.</div>` : ''}
+          ${feed.length ? `<div class="cv-foot mt16">${t('cibovero.moreSoon')}</div>` : ''}
         </div>
         <div style="height:24px"></div>
       </div>

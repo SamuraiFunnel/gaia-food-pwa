@@ -2,6 +2,7 @@ import { Icon } from '../icons.js';
 import { StatusBar, VerifyBadge } from '../components.js';
 import { openContact } from '../screens.js';
 import { getState, lastCandidatura } from '../store.js';
+import { t } from '../i18n.js';
 
 export function StatoCandidatura() {
   // Dati della candidatura realmente inviata (salvata da submitCandidatura).
@@ -10,30 +11,30 @@ export function StatoCandidatura() {
   const cats = getState().categories || [];
   const catLabel = id => (cats.find(c => c.id === id) || {}).label || id;
   const cand = {
-    azienda: (sub && sub.name) || 'La tua azienda',
-    luogo: (sub && sub.place) || 'Da definire',
+    azienda: (sub && sub.name) || t('statoCandidatura.defaultAzienda'),
+    luogo: (sub && sub.place) || t('statoCandidatura.daDefinire'),
     categorie: (sub && Array.isArray(sub.categories) && sub.categories.length)
       ? sub.categories.map(catLabel).join(', ')
-      : 'Da definire',
+      : t('statoCandidatura.daDefinire'),
   };
 
   // Timeline: lo stato corrente e' "visita in programma" (step 2 attivo).
   const STEPS = [
     {
       state: 'done',
-      t: 'Candidatura ricevuta',
-      meta: 'Abbiamo i tuoi dati e le foto',
+      t: t('statoCandidatura.step1Title'),
+      meta: t('statoCandidatura.step1Meta'),
     },
     {
       state: 'active',
-      t: 'Visita del tecnologo alimentare in programma',
-      meta: 'Il tecnologo alimentare verifica di persona, sul campo',
-      when: '~ settimana del 30 giu',
+      t: t('statoCandidatura.step2Title'),
+      meta: t('statoCandidatura.step2Meta'),
+      when: t('statoCandidatura.step2When'),
     },
     {
       state: 'todo',
-      t: 'Pubblicazione col bollino',
-      meta: 'Online con "Verificato sul campo" e la data',
+      t: t('statoCandidatura.step3Title'),
+      meta: t('statoCandidatura.step3Meta'),
     },
   ];
 
@@ -78,10 +79,10 @@ export function StatoCandidatura() {
     ${StatusBar()}
 
     <div class="toprow">
-      <button class="iconbtn" data-back aria-label="Indietro">
+      <button class="iconbtn" data-back aria-label="${t('common.back')}">
         ${Icon('arrow-left', { size: 21, color: 'var(--ink)', stroke: 2.1 })}
       </button>
-      <h1 class="h2" style="flex:1;text-align:left;">La tua candidatura</h1>
+      <h1 class="h2" style="flex:1;text-align:left;">${t('statoCandidatura.title')}</h1>
     </div>
 
     <div class="scroll">
@@ -94,7 +95,7 @@ export function StatoCandidatura() {
       </div>
 
       <div class="pad mt22">
-        <div class="eyebrow" style="margin-bottom:16px;">Timeline</div>
+        <div class="eyebrow" style="margin-bottom:16px;">${t('statoCandidatura.timeline')}</div>
         <div class="stc-tl">
           ${STEPS.map(s => `
             <div class="stc-step ${s.state}">
@@ -104,24 +105,24 @@ export function StatoCandidatura() {
               </div>
               <div class="stc-step-t">${s.t}</div>
               <div class="stc-step-meta">${s.meta}</div>
-              ${s.when ? `<div class="stc-step-when">${Icon('calendar', { size: 13, color: 'var(--terra-deep)', stroke: 2 })} Previsione: <b>${s.when}</b></div>` : ''}
+              ${s.when ? `<div class="stc-step-when">${Icon('calendar', { size: 13, color: 'var(--terra-deep)', stroke: 2 })} ${t('statoCandidatura.forecast')} <b>${s.when}</b></div>` : ''}
             </div>`).join('')}
         </div>
       </div>
 
       <div class="pad mt22">
         <div class="stc-note">
-          <div class="eyebrow">Cosa succede ora</div>
-          <p>Il tecnologo alimentare ti contatta per fissare la visita sul campo. Di solito entro 2–3 settimane. Se non ti arriva nulla, scrivici: ti rispondiamo noi.</p>
+          <div class="eyebrow">${t('statoCandidatura.cosaSuccedeOra')}</div>
+          <p>${t('statoCandidatura.note')}</p>
         </div>
       </div>
 
       <div class="stc-cta">
         <button class="btn btn-outline btn-block" data-contact>
           ${Icon('message-circle', { size: 18, color: 'var(--ink)' })}
-          Contatta chi verifica
+          ${t('statoCandidatura.contactVerifier')}
         </button>
-        <button class="stc-withdraw" data-withdraw>Ritira la candidatura</button>
+        <button class="stc-withdraw" data-withdraw>${t('statoCandidatura.withdraw')}</button>
       </div>
     </div>
   </div>`;
@@ -135,8 +136,8 @@ export function StatoCandidatura() {
       // Apre lo sheet contatto verso il team che verifica (il tecnologo alimentare).
       // Contatti del team: da definire (nessun recapito inventato).
       openContact({
-        name: 'Il tecnologo alimentare — chi verifica sul campo',
-        hours: 'Ti rispondiamo entro 1–2 giorni',
+        name: t('statoCandidatura.verifierName'),
+        hours: t('statoCandidatura.verifierHours'),
         contact: { whatsapp: '', phone: '', email: '' },
       });
     };

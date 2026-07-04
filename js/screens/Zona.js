@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar } from '../components.js';
 import { getState } from '../store.js';
+import { t } from '../i18n.js';
 
 export function Zona() {
   const zone = getState().zone || { label: 'Alta Val di Sangro', comuni: [] };
@@ -35,42 +36,42 @@ export function Zona() {
   <div class="screen no-nav">
     ${StatusBar()}
     <div class="toprow">
-      <button class="iconbtn" data-back aria-label="Indietro">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
+      <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
       <span></span>
     </div>
     <div class="scroll">
       <div class="zona-hd">
-        <h1 class="h1">Dove sei <em>di casa?</em></h1>
-        <p class="zona-sub">Ci serve solo per mostrarti i produttori più vicini.</p>
+        <h1 class="h1">${t('zona.title')} <em>${t('zona.titleEm')}</em></h1>
+        <p class="zona-sub">${t('zona.sub')}</p>
       </div>
 
       <div class="pad mt22">
         <button class="btn btn-grad btn-block" data-geo>
-          ${Icon('crosshair', { size: 19, color: '#fff', stroke: 2 })} Usa la mia posizione
+          ${Icon('crosshair', { size: 19, color: '#fff', stroke: 2 })} ${t('zona.useLocation')}
         </button>
       </div>
 
       <div class="zona-note" data-geonote>
         ${Icon('info', { size: 17, color: 'var(--verde-deep)', stroke: 2 })}
-        <span>Non riusciamo a leggere la posizione. Attivala nelle impostazioni del telefono, oppure scegli il tuo comune qui sotto.</span>
+        <span>${t('zona.geoError')}</span>
       </div>
 
-      <div class="zona-or"><span></span><b>oppure scegli a mano</b><span></span></div>
+      <div class="zona-or"><span></span><b>${t('zona.orManual')}</b><span></span></div>
 
       <div class="pad">
         <label class="search">
           ${Icon('search', { size: 19, color: 'var(--terra-deep)', stroke: 2 })}
-          <input type="text" inputmode="search" placeholder="Cerca comune o CAP" data-q aria-label="Cerca comune o CAP" />
+          <input type="text" inputmode="search" placeholder="${t('zona.searchPlaceholder')}" data-q aria-label="${t('zona.searchPlaceholder')}" />
         </label>
       </div>
 
       <div class="pad mt22">
-        <div class="eyebrow" style="margin-bottom:11px">Zone attive ora</div>
+        <div class="eyebrow" style="margin-bottom:11px">${t('zona.activeZones')}</div>
         <div class="zona-list" data-list>
           <div class="zona-row zona-head" data-go>
             ${Icon('map-pin', { size: 19, color: 'var(--verde-deep)', stroke: 2 })}
             <span class="zona-name">${zone.label}</span>
-            <span class="zona-tag">${Icon('check-circle', { size: 13, color: 'var(--verde)', stroke: 2.3 })} Attiva</span>
+            <span class="zona-tag">${Icon('check-circle', { size: 13, color: 'var(--verde)', stroke: 2.3 })} ${t('zona.active')}</span>
           </div>
           ${comuni.map(c => `
           <button class="zona-row" data-go data-comune="${c}">
@@ -80,15 +81,15 @@ export function Zona() {
           </button>`).join('')}
         </div>
         <p class="muted center mt16" data-empty style="display:none;font-size:13.5px;line-height:1.5">
-          Nessun comune trovato per la ricerca.<br>Controlla l'ortografia o usa la tua posizione qui sopra.
+          ${t('zona.emptyLine1')}<br>${t('zona.emptyLine2')}
         </p>
       </div>
 
       <div class="zona-wait">
-        <div class="zw-t">Non sei in Abruzzo?</div>
-        <p class="zw-p">Per ora siamo attivi qui. Lasciaci la tua zona: ti avvisiamo appena arriviamo.</p>
+        <div class="zw-t">${t('zona.notAbruzzo')}</div>
+        <p class="zw-p">${t('zona.waitDesc')}</p>
         <button class="btn btn-ink btn-block" style="background:var(--terra-deep)" data-wait>
-          ${Icon('bell', { size: 17, color: '#fff', stroke: 2 })} Avvisami quando arrivate
+          ${Icon('bell', { size: 17, color: '#fff', stroke: 2 })} ${t('zona.notifyMe')}
         </button>
       </div>
 
@@ -108,7 +109,7 @@ export function Zona() {
       if (!navigator.geolocation) { note.classList.add('show'); return; }
       const old = geoBtn.innerHTML;
       geoBtn.disabled = true;
-      geoBtn.innerHTML = `${Icon('navigation', { size: 19, color: '#fff', stroke: 2 })} Ti sto trovando…`;
+      geoBtn.innerHTML = `${Icon('navigation', { size: 19, color: '#fff', stroke: 2 })} ${t('zona.locating')}`;
       navigator.geolocation.getCurrentPosition(
         () => { location.hash = '#/home'; },
         () => { geoBtn.disabled = false; geoBtn.innerHTML = old; note.classList.add('show'); },
@@ -135,7 +136,7 @@ export function Zona() {
     const waitBtn = el.querySelector('[data-wait]');
     waitBtn.onclick = () => {
       waitBtn.disabled = true;
-      waitBtn.innerHTML = `${Icon('check-circle', { size: 17, color: '#fff', stroke: 2.2 })} Ti avviseremo`;
+      waitBtn.innerHTML = `${Icon('check-circle', { size: 17, color: '#fff', stroke: 2.2 })} ${t('zona.willNotify')}`;
       waitBtn.style.opacity = '.85';
     };
   }

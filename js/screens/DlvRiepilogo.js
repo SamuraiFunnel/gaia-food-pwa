@@ -1,6 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar } from '../components.js';
 import { getState } from '../store.js';
+import { t } from '../i18n.js';
 
 /* ---------------- DlvRiepilogo — Riepilogo consegna (#/consegna/riepilogo) ----------------
    Passo 2 di 2 della consegna. Sintesi carrello raggruppato per produttore + indirizzo + slot,
@@ -21,7 +22,7 @@ export function DlvRiepilogo() {
   // Tappe del percorso del mezzo: 1,2 produttori -> casa.
   const km = (n) => String(n).replace('.', ',');
   const stops = groups.map((g, i) => ({ n: i + 1, name: g.name.replace('Az. di ', '').replace('Frantoio di ', ''), km: g.km }));
-  const tappeLine = `${stops.map(s => `${s.n} ${s.name} (${km(s.km)})`).join(' → ')} → Casa tua`;
+  const tappeLine = `${stops.map(s => `${s.n} ${s.name} (${km(s.km)})`).join(' → ')} → ${t('dlvRiepilogo.home')}`;
 
   const slot = { day: 'Gio 2 lug', time: '17–19' };
 
@@ -34,8 +35,8 @@ export function DlvRiepilogo() {
   // ---- RouteMap illustrata (HTML/SVG): 2 tappe numerate -> Icon truck -> Icon home,
   //      linea tratteggiata terra che le collega, badge ETA in alto. ----
   const routeMap = `
-    <div class="rs-route" role="img" aria-label="Percorso del mezzo: ${tappeLine}">
-      <span class="rs-eta">${Icon('truck', { size: 14, color: '#fff', stroke: 2.1 })} In viaggio · ritira e consegna</span>
+    <div class="rs-route" role="img" aria-label="${t('dlvRiepilogo.routeAria', { tappe: tappeLine })}">
+      <span class="rs-eta">${Icon('truck', { size: 14, color: '#fff', stroke: 2.1 })} ${t('dlvRiepilogo.etaBadge')}</span>
       <svg class="rs-routeline" viewBox="0 0 356 130" preserveAspectRatio="none" aria-hidden="true">
         <path d="M30 96 C70 96 78 44 118 44 C158 44 168 96 208 96 C252 96 262 50 310 50"
           fill="none" stroke="var(--terra)" stroke-width="2.5" stroke-linecap="round"
@@ -52,11 +53,11 @@ export function DlvRiepilogo() {
         </div>
         <div class="rs-node">
           <span class="rs-pin rs-pin-truck">${Icon('truck', { size: 18, color: '#fff', stroke: 2 })}</span>
-          <span class="rs-nlabel">Mezzo</span>
+          <span class="rs-nlabel">${t('dlvRiepilogo.nodeVehicle')}</span>
         </div>
         <div class="rs-node">
           <span class="rs-pin rs-pin-home">${Icon('home', { size: 18, color: '#fff', stroke: 2 })}</span>
-          <span class="rs-nlabel">Casa</span>
+          <span class="rs-nlabel">${t('dlvRiepilogo.nodeHome')}</span>
         </div>
       </div>
     </div>`;
@@ -124,21 +125,21 @@ export function DlvRiepilogo() {
   <div class="screen no-nav">
     ${StatusBar()}
     <div class="rs-top">
-      <button class="iconbtn" data-back aria-label="Indietro">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
-      <span class="rs-step">Passo 2 di 2 · Conferma</span>
+      <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 22, stroke: 2.1 })}</button>
+      <span class="rs-step">${t('dlvRiepilogo.step')}</span>
     </div>
 
     <div class="scroll">
       <div class="pad mt16">
         ${routeMap}
         <div class="rs-tappe">
-          <span class="rs-tlab">Tappe:</span>
+          <span class="rs-tlab">${t('dlvRiepilogo.stopsLabel')}</span>
           <span class="rs-tval">${tappeLine}</span>
         </div>
       </div>
 
       <div class="pad mt22">
-        <div class="eyebrow" style="margin-bottom:10px">Riepilogo</div>
+        <div class="eyebrow" style="margin-bottom:10px">${t('dlvRiepilogo.summary')}</div>
         <div class="rs-card">
           ${groups.map(summaryRow).join('')}
         </div>
@@ -148,21 +149,21 @@ export function DlvRiepilogo() {
         <div class="rs-line">
           <span class="rs-licon">${Icon('calendar', { size: 19, color: 'var(--terra-deep)', stroke: 2 })}</span>
           <span class="rs-ltext">${slot.day} · <span class="tnum">${slot.time}</span></span>
-          <button class="rs-change" data-change-slot>Cambia</button>
+          <button class="rs-change" data-change-slot>${t('dlvRiepilogo.change')}</button>
         </div>
         <div class="rs-line">
           <span class="rs-licon">${Icon('home', { size: 19, color: 'var(--terra-deep)', stroke: 2 })}</span>
-          <span class="rs-ltext">Casa tua · ${inZona
-            ? '<span class="rs-zona">in zona</span>'
-            : '<span class="rs-soon">consegna in arrivo</span>'}</span>
-          <button class="rs-change" data-change-addr>Cambia</button>
+          <span class="rs-ltext">${t('dlvRiepilogo.home')} · ${inZona
+            ? `<span class="rs-zona">${t('dlvRiepilogo.inZone')}</span>`
+            : `<span class="rs-soon">${t('dlvRiepilogo.deliverySoon')}</span>`}</span>
+          <button class="rs-change" data-change-addr>${t('dlvRiepilogo.change')}</button>
         </div>
       </div>
 
       <div class="pad mt16">
         <div class="rs-note">
           ${Icon('truck', { size: 20, color: 'var(--verde-deep)', stroke: 2 })}
-          <span>Un solo mezzo ritira da <strong>tutti i produttori</strong> e porta tutto a casa tua.</span>
+          <span>${t('dlvRiepilogo.oneVehicleNote')}</span>
         </div>
       </div>
 
@@ -171,10 +172,10 @@ export function DlvRiepilogo() {
 
     <div class="cta-sticky" style="flex-direction:column;align-items:stretch">
       <button class="btn btn-grad btn-block" data-confirm>
-        Conferma · si conferma, non si paga
+        ${t('dlvRiepilogo.confirmCta')}
         ${Icon('check-circle', { size: 19, color: '#fff', stroke: 2.2 })}
       </button>
-      <div class="rs-cta-note">Nessun pagamento, nessun intermediario.</div>
+      <div class="rs-cta-note">${t('dlvRiepilogo.ctaNote')}</div>
     </div>
   </div>`;
 
