@@ -13,6 +13,14 @@ import { t } from '../i18n.js';
     compra l'amico — da elaborare; per ora la pagina resta semplice.) */
 
 const SLAB = () => ({ radicato: t('custodi.stateRadicato'), germoglio: t('custodi.stateGermoglio'), seme: t('custodi.stateSeme') });
+// Nome del livello Custode localizzato dalla chiave del server (seme/custode/borgo/territorio),
+// con fallback alla label italiana fornita dal backend.
+const lvlName = (o) => {
+  if (!o) return t('custodi.tierSeme');
+  const k = 'custodi.tier' + String(o.key || '').charAt(0).toUpperCase() + String(o.key || '').slice(1);
+  const v = t(k);
+  return v === k ? (o.label || t('custodi.tierSeme')) : v;
+};
 const stCls = { radicato: 'st-rad', germoglio: 'st-germ', seme: 'st-seme' };
 const eur = n => '€' + (Number(n) || 0).toFixed(2).replace(/\.00$/, '').replace('.', ',');
 
@@ -66,14 +74,14 @@ function viewGarden(d, cfg) {
   const cur = d.level ? d.level.min : 0, nx = d.next ? d.next.min : c.radicato;
   const pct = d.next ? Math.max(4, Math.min(100, Math.round(((c.radicato - cur) / Math.max(1, nx - cur)) * 100))) : 100;
   const goalLine = d.next
-    ? t('custodi.goalNext', { n: d.next.min - c.radicato, label: d.next.label })
+    ? t('custodi.goalNext', { n: d.next.min - c.radicato, label: lvlName(d.next) })
     : t('custodi.goalMax');
   return `
     <div class="cu-hero">
       <div class="cu-emoji">🌱</div>
       <h1>${t('custodi.gardenTitle')}</h1>
       <p>${t('custodi.gardenIntro')}</p>
-      <span class="cu-lvl">${Icon('sprout', { size: 13, color: 'var(--verde-deep)' })} ${d.level ? d.level.label : t('custodi.levelSeme')}</span>
+      <span class="cu-lvl">${Icon('sprout', { size: 13, color: 'var(--verde-deep)' })} ${lvlName(d.level)}</span>
     </div>
     <div class="cu-garden">
       <div class="cu-plant"><div class="e">🌳</div><b>${c.radicato}</b><span>${t('custodi.plantRadicati')}</span></div>
@@ -83,7 +91,7 @@ function viewGarden(d, cfg) {
     <div class="cu-card">
       <div class="cu-creditrow">
         <div><div class="cu-eyebrow">${t('custodi.commissionLabel')}</div><div class="cu-credit">${eur(d.commission || 0)}</div></div>
-        <div style="text-align:right"><div style="font-size:11px;color:var(--muted)">${t('custodi.levelSmall')}</div><b style="font-family:var(--serif);color:var(--ink)">${d.level ? d.level.label : t('custodi.levelSeme')}</b></div>
+        <div style="text-align:right"><div style="font-size:11px;color:var(--muted)">${t('custodi.levelSmall')}</div><b style="font-family:var(--serif);color:var(--ink)">${lvlName(d.level)}</b></div>
       </div>
       <div class="cu-bar"><i style="width:${pct}%"></i></div>
       <div class="cu-goal">${goalLine}</div>

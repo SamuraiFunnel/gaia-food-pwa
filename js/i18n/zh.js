@@ -481,4 +481,9 @@ export default {
   "onbVideo.readInstead": "更想读文字？",
   "onbVideo.intro": "Gaia Food 帮你找到<strong>真正的食物生产者</strong>，由我们的食品技术专家亲自在田间认证，<strong>就在你家附近</strong>。每位生产者都是一个故事 &mdash; <em>介绍、故事、方法</em>：三段视频让你真正认识他，而不是列表里的一行字。",
   "onbVideo.cta": "找到真食物",
+  // livelli Custodi (nomi tier, allineati alle label del server)
+  "custodi.tierSeme": "种子",
+  "custodi.tierCustode": "守护者",
+  "custodi.tierBorgo": "乡村守护者",
+  "custodi.tierTerritorio": "领地守护者",
 };

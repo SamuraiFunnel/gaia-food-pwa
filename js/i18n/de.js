@@ -481,4 +481,9 @@ export default {
   "onbVideo.readInstead": "Liest du lieber?",
   "onbVideo.intro": "Gaia Food hilft dir, <strong>echte Lebensmittelproduzenten</strong> zu finden, persönlich vor Ort von unserem Lebensmitteltechnologen verifiziert, <strong>ganz in deiner Nähe</strong>. Jeder Produzent ist eine Geschichte &mdash; <em>Vorstellung, Geschichte, Methode</em>: drei Videos, um ihn wirklich kennenzulernen, nicht nur eine Zeile in einer Liste.",
   "onbVideo.cta": "Echtes Essen finden",
+  // livelli Custodi (nomi tier, allineati alle label del server)
+  "custodi.tierSeme": "Samen",
+  "custodi.tierCustode": "Hüter",
+  "custodi.tierBorgo": "Dorf-Hüter",
+  "custodi.tierTerritorio": "Land-Hüter",
 };

@@ -481,4 +481,9 @@ export default {
   "onbVideo.readInstead": "Preferisci leggere?",
   "onbVideo.intro": "Gaia Food ti fa trovare <strong>produttori veri di cibo</strong>, verificati di persona sul campo dal nostro tecnologo alimentare, <strong>vicino a casa</strong>. Ogni produttore è una storia &mdash; <em>presentazione, storia, metodo</em>: tre video per conoscerlo davvero, non una riga d'elenco.",
   "onbVideo.cta": "Trova il cibo vero",
+  // livelli Custodi (nomi tier, allineati alle label del server)
+  "custodi.tierSeme": "Seme",
+  "custodi.tierCustode": "Custode",
+  "custodi.tierBorgo": "Custode del Borgo",
+  "custodi.tierTerritorio": "Custode del Territorio",
 };
