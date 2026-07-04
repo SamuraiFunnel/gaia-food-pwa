@@ -1,5 +1,5 @@
 import { Icon } from './icons.js';
-import { StatusBar, Photo, VerifyBadge, ProducerCard, VideoBlock, BottomNav, initMap, catGlyph, catLabel } from './components.js';
+import { StatusBar, Photo, VerifyBadge, ProducerCard, VideoBlock, BottomNav, initMap, catGlyph, catLabel, Lockup } from './components.js';
 import { getState, results, producerById, toggleSaved, hubSeen, lastFunction, resetHub, currentUser, userZoneIsActive, userZone, updateProfile, uploadAvatar, signOut } from './store.js';
 import { t, getLang, setLang, LANGS, locDate } from './i18n.js';
 
@@ -64,7 +64,7 @@ export function Splash() {
       .s02 .s02-ph .photo{ position:absolute; inset:0; width:100%; height:100%; border-radius:0; }
       .s02 .s02-fade{ position:absolute; inset:0; z-index:1;
         background:linear-gradient(180deg, rgba(10,16,10,.34) 0%, rgba(244,241,235,0) 52%, var(--carta) 100%); }
-      .s02 .s02-logo{ position:absolute; z-index:2; left:24px; height:auto; width:132px;
+      .s02 .s02-logo{ position:absolute; z-index:2; left:24px; font-size:23px;
         top:calc(env(safe-area-inset-top, 0px) + 38px); filter:drop-shadow(0 3px 12px rgba(0,0,0,.45)); }
       .s02 .s02-body{ position:relative; z-index:2; flex:none; display:flex; flex-direction:column;
         padding:18px 26px calc(env(safe-area-inset-bottom, 0px) + 26px); }
@@ -85,8 +85,7 @@ export function Splash() {
       <div class="s02-ph">
         ${Photo('paesaggio', '', '')}
         <div class="s02-fade"></div>
-        <img class="s02-logo" src="./assets/brand/gaia-food-lockup-orizzontale-bianco.svg"
-          alt="Gaia Food" decoding="async" onerror="this.style.display='none'">
+        <div class="s02-logo">${Lockup('dark')}</div>
       </div>
       <div class="s02-body">
         <span class="s02-eyebrow">${logged ? t('splash.eyebrowBack') : t('splash.eyebrowNew')}</span>

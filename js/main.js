@@ -1,6 +1,6 @@
 import { loadData, results, currentUser, authMe } from './store.js';
 import { Icon } from './icons.js';
-import { initMap, ProducerCard } from './components.js';
+import { initMap, ProducerCard, Lockup } from './components.js';
 import * as S from './screens.js';
 import { enhanceHome, enhanceMapFull, enhanceCarrello } from './desktop.js';
 // schermate (fan-out)
@@ -47,8 +47,7 @@ function buildRail() {
   const r = document.createElement('aside'); r.id = 'rail';
   const link = (href, ic, key) => `<a class="rl" href="${href}">${Icon(ic, { size: 20 })} <span class="rl-t" data-k="${key}">${t(key)}</span></a>`;
   r.innerHTML = `
-    <a class="rl-logo" href="#/home"><img src="./assets/brand/gaia-food-lockup-orizzontale.svg" alt="Gaia Food" decoding="async"
-      onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'rl-word',innerHTML:'GAIA <b>FOOD</b>'}))"></a>
+    <a class="rl-logo" href="#/home">${Lockup('')}</a>
     ${RAIL.map(i => link(i.href, i.ic, i.key)).join('')}
     <div class="rl-spacer"></div>
     <div class="rl-sep"></div>

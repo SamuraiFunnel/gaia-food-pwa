@@ -2,6 +2,18 @@
    GAIA FOOD APP — Design system (V2 Editoriale "Cibo Vero")
    Token reali dall'handoff Claude Design.
    =========================================================== */
+/* --- Marcellus (wordmark del lockup) + lockup Gaia Food (leggero) --- */
+@font-face{
+  font-family:'Marcellus'; font-style:normal; font-weight:400; font-display:swap;
+  src:url('../assets/brand/Marcellus-Regular.ttf') format('truetype');
+}
+.gf-lockup{ display:inline-flex; align-items:center; gap:.32em; line-height:1;
+  font-family:'Marcellus','Cormorant Garamond',Georgia,serif; }
+.gf-lockup .gf-pin{ height:1.5em; width:auto; display:block; flex:none; }
+.gf-lockup .gf-word{ font-size:1em; letter-spacing:.045em; white-space:nowrap; color:#1F2A33; }
+.gf-lockup .gf-word .food{ color:#3E6B39; margin-left:.30em; }
+.gf-lockup.on-dark .gf-word{ color:#fff; }
+.gf-lockup.on-dark .gf-word .food{ color:#5F9A57; }
 :root{
   /* superfici / carta */
   --carta:#F4F1EB; --carta-scura:#EDE6DA; --bianco:#FBF9F5; --canvas:#E7DECF;

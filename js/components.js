@@ -14,6 +14,12 @@ export const catLabel = (c) => {
 // Prima mostrava un'ora "9:41" e una batteria "100%" finte: rimosse, erano un residuo da wireframe.
 export const StatusBar = () => `<div class="statusbar" aria-hidden="true"></div>`;
 
+// Lockup Gaia Food (leggero): pin acquerello in webp (18KB) + wordmark Marcellus via @font-face.
+// variant 'dark' = testo bianco su fondo scuro (splash). La dimensione si controlla col font-size del contenitore.
+export const Lockup = (variant = '') => `<span class="gf-lockup${variant === 'dark' ? ' on-dark' : ''}" role="img" aria-label="Gaia Food">
+  <img class="gf-pin" src="./assets/brand/gaia-food-pin.webp" alt="" decoding="async" onerror="this.remove()">
+  <span class="gf-word">GAIA<span class="food">FOOD</span></span></span>`;
+
 export const Photo = (tone = 'paesaggio', label = '', cls = '', src = '') => `
   <div class="photo ${cls}" data-tone="${tone}"${src ? ` style="background:#1f1812 url('${src}') center/cover"` : ''}><div class="pgrain"></div>${label ? `<span class="plabel">${label}</span>` : ''}</div>`;
 
