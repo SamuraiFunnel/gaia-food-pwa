@@ -4,5 +4,10 @@
   "private": true,
   "description": "Gaia Food — app (UI statica + API) servita da server.js, zero dipendenze",
   "engines": { "node": ">=18" },
-  "scripts": { "start": "node server.js" }
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "test:watch": "node --test --watch",
+    "test:coverage": "node --test --experimental-test-coverage"
+  }
 }

@@ -120,6 +120,40 @@ function linkReferral(user, seme) {
   target.referredBy = code; target.referredAt = new Date().toISOString();
   writeUsers(db);
 }
+// Riepilogo "I Custodi di Gaia" per un utente (seed già calcolato). PURA e deterministica
+// (now iniettato) → testabile a unità: stato del seme per età, conteggi, credito, commissione, livello.
+function custodiSummary(users, seed, meId, now = Date.now()) {
+  const DAY = 86400000;
+  // Stato del seme (proxy temporale, in attesa del segnale reale acquisto/attività — "da definire"):
+  // <2 giorni = Seme · 2–60 giorni = Germoglio · >60 giorni = Radicato.
+  const stateOf = (u) => {
+    const age = (now - new Date(u.referredAt || u.createdAt || now).getTime()) / DAY;
+    if (age >= 60) return 'radicato';
+    if (age >= 2) return 'germoglio';
+    return 'seme';
+  };
+  const people = (users || [])
+    .filter(u => u.referredBy === seed && u.id !== meId)
+    .map(u => ({ name: (u.name && u.name.trim()) || (u.email ? u.email.split('@')[0] : 'Nuovo seme'), state: stateOf(u) }));
+  const counts = { seme: 0, germoglio: 0, radicato: 0, total: people.length };
+  people.forEach(p => counts[p.state]++);
+  const PER = 8;            // €8/anno di credito per radicato (Custode-Cliente) — da validare sul Business Plan
+  const FREE_AT = 5;        // 5 radicati = rinnovo annuale gratis
+  const credit = counts.radicato * PER;
+  const LV = [
+    { key: 'seme', label: 'Seme', min: 0 },
+    { key: 'custode', label: 'Custode', min: 1 },
+    { key: 'borgo', label: 'Custode del Borgo', min: 5 },
+    { key: 'territorio', label: 'Custode del Territorio', min: 15 },
+  ];
+  let level = LV[0];
+  for (const L of LV) if (counts.radicato >= L.min) level = L;
+  const next = LV.find(L => L.min > counts.radicato) || null;
+  // Custode-Produttore: commissione reale ~20% di €39 = €7,80/anno per abbonato attivo — da validare sul BP.
+  const COMM = 7.8;
+  const commission = Math.round(counts.radicato * COMM * 100) / 100;
+  return { seed, credit, perActive: PER, commission, perCommission: COMM, freeAt: FREE_AT, counts, people, level, next };
+}
 
 // --- normalizzazione campi produttore (difende lo store da payload malformati) ---
 const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
@@ -266,37 +300,7 @@ async function api(req, res, url) {
   if (url === '/api/custodi/me' && method === 'GET') {
     const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
     const seed = ensureSeed(me);
-    const db = readUsers();
-    const now = Date.now(), DAY = 86400000;
-    // Stato del seme (proxy temporale, in attesa del segnale reale acquisto/attività — "da definire"):
-    // <2 giorni = Seme · 2–60 giorni = Germoglio · >60 giorni = Radicato.
-    const stateOf = (u) => {
-      const age = (now - new Date(u.referredAt || u.createdAt || now).getTime()) / DAY;
-      if (age >= 60) return 'radicato';
-      if (age >= 2) return 'germoglio';
-      return 'seme';
-    };
-    const people = db.users
-      .filter(u => u.referredBy === seed && u.id !== me.id)
-      .map(u => ({ name: (u.name && u.name.trim()) || (u.email ? u.email.split('@')[0] : 'Nuovo seme'), state: stateOf(u) }));
-    const counts = { seme: 0, germoglio: 0, radicato: 0, total: people.length };
-    people.forEach(p => counts[p.state]++);
-    const PER = 8;            // €8/anno di credito per radicato (Custode-Cliente) — da validare sul Business Plan
-    const FREE_AT = 5;        // 5 radicati = rinnovo annuale gratis
-    const credit = counts.radicato * PER;
-    const LV = [
-      { key: 'seme', label: 'Seme', min: 0 },
-      { key: 'custode', label: 'Custode', min: 1 },
-      { key: 'borgo', label: 'Custode del Borgo', min: 5 },
-      { key: 'territorio', label: 'Custode del Territorio', min: 15 },
-    ];
-    let level = LV[0];
-    for (const L of LV) if (counts.radicato >= L.min) level = L;
-    const next = LV.find(L => L.min > counts.radicato) || null;
-    // Custode-Produttore: commissione reale ~20% di €39 = €7,80/anno per abbonato attivo — da validare sul BP.
-    const COMM = 7.8;
-    const commission = Math.round(counts.radicato * COMM * 100) / 100;
-    return send(res, 200, { seed, credit, perActive: PER, commission, perCommission: COMM, freeAt: FREE_AT, counts, people, level, next });
+    return send(res, 200, custodiSummary(readUsers().users, seed, me.id, Date.now()));
   }
 
   // --- waitlist (lista d'attesa zone non coperte) — POST pubblico, GET solo admin ---
@@ -431,7 +435,7 @@ async function api(req, res, url) {
   return send(res, 404, { error: 'route api inesistente' });
 }
 
-http.createServer((req, res) => {
+function requestHandler(req, res) {
   const url = decodeURIComponent(req.url.split('?')[0]);
   if (url.startsWith('/api/')) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -464,4 +468,18 @@ http.createServer((req, res) => {
     }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' }); res.end(data);
   });
-}).listen(PORT, () => console.log(`Gaia Food App + API → http://localhost:${PORT}`));
+}
+
+// Avvio del server SOLO quando eseguito direttamente (`node server.js`). Quando il file è
+// importato da un test (require/import), non ci si mette in ascolto: si espongono le funzioni pure
+// e l'handler HTTP, così i test possono creare un server usa-e-getta su porta effimera.
+if (require.main === module) {
+  http.createServer(requestHandler).listen(PORT, () => console.log(`Gaia Food App + API → http://localhost:${PORT}`));
+}
+
+module.exports = {
+  requestHandler,
+  // logica di business / utility pure (testabili a unità)
+  custodiSummary, slugify, num, str, cleanVideo, cleanSeasonal, normalizePatch,
+  throttle, EMAIL_RE,
+};
