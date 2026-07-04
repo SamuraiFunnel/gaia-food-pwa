@@ -1,5 +1,6 @@
 import { Icon } from '../icons.js';
 import { signInWithGoogle, signInWithEmail, authConfig, setZone, getState, activeZoneId, currentUser } from '../store.js';
+import { t } from '../i18n.js';
 
 /* ============================================================
    AUTH MODAL — pop-up di accesso (bottom-sheet).
@@ -145,39 +146,39 @@ export function openAuthModal({ step = 'auth' } = {}) {
   </style>
 
   <div class="am-backdrop" data-close></div>
-  <div class="am-sheet" role="dialog" aria-modal="true" aria-label="Accedi a Gaia Food">
-    <button class="am-x" data-close aria-label="Chiudi">${Icon('x', { size: 18 })}</button>
+  <div class="am-sheet" role="dialog" aria-modal="true" aria-label="${t('auth.dialogAria')}">
+    <button class="am-x" data-close aria-label="${t('auth.close')}">${Icon('x', { size: 18 })}</button>
     <div class="am-grab" aria-hidden="true"></div>
 
     <!-- STEP 1 · accesso -->
     <div class="am-step am-auth">
-      <h2 class="am-title">Entra in Gaia&nbsp;Food</h2>
-      <p class="am-sub">Salva i produttori del cuore e ricevi il cibo vero a casa. Ti bastano pochi secondi.</p>
+      <h2 class="am-title">${t('auth.title')}</h2>
+      <p class="am-sub">${t('auth.subtitle')}</p>
       <div class="am-gwrap" data-google></div>
-      <div class="am-or"><span class="ln"></span><span>oppure</span><span class="ln"></span></div>
+      <div class="am-or"><span class="ln"></span><span>${t('auth.or')}</span><span class="ln"></span></div>
       <form data-email-form novalidate>
         <label class="am-email" data-email-box>
           <span class="ic">${Icon('mail', { size: 19, stroke: 2 })}</span>
           <input type="email" name="email" inputmode="email" autocomplete="email" spellcheck="false"
-            placeholder="La tua email" aria-label="La tua email">
-          <button class="am-go" type="submit" aria-label="Continua con l'email">${Icon('arrow-right', { size: 19, color: '#fff', stroke: 2.3 })}</button>
+            placeholder="${t('auth.emailPlaceholder')}" aria-label="${t('auth.emailPlaceholder')}">
+          <button class="am-go" type="submit" aria-label="${t('auth.emailSubmitAria')}">${Icon('arrow-right', { size: 19, color: '#fff', stroke: 2.3 })}</button>
         </label>
       </form>
       <p class="am-msg" data-msg role="status" aria-live="polite"></p>
-      <p class="am-legal">Continuando accetti i <a href="#/termini" data-close>Termini</a> e l'<a href="#/privacy" data-close>Informativa privacy</a>.</p>
+      <p class="am-legal">${t('auth.legal', { terms: `<a href="#/termini" data-close>${t('settings.terms')}</a>`, privacy: `<a href="#/privacy" data-close>${t('auth.privacyLabel')}</a>` })}</p>
     </div>
 
     <!-- STEP 2 · zona -->
     <div class="am-step am-zone">
-      <h2 class="am-title">Dove ti <em style="font-style:italic;color:var(--verde)">trovi?</em></h2>
-      <p class="am-sub">Ti mostriamo solo il cibo vero della tua zona.</p>
-      <button class="am-geo" type="button" data-geo>${Icon('crosshair', { size: 18, color: 'var(--verde-deep)', stroke: 2 })} Usa la mia posizione</button>
+      <h2 class="am-title">${t('auth.zoneTitle1')} <em style="font-style:italic;color:var(--verde)">${t('auth.zoneTitleEm')}</em></h2>
+      <p class="am-sub">${t('auth.zoneSub')}</p>
+      <button class="am-geo" type="button" data-geo>${Icon('crosshair', { size: 18, color: 'var(--verde-deep)', stroke: 2 })} ${t('auth.useLocation')}</button>
       <label class="am-zsearch">
         <span class="ic">${Icon('search', { size: 18, stroke: 2 })}</span>
-        <input type="text" inputmode="search" placeholder="Cerca la tua regione" aria-label="Cerca la tua regione" data-zq>
+        <input type="text" inputmode="search" placeholder="${t('auth.searchRegion')}" aria-label="${t('auth.searchRegion')}" data-zq>
       </label>
       <div class="am-zlist" data-zlist role="listbox" aria-label="Regioni"></div>
-      <p class="am-zempty" data-zempty>Nessuna regione trovata. Controlla l'ortografia.</p>
+      <p class="am-zempty" data-zempty>${t('auth.noRegion')}</p>
       <p class="am-msg" data-zmsg role="status" aria-live="polite"></p>
     </div>
   </div>`;
@@ -213,11 +214,11 @@ export function openAuthModal({ step = 'auth' } = {}) {
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const email = (input.value || '').trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { box.classList.add('err'); setMsg('Inserisci un indirizzo email valido.'); input.focus(); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { box.classList.add('err'); setMsg(t('auth.invalidEmail')); input.focus(); return; }
       box.classList.remove('err'); setMsg('');
       goBtn.disabled = true; input.disabled = true;
       try { await signInWithEmail(email); goZoneStep(); }
-      catch (e) { goBtn.disabled = false; input.disabled = false; setMsg('Non siamo riusciti ad accedere: ' + (e.message || 'riprova') + '.'); }
+      catch (e) { goBtn.disabled = false; input.disabled = false; setMsg(t('auth.emailFailed', { err: e.message || t('common.retry') })); }
     });
     input.addEventListener('input', () => { box.classList.remove('err'); if (msgEl && msgEl.textContent) setMsg(''); });
   }
@@ -227,24 +228,24 @@ export function openAuthModal({ step = 'auth' } = {}) {
   const fallbackBtn = (label, { disabled = false, soon = false } = {}) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'am-btn'; if (disabled) b.disabled = true;
-    b.innerHTML = `${googleLogoSvg}<span>${label}</span>${soon ? '<span class="soon-pill">presto</span>' : ''}`;
+    b.innerHTML = `${googleLogoSvg}<span>${label}</span>${soon ? `<span class="soon-pill">${t('auth.soon')}</span>` : ''}`;
     return b;
   };
   if (gwrap) {
-    gwrap.appendChild(fallbackBtn('Continua con Google'));
+    gwrap.appendChild(fallbackBtn(t('auth.google')));
     const handleCredential = async (response) => {
       if (!response || !response.credential) return;
-      setMsg('Accesso in corso…', true);
+      setMsg(t('auth.signingIn'), true);
       try { await signInWithGoogle(response.credential); goZoneStep(); }
-      catch (e) { setMsg('Accesso con Google non riuscito: ' + (e.message || 'riprova') + '.'); }
+      catch (e) { setMsg(t('auth.googleFailed', { err: e.message || t('common.retry') })); }
     };
     authConfig().then(({ googleClientId } = {}) => {
       if (!gwrap.isConnected) return;
       const clientId = isRealClientId(googleClientId) ? googleClientId : GOOGLE_CLIENT_ID_FALLBACK;
       if (!isRealClientId(clientId)) {
         gwrap.innerHTML = '';
-        const b = fallbackBtn('Continua con Google', { disabled: true, soon: true });
-        b.title = 'Login Google in arrivo.';
+        const b = fallbackBtn(t('auth.google'), { disabled: true, soon: true });
+        b.title = t('auth.googleSoonTitle');
         gwrap.appendChild(b);
         return;
       }
@@ -256,8 +257,8 @@ export function openAuthModal({ step = 'auth' } = {}) {
       }).catch(() => {
         if (!gwrap.isConnected) return;
         gwrap.innerHTML = '';
-        const b = fallbackBtn('Continua con Google', { disabled: true });
-        b.title = 'Servizio Google non disponibile ora.';
+        const b = fallbackBtn(t('auth.google'), { disabled: true });
+        b.title = t('auth.googleUnavailable');
         gwrap.appendChild(b);
       });
     });
@@ -280,7 +281,7 @@ export function openAuthModal({ step = 'auth' } = {}) {
     setZMsg('');
     if (btn) btn.disabled = true;
     try { await setZone(zoneObjFor(regionName)); enterApp(); }
-    catch (e) { if (btn) btn.disabled = false; setZMsg('Non siamo riusciti a salvare la zona: ' + (e.message || 'riprova') + '.'); }
+    catch (e) { if (btn) btn.disabled = false; setZMsg(t('auth.saveZoneError', { err: e.message || t('common.retry') })); }
   };
 
   if (zlist) {
@@ -291,8 +292,8 @@ export function openAuthModal({ step = 'auth' } = {}) {
       const selected = currentRegion && name.toLowerCase() === String(currentRegion).toLowerCase();
       const sub = active ? ` · ${activeLabel}` : '';
       const tail = active
-        ? `<span class="am-zpill">${Icon('check-circle', { size: 12, color: 'var(--verde)', stroke: 2.3 })} Attiva</span>`
-        : (selected ? `<span class="am-zsoon">selezionata · presto</span>` : `<span class="am-zsoon">presto nella tua zona</span>`);
+        ? `<span class="am-zpill">${Icon('check-circle', { size: 12, color: 'var(--verde)', stroke: 2.3 })} ${t('auth.zoneActive')}</span>`
+        : (selected ? `<span class="am-zsoon">${t('auth.zoneSelectedSoon')}</span>` : `<span class="am-zsoon">${t('auth.zoneSoon')}</span>`);
       return `<button class="am-zrow ${active ? 'is-active' : ''} ${selected ? 'is-selected' : ''}" role="option" aria-selected="${selected ? 'true' : 'false'}" data-zrow data-zname="${name}">
         <span class="zr-pin">${Icon('map-pin', { size: 18, color: (active || selected) ? 'var(--verde-deep)' : 'var(--faint2)', stroke: 2 })}</span>
         <span class="zr-name">${name}${sub}</span>${tail}</button>`;
@@ -308,9 +309,9 @@ export function openAuthModal({ step = 'auth' } = {}) {
 
   const geoBtn = wrap.querySelector('[data-geo]');
   if (geoBtn) geoBtn.addEventListener('click', () => {
-    if (!navigator.geolocation) { setZMsg('Posizione non disponibile: scegli la regione qui sotto.'); return; }
+    if (!navigator.geolocation) { setZMsg(t('auth.geoUnavailable')); return; }
     const old = geoBtn.innerHTML; geoBtn.disabled = true;
-    geoBtn.innerHTML = `${Icon('navigation', { size: 18, color: 'var(--verde-deep)', stroke: 2 })} Ti sto trovando…`;
+    geoBtn.innerHTML = `${Icon('navigation', { size: 18, color: 'var(--verde-deep)', stroke: 2 })} ${t('auth.locating')}`;
     const restore = () => { geoBtn.disabled = false; geoBtn.innerHTML = old; };
     // Zona coperta oggi (Alta Val di Sangro, centro ~[13.934,41.776]): bounding box.
     const inCovered = (lat, lng) => lat >= 41.55 && lat <= 42.05 && lng >= 13.65 && lng <= 14.25;
@@ -326,12 +327,12 @@ export function openAuthModal({ step = 'auth' } = {}) {
           const region = (d.address && (d.address.state || d.address.region)) || '';
           const match = REGIONI.find(x => x.toLowerCase() === String(region).toLowerCase());
           if (match) { chooseZone(match); return; }              // regione riconosciuta → "presto nella tua zona"
-          restore(); setZMsg('Sei fuori dalle zone attive. Scegli la tua regione qui sotto.');
+          restore(); setZMsg(t('auth.geoOutside'));
         } catch (e) {
-          restore(); setZMsg('Non riusciamo a rilevare la regione: scegli la regione qui sotto.');
+          restore(); setZMsg(t('auth.geoNoRegion'));
         }
       },
-      () => { restore(); setZMsg('Non riusciamo a leggere la posizione: scegli la regione qui sotto.'); },
+      () => { restore(); setZMsg(t('auth.geoNoPosition')); },
       { timeout: 9000, enableHighAccuracy: false, maximumAge: 60000 }
     );
   });
