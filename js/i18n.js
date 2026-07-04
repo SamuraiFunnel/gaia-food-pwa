@@ -48,3 +48,26 @@ export async function setLang(code, { persist = true } = {}) {
 }
 
 export function initI18n(rerender) { onChange = typeof rerender === 'function' ? rerender : (() => {}); }
+
+// --- localizzazione delle DATE già formattate in italiano nei dati (es. "12 giugno 2026", "30 giu") ---
+// Sostituisce SOLO i nomi di mese italiani (interi o abbreviati) con quelli della lingua attiva,
+// lasciando intatti numero e anno. In italiano è un no-op. Per il cinese usa la forma "N月".
+const MONTHS = {
+  it: { full: ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'], abbr: ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'] },
+  en: { full: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'], abbr: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] },
+  de: { full: ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'], abbr: ['Jan', 'Feb', 'März', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'] },
+  zh: { full: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'], abbr: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'] },
+};
+const IT_MONTH_IDX = {};
+MONTHS.it.full.forEach((m, i) => { IT_MONTH_IDX[m] = i; });
+MONTHS.it.abbr.forEach((m, i) => { if (IT_MONTH_IDX[m] == null) IT_MONTH_IDX[m] = i; });
+export function locDate(str) {
+  if (!str || lang === 'it') return str;
+  const M = MONTHS[lang] || MONTHS.en;
+  return String(str).replace(/[A-Za-zàèéìòù]+/g, (w) => {
+    const lw = w.toLowerCase();
+    const idx = IT_MONTH_IDX[lw];
+    if (idx == null) return w;
+    return MONTHS.it.abbr.includes(lw) ? M.abbr[idx] : M.full[idx];
+  });
+}

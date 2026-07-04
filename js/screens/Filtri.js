@@ -1,5 +1,5 @@
 import { Icon } from '../icons.js';
-import { StatusBar } from '../components.js';
+import { StatusBar, catLabel } from '../components.js';
 import { getState, results } from '../store.js';
 import { t } from '../i18n.js';
 
@@ -20,7 +20,7 @@ export function Filtri() {
   const chipsHtml = () => {
     const all = `<button class="fl-chip ${draft.category === null ? 'on' : ''}" data-cat="">${t('filtri.all')}</button>`;
     const rest = cats.map(c =>
-      `<button class="fl-chip ${draft.category === c.id ? 'on' : ''}" data-cat="${c.id}">${Icon(c.glyph, { size: 15 })}${c.label}</button>`
+      `<button class="fl-chip ${draft.category === c.id ? 'on' : ''}" data-cat="${c.id}">${Icon(c.glyph, { size: 15 })}${catLabel(c)}</button>`
     ).join('');
     return all + rest;
   };

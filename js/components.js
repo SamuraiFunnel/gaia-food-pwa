@@ -1,5 +1,14 @@
 import { Icon } from './icons.js';
-import { t } from './i18n.js';
+import { t, locDate } from './i18n.js';
+
+// Etichetta categoria localizzata: t('cat.<id>') con fallback all'etichetta dei dati.
+// c può essere l'oggetto categoria {id,label} o direttamente l'id (string).
+export const catLabel = (c) => {
+  const id = (c && typeof c === 'object') ? c.id : c;
+  const k = 'cat.' + id;
+  const v = t(k);
+  return v === k ? ((c && typeof c === 'object' && c.label) || String(id)) : v;
+};
 
 // Spaziatore per la safe-area (notch) in standalone. In Safari safe-area-inset-top=0 → nessuno spazio.
 // Prima mostrava un'ora "9:41" e una batteria "100%" finte: rimosse, erano un residuo da wireframe.
@@ -19,7 +28,7 @@ export const VerifyBadge = (v, { compact = false, onphoto = false } = {}) => {
   };
   const m = map[v.state] || map.valid;
   return `<span class="vbadge ${v.state}${compact ? ' compact' : ''}${onphoto ? ' onphoto' : ''}">
-    ${Icon(m.icon, { size: compact ? 13 : 15 })}<span>${m.label}${v.date ? ` · ${v.date}` : ''}</span></span>`;
+    ${Icon(m.icon, { size: compact ? 13 : 15 })}<span>${m.label}${v.date ? ` · ${locDate(v.date)}` : ''}</span></span>`;
 };
 
 export const ProducerCard = (p) => `

@@ -1,7 +1,7 @@
 import { Icon } from './icons.js';
-import { StatusBar, Photo, VerifyBadge, ProducerCard, VideoBlock, BottomNav, initMap, catGlyph } from './components.js';
+import { StatusBar, Photo, VerifyBadge, ProducerCard, VideoBlock, BottomNav, initMap, catGlyph, catLabel } from './components.js';
 import { getState, results, producerById, toggleSaved, hubSeen, lastFunction, resetHub, currentUser, userZoneIsActive, userZone, updateProfile, uploadAvatar, signOut } from './store.js';
-import { t, getLang, setLang, LANGS } from './i18n.js';
+import { t, getLang, setLang, LANGS, locDate } from './i18n.js';
 
 // Avatar utente: mostra la foto (URL Google o path caricato) se c'è, altrimenti l'iniziale.
 function avatarSrc(u) {
@@ -109,7 +109,7 @@ export function Home() {
   const regionName = typeof uz === 'string' ? uz : (uz && (uz.region || uz.label || uz.name)) || '';
   const locLabel = inZone ? (s.zone?.comuni?.[0] || s.zone?.label || t('home.zoneFallback')) : (regionName || t('home.regionFallback'));
   const chips = s.categories.map(c =>
-    `<button class="chip ${s.category === c.id ? 'active' : ''}" data-cat="${c.id}">${Icon(c.glyph, { size: 16 })}${c.label}</button>`).join('');
+    `<button class="chip ${s.category === c.id ? 'active' : ''}" data-cat="${c.id}">${Icon(c.glyph, { size: 16 })}${catLabel(c)}</button>`).join('');
 
   // Empty-state per chi è fuori dalla zona attiva: causa + cosa fare.
   const emptyRegion = regionName ? `in <b>${regionName}</b>` : t('home.regionYours');
@@ -171,7 +171,7 @@ export function Home() {
 export function Producer(id) {
   const p = producerById(id);
   if (!p) return { html: `<div class="screen no-nav"><div class="pad mt22">${t('producer.notFound')} <a href="#/home" data-link>${t('producer.backHome')}</a></div></div>` };
-  const cats = p.categories.map(c => `<span class="chip" style="padding:5px 11px">${Icon(catGlyph[c], { size: 14 })}${c}</span>`).join('');
+  const cats = p.categories.map(c => `<span class="chip" style="padding:5px 11px">${Icon(catGlyph[c], { size: 14 })}${catLabel(c)}</span>`).join('');
   // Pull-quote: cita le parole vere del produttore (estratte da story tra « »), con attribuzione.
   const quoteMatch = (p.story || '').match(/«([^»]+)»/);
   const quote = quoteMatch ? quoteMatch[1].trim() : t('producer.defaultQuote');
@@ -249,7 +249,7 @@ export function Producer(id) {
 
         <div class="block">
           <div class="block-h"><div class="section-t">${t('producer.reviews')}</div></div>
-          <div class="muted" style="font-size:14px">${t('producer.noReviews1')} <b style="color:var(--verde-deep)">${t('producer.verifiedByTech', { date: p.verify.date })}</b>.</div>
+          <div class="muted" style="font-size:14px">${t('producer.noReviews1')} <b style="color:var(--verde-deep)">${t('producer.verifiedByTech', { date: locDate(p.verify.date) })}</b>.</div>
         </div>
         <div style="height:12px"></div>
       </div>
@@ -350,7 +350,7 @@ export function Salvati() {
   const shown = salvatiFilter ? saved.filter(p => p.categories.includes(salvatiFilter)) : saved;
   const chips = [
     `<button class="chip ${salvatiFilter === null ? 'active' : ''}" data-filter="">${t('saved.all', { n: saved.length })}</button>`,
-    ...present.map(c => `<button class="chip ${salvatiFilter === c.id ? 'active' : ''}" data-filter="${c.id}">${Icon(c.glyph, { size: 14 })}${c.label}</button>`),
+    ...present.map(c => `<button class="chip ${salvatiFilter === c.id ? 'active' : ''}" data-filter="${c.id}">${Icon(c.glyph, { size: 14 })}${catLabel(c)}</button>`),
   ].join('');
   const renderList = () => shown.length
     ? shown.map(ProducerCard).join('')

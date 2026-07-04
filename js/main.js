@@ -7,7 +7,7 @@ import { enhanceHome, enhanceMapFull, enhanceCarrello } from './desktop.js';
 import { openAuthModal } from './screens/AuthModal.js';
 import { Custodi } from './screens/Custodi.js';
 import { Termini, Privacy } from './screens/Legal.js';
-import { initI18n, setLang, detectLang } from './i18n.js';
+import { initI18n, setLang, detectLang, t } from './i18n.js';
 import { OnbVideo } from './screens/OnbVideo.js';
 import { Zona } from './screens/Zona.js';
 import { Ricerca } from './screens/Ricerca.js';
@@ -37,25 +37,30 @@ const app = document.getElementById('app');
 
 /* ---- Rail laterale (solo desktop, via CSS) ---- */
 const RAIL = [
-  { ic: 'home', label: 'Scopri', href: '#/home', match: ['#/home', '#/', '#/mappa', '#/ricerca', '#/filtri'] },
-  { ic: 'map-pin', label: 'Mappa', href: '#/mappa', match: ['#/mappa'] },
-  { ic: 'play', label: 'Cibo Vero', href: '#/cibovero', match: ['#/cibovero', '#/video'] },
-  { ic: 'bookmark', label: 'Salvati', href: '#/salvati', match: ['#/salvati'] },
-  { ic: 'leaf', label: 'Diventa produttore', href: '#/candidati', match: ['#/candidati'] },
+  { ic: 'home', key: 'nav.scopri', href: '#/home', match: ['#/home', '#/', '#/mappa', '#/ricerca', '#/filtri'] },
+  { ic: 'map-pin', key: 'rail.map', href: '#/mappa', match: ['#/mappa'] },
+  { ic: 'play', key: 'rail.ciboVero', href: '#/cibovero', match: ['#/cibovero', '#/video'] },
+  { ic: 'bookmark', key: 'nav.salvati', href: '#/salvati', match: ['#/salvati'] },
+  { ic: 'leaf', key: 'rail.becomeProducer', href: '#/candidati', match: ['#/candidati'] },
 ];
 function buildRail() {
   const r = document.createElement('aside'); r.id = 'rail';
+  const link = (href, ic, key) => `<a class="rl" href="${href}">${Icon(ic, { size: 20 })} <span class="rl-t" data-k="${key}">${t(key)}</span></a>`;
   r.innerHTML = `
     <a class="rl-logo" href="#/home"><img src="./assets/brand/gaia-food-lockup-orizzontale.svg" alt="Gaia Food" decoding="async"
       onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'rl-word',innerHTML:'GAIA <b>FOOD</b>'}))"></a>
-    ${RAIL.map(i => `<a class="rl" href="${i.href}" data-rail="${i.label}">${Icon(i.ic, { size: 20 })} ${i.label}</a>`).join('')}
+    ${RAIL.map(i => link(i.href, i.ic, i.key)).join('')}
     <div class="rl-spacer"></div>
     <div class="rl-sep"></div>
-    <a class="rl" href="#/profilo" data-rail="Tu">${Icon('user', { size: 20 })} Tu</a>
-    <a class="rl" href="#/sasha" data-rail="Sasha">${Icon('check-circle', { size: 20 })} Area verificatore</a>
-    <a class="rl" href="#/admin" data-rail="Admin">${Icon('sliders', { size: 20 })} Gestione (Admin)</a>
-    <div class="rl-foot">Gaia Food · il cibo vero, vicino a te</div>`;
+    ${link('#/profilo', 'user', 'nav.tu')}
+    ${link('#/sasha', 'check-circle', 'rail.verifier')}
+    ${link('#/admin', 'sliders', 'rail.admin')}
+    <div class="rl-foot" data-k="rail.tagline">${t('rail.tagline')}</div>`;
   document.body.insertBefore(r, app);
+}
+// Ridisegna le etichette del rail nella lingua attiva (a ogni render / cambio lingua).
+function refreshRail() {
+  document.querySelectorAll('#rail [data-k]').forEach(el => { el.textContent = t(el.getAttribute('data-k')); });
 }
 function markRail() {
   const h = location.hash || '#/home';
@@ -157,6 +162,7 @@ function render() {
   try { enhanceHome(app); } catch (e) { console.error('enhanceHome', e); }
   if (h === '#/consegna/carrello') { try { enhanceCarrello(app); } catch (e) { console.error('enhanceCarrello', e); } }
   markRail();
+  refreshRail(); // etichette del rail nella lingua attiva
 }
 
 S.setRerender(render);

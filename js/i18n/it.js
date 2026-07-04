@@ -150,6 +150,22 @@ export default {
   'verify.expiring': 'Verifica in aggiornamento',
   'verify.suspendedCompact': 'Verifica sospesa',
   'verify.suspended': 'Verifica sospesa — in ricontrollo',
+  // categorie prodotto (etichette da dati, i18n via id)
+  'cat.latte': 'Latte',
+  'cat.uova': 'Uova',
+  'cat.olio': 'Oli',
+  'cat.grano': 'Grano',
+  'cat.formaggio': 'Formaggio',
+  'cat.miele': 'Miele',
+  'cat.carne': 'Carne',
+  'cat.frutta-verdura': 'Frutta e verdura',
+  // rail laterale (solo desktop)
+  'rail.map': 'Mappa',
+  'rail.ciboVero': 'Cibo Vero',
+  'rail.becomeProducer': 'Diventa produttore',
+  'rail.verifier': 'Area verificatore',
+  'rail.admin': 'Gestione (Admin)',
+  'rail.tagline': 'Gaia Food · il cibo vero, vicino a te',
   // ---- schermate (fan-out subagenti) ----
   "ricerca.resultsCount": "{n} {label} per &ldquo;{q}&rdquo;",
   "ricerca.producer": "produttore",

@@ -150,6 +150,22 @@ export default {
   'verify.expiring': 'Verification updating',
   'verify.suspendedCompact': 'Verification paused',
   'verify.suspended': 'Verification paused — under review',
+  // product categories (data labels, i18n by id)
+  'cat.latte': 'Milk',
+  'cat.uova': 'Eggs',
+  'cat.olio': 'Oil',
+  'cat.grano': 'Grain',
+  'cat.formaggio': 'Cheese',
+  'cat.miele': 'Honey',
+  'cat.carne': 'Meat',
+  'cat.frutta-verdura': 'Fruit & veg',
+  // side rail (desktop only)
+  'rail.map': 'Map',
+  'rail.ciboVero': 'Real Food',
+  'rail.becomeProducer': 'Become a producer',
+  'rail.verifier': 'Verifier area',
+  'rail.admin': 'Management (Admin)',
+  'rail.tagline': 'Gaia Food · real food, close to you',
   // ---- schermate (fan-out subagenti) ----
   "ricerca.resultsCount": "{n} {label} for &ldquo;{q}&rdquo;",
   "ricerca.producer": "producer",

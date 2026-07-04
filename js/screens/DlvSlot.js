@@ -1,7 +1,7 @@
 import { Icon } from '../icons.js';
 import { StatusBar } from '../components.js';
 import { getState } from '../store.js';
-import { t } from '../i18n.js';
+import { t, locDate } from '../i18n.js';
 
 /* ---------------- CONSEGNA · Slot (rotta #/consegna/slot) ----------------
    Slot/giorno di consegna. La consegna è "in arrivo": niente prezzi, niente
@@ -35,9 +35,9 @@ export function DlvSlot() {
 
   const dayChips = () => days.map(d => `
     <button class="ds-day" role="radio" aria-checked="false" data-day="${d.id}"
-      aria-label="${t('dlvSlot.dayAria', { day: dayLabel(d), date: d.date })}">
+      aria-label="${t('dlvSlot.dayAria', { day: dayLabel(d), date: locDate(d.date) })}">
       <span class="ds-day-l">${dayLabel(d)}</span>
-      <span class="ds-day-d tnum">${d.date}</span>
+      <span class="ds-day-d tnum">${locDate(d.date)}</span>
     </button>`).join('');
 
   const bandsFor = () => bands.map(b => {
@@ -181,7 +181,7 @@ export function DlvSlot() {
       if (ready) {
         const d = days.find(x => x.id === sel.day);
         const b = bands.find(x => x.id === sel.band);
-        hint.textContent = `${dayLabel(d)} ${d.date} · ${b.time}`;
+        hint.textContent = `${dayLabel(d)} ${locDate(d.date)} · ${b.time}`;
       } else if (sel.day) {
         hint.textContent = t('dlvSlot.hintPickBand');
       } else {
