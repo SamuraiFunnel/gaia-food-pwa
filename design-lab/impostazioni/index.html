@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaia Food · Impostazioni + Profilo — varianti</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --carta:#F4F1EB; --carta-scura:#EDE6DA; --bianco:#FBF9F5; --canvas:#E7DECF;
+  --ink:#1F1812; --ink-soft:#564B41; --muted:#75695B; --muted2:#8A7D6C; --faint:#A89A87; --faint2:#BCAE9B;
+  --verde:#16A34A; --verde-deep:#15803D; --verde-pale:#E7F5EC;
+  --celeste:#0EA5E9; --celeste-deep:#0C7FB0; --celeste-pale:#E2F2F9;
+  --terra:#C2A07A; --terra-deep:#8C6838; --terra-pale:#F3E9D9;
+  --bd:#ECE4D7; --bd2:#E5DCCF; --bd3:#E0D7C8;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+  --sh-card:0 1px 2px rgba(31,24,18,.05),0 14px 30px -18px rgba(31,24,18,.4);
+  --grad:linear-gradient(135deg,#16A34A,#0EA5E9);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{ font-family:var(--sans); background:#211d18; color:#efe7db; padding:34px 22px 80px; }
+.page-h{ max-width:1200px; margin:0 auto 26px; }
+.page-h .kick{ font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:#c8a86f; font-weight:700; }
+.page-h h1{ font-family:var(--serif); font-size:32px; font-weight:600; letter-spacing:-.02em; margin-top:8px; color:#fff; }
+.page-h p{ font-size:14px; line-height:1.6; color:#c3b7a6; margin-top:12px; max-width:78ch; }
+.group-t{ max-width:1240px; margin:34px auto 4px; font-family:var(--serif); font-size:22px; font-weight:600; color:#fff; }
+.group-s{ max-width:1240px; margin:0 auto 18px; font-size:13px; color:#9c8f7d; }
+.grid{ max-width:1240px; margin:0 auto; display:flex; flex-wrap:wrap; gap:34px 30px; justify-content:center; }
+.cell{ width:340px; }
+.cell .cap{ display:flex; align-items:baseline; gap:9px; margin:0 4px 6px; }
+.cell .cap .n{ font-family:var(--serif); font-size:19px; font-weight:600; color:#fff; }
+.cell .cap .t{ font-size:13px; font-weight:600; color:#eadfce; }
+.cell .desc{ font-size:12px; color:#9c8f7d; margin:0 4px 12px; line-height:1.45; }
+.phone{ width:340px; height:730px; border-radius:44px; padding:11px; background:linear-gradient(160deg,#3a332a,#191510); box-shadow:0 40px 80px -30px rgba(0,0,0,.8); }
+.screen{ position:relative; width:100%; height:100%; border-radius:34px; overflow:hidden; background:var(--carta); }
+.vp{ position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden; font-family:var(--sans); }
+.scroll{ flex:1; overflow:auto; }
+
+/* comuni */
+.hdr{ padding:26px 20px 6px; }
+.hdr .h1{ font-family:var(--serif); font-size:29px; font-weight:600; color:var(--ink); letter-spacing:-.02em; }
+.avatar{ border-radius:50%; background:var(--verde-pale); color:var(--verde-deep); display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-weight:700; flex:none; overflow:hidden; }
+.avatar img{ width:100%; height:100%; object-fit:cover; }
+.card{ background:var(--bianco); border:1px solid var(--bd); border-radius:16px; box-shadow:var(--sh-card); overflow:hidden; }
+.row{ display:flex; align-items:center; gap:13px; padding:14px 15px; border-bottom:1px solid var(--bd2); }
+.row:last-child{ border-bottom:none; }
+.row .ic{ width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex:none; background:var(--carta-scura); color:var(--ink-soft); }
+.row .lb{ flex:1; font-size:14.5px; color:var(--ink); font-weight:500; }
+.row .vl{ font-size:13px; color:var(--muted); font-weight:500; }
+.row .chev{ color:var(--faint2); flex:none; }
+.sect-t{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--muted2); margin:20px 4px 8px; }
+.toggle{ width:44px; height:26px; border-radius:100px; background:var(--verde); position:relative; flex:none; }
+.toggle i{ position:absolute; top:3px; left:21px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+.toggle.off{ background:var(--bd3); } .toggle.off i{ left:3px; }
+.flag{ font-size:16px; }
+.logout{ color:#C0392B; } .logout .ic{ background:#f6e4e1; color:#C0392B; }
+svg{display:block}
+.ic-lg{ background:var(--verde-pale); color:var(--verde-deep); }
+.ic-cel{ background:var(--celeste-pale); color:var(--celeste-deep); }
+.ic-ter{ background:var(--terra-pale); color:var(--terra-deep); }
+
+/* ===== profilo header grande (riuso) ===== */
+.phead{ display:flex; align-items:center; gap:14px; padding:14px; }
+.phead .avatar{ width:58px; height:58px; font-size:24px; }
+.phead .pn{ flex:1; } .phead .pn b{ font-family:var(--serif); font-size:18px; font-weight:600; color:var(--ink); display:block; }
+.phead .pn span{ font-size:12.5px; color:var(--muted); }
+.phead .edit{ font-size:12px; font-weight:600; color:var(--verde-deep); background:var(--verde-pale); padding:7px 12px; border-radius:100px; flex:none; }
+
+/* ===== V3 tessere ===== */
+.tiles{ display:grid; grid-template-columns:1fr 1fr; gap:11px; padding:2px 4px; }
+.tile{ background:var(--bianco); border:1px solid var(--bd); border-radius:16px; padding:14px; box-shadow:var(--sh-card); }
+.tile .ic{ width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center; }
+.tile b{ display:block; font-size:14px; font-weight:600; color:var(--ink); margin-top:9px; }
+.tile span{ font-size:11.5px; color:var(--muted); }
+
+/* ===== PROFILO EDIT ===== */
+.ed-top{ display:flex; align-items:center; gap:10px; padding:12px 8px; }
+.ed-top .back{ width:38px;height:38px;border-radius:50%;background:var(--bianco);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;color:var(--ink); }
+.ed-top .tt{ flex:1; text-align:center; font-weight:600; color:var(--ink); }
+.ed-top .save{ font-size:14px; font-weight:600; color:var(--verde-deep); }
+.ed-ava{ position:relative; width:96px; height:96px; margin:8px auto 6px; }
+.ed-ava .avatar{ width:96px; height:96px; font-size:38px; }
+.ed-ava .cam{ position:absolute; right:-2px; bottom:-2px; width:32px; height:32px; border-radius:50%; background:var(--verde); color:#fff; display:flex; align-items:center; justify-content:center; border:3px solid var(--carta); }
+.ed-chg{ text-align:center; font-size:13px; font-weight:600; color:var(--verde-deep); margin-bottom:18px; }
+.field{ margin:0 2px 14px; }
+.field label{ display:block; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted2); margin-bottom:6px; }
+.field .inp{ display:flex; align-items:center; gap:10px; background:var(--bianco); border:1px solid var(--bd2); border-radius:13px; padding:13px 14px; font-size:15px; color:var(--ink); }
+.field .inp .ph{ color:var(--faint); }
+.field .inp.ro{ background:var(--carta-scura); color:var(--muted); }
+.field .hint{ font-size:11.5px; color:var(--faint); margin-top:5px; }
+.btn-save{ margin:8px 2px 0; width:calc(100% - 4px); padding:15px; border-radius:14px; background:var(--grad); color:#fff; font-weight:600; font-size:15px; text-align:center; box-shadow:0 12px 26px -12px rgba(22,163,74,.6); }
+</style>
+</head>
+<body>
+<div class="page-h">
+  <div class="kick">Gaia Food · Design Lab</div>
+  <h1>Impostazioni + Profilo — varianti</h1>
+  <p>La pagina "Tu" ripensata con impostazioni REALI (profilo modificabile, <b style="color:#fff">lingua</b> multi-lingua, <b style="color:#fff">zona/posizione</b> cambiabile, notifiche) + la <b style="color:#fff">pagina di modifica profilo</b> (foto, nome, altri dati). Scegli una variante per le Impostazioni e una per il Profilo.</p>
+</div>
+
+<div class="group-t">A · Pagina Impostazioni ("Tu")</div>
+<div class="group-s">5 modi di organizzare account, preferenze (lingua, zona, notifiche), referral, produttore, info.</div>
+<div class="grid" id="gridA"></div>
+
+<div class="group-t">B · Modifica profilo (pagina di dettaglio)</div>
+<div class="group-s">3 modi per: cambiare foto, nome e altri dati.</div>
+<div class="grid" id="gridB"></div>
+
+<script>
+const I = {
+  user:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>',
+  pin:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c4-3.5 7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 3 7.5 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>',
+  globe:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.8 6 3.8 9S14.5 18.5 12 21C9.5 18.5 8.2 15 8.2 12S9.5 5.5 12 3Z"/></svg>',
+  bell:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>',
+  share:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>',
+  sprout:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20h10M12 20v-9M12 13C12 9 9 6 4 6c0 4 3 7 8 7ZM12 11c0-3 2.5-5.5 7-5.5 0 3.5-3 5.5-7 5.5Z"/></svg>',
+  leaf:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20s1-9 8-12 8-4 8-4 0 9-6 13-10 3-10 3Z"/><path d="M4 20 14 10"/></svg>',
+  doc:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>',
+  lock:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>',
+  out:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>',
+  chev:'<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
+  cam:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l1.5-2h7L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  back:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>',
+  edit:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+};
+const chev = `<span class="chev">${I.chev}</span>`;
+const row = (icClass, ic, lb, vl='', tail=chev) => `<div class="row"><span class="ic ${icClass}">${ic}</span><span class="lb">${lb}</span>${vl?`<span class="vl">${vl}</span>`:''}${tail}</div>`;
+const toggle = (on=true) => `<span class="toggle ${on?'':'off'}"><i></i></span>`;
+const phead = () => `<div class="phead"><span class="avatar" style="width:58px;height:58px;font-size:24px">D</span><div class="pn"><b>Daniele</b><span>samurai.insider@gmail.com</span></div><span class="edit">Modifica</span></div>`;
+
+/* ---------- IMPOSTAZIONI ---------- */
+const A = [
+{ t:'Raggruppata (iOS)', d:'Header profilo + sezioni in card (Account · Preferenze · Community · Info). Pulita, familiare, scalabile.',
+  h:`<div class="vp"><div class="scroll" style="padding:0 16px 16px">
+    <div class="hdr"><div class="h1">Tu</div></div>
+    <div class="card">${phead()}</div>
+    <div class="sect-t">Account</div>
+    <div class="card">${row('','', 'Modifica profilo','',chev).replace('<span class="ic "></span>',`<span class="ic">${I.user}</span>`)}${row('ic-cel',I.pin,'Zona','Villetta Barrea')}${row('ic-ter',I.leaf,'Sei un produttore?','')}</div>
+    <div class="sect-t">Preferenze</div>
+    <div class="card">${row('ic-lg',I.globe,'Lingua','<span class="flag">🇮🇹</span> Italiano')}${row('',I.bell,'Notifiche','',toggle(true))}</div>
+    <div class="sect-t">Community</div>
+    <div class="card">${row('ic-cel',I.share,'Invita un amico','')}${row('ic-lg',I.sprout,'I Custodi di Gaia','')}</div>
+    <div class="sect-t">Info</div>
+    <div class="card">${row('',I.doc,'Termini','')}${row('',I.lock,'Privacy','')}${row('logout',I.out,'<span class="logout">Esci</span>','','')}</div>
+  </div></div>` },
+
+{ t:'Profilo-first', d:'Grande header profilo con avatar e "Modifica profilo" in evidenza, poi lista essenziale. Mette la persona al centro.',
+  h:`<div class="vp"><div class="scroll" style="padding:0 16px 16px">
+    <div style="text-align:center;padding:26px 0 12px"><span class="avatar" style="width:82px;height:82px;font-size:34px;margin:0 auto">D</span>
+      <div style="font-family:var(--serif);font-size:22px;font-weight:600;color:var(--ink);margin-top:10px">Daniele</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:2px">samurai.insider@gmail.com</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:13px;font-weight:600;color:var(--verde-deep);background:var(--verde-pale);padding:9px 16px;border-radius:100px">${I.edit} Modifica profilo</div></div>
+    <div class="card">${row('ic-cel',I.pin,'Zona','Villetta Barrea')}${row('ic-lg',I.globe,'Lingua','🇮🇹 Italiano')}${row('',I.bell,'Notifiche','',toggle(true))}</div>
+    <div class="sect-t">Community</div>
+    <div class="card">${row('ic-cel',I.share,'Invita un amico','')}${row('ic-lg',I.sprout,'I Custodi di Gaia','')}${row('ic-ter',I.leaf,'Sei un produttore?','')}</div>
+    <div class="card" style="margin-top:14px">${row('',I.doc,'Termini','')}${row('',I.lock,'Privacy','')}${row('logout',I.out,'<span class="logout">Esci</span>','','')}</div>
+  </div></div>` },
+
+{ t:'Tessere rapide', d:'Le preferenze principali (Profilo, Zona, Lingua, Notifiche) come tessere in griglia + lista sotto. Le vedi a colpo d occhio, tocchi al volo.',
+  h:`<div class="vp"><div class="scroll" style="padding:0 16px 16px">
+    <div class="hdr"><div class="h1">Tu</div></div>
+    <div class="card" style="margin-bottom:14px">${phead()}</div>
+    <div class="tiles">
+      <div class="tile"><span class="ic ic-lg">${I.user}</span><b>Profilo</b><span>Foto e dati</span></div>
+      <div class="tile"><span class="ic ic-cel">${I.pin}</span><b>Zona</b><span>Villetta Barrea</span></div>
+      <div class="tile"><span class="ic ic-lg">${I.globe}</span><b>Lingua</b><span>🇮🇹 Italiano</span></div>
+      <div class="tile"><span class="ic ic-ter">${I.bell}</span><b>Notifiche</b><span>Attive</span></div>
+    </div>
+    <div class="sect-t">Community</div>
+    <div class="card">${row('ic-cel',I.share,'Invita un amico','')}${row('ic-lg',I.sprout,'I Custodi di Gaia','')}${row('ic-ter',I.leaf,'Sei un produttore?','')}</div>
+    <div class="card" style="margin-top:14px">${row('logout',I.out,'<span class="logout">Esci</span>','','')}</div>
+  </div></div>` },
+
+{ t:'Lista con sezioni', d:'Stile Material: sezioni titolate, righe semplici, toggle inline. Massima chiarezza, poca decorazione.',
+  h:`<div class="vp"><div class="scroll" style="padding:0 18px 16px">
+    <div class="hdr" style="padding:24px 2px 4px"><div class="h1">Impostazioni</div></div>
+    <div class="card" style="margin:12px 0 4px">${phead()}</div>
+    <div class="sect-t">Account</div>
+    <div class="card">${row('',I.user,'Modifica profilo','')}${row('',I.pin,'Zona','Villetta Barrea')}</div>
+    <div class="sect-t">Preferenze</div>
+    <div class="card">${row('',I.globe,'Lingua','🇮🇹 Italiano')}${row('',I.bell,'Notifiche','',toggle(true))}</div>
+    <div class="sect-t">Referral</div>
+    <div class="card">${row('',I.share,'Invita un amico','')}${row('',I.sprout,'I Custodi di Gaia','')}</div>
+    <div class="sect-t">Altro</div>
+    <div class="card">${row('',I.leaf,'Sei un produttore?','')}${row('',I.doc,'Termini','')}${row('',I.lock,'Privacy','')}${row('logout',I.out,'<span class="logout">Esci</span>','','')}</div>
+  </div></div>` },
+
+{ t:'Header ricco + lingua in evidenza', d:'Header con avatar grande e le due scelte "da turista" (Lingua e Zona) come chip evidenti in alto — pensata per chi arriva da fuori.',
+  h:`<div class="vp"><div class="scroll" style="padding:0 16px 16px">
+    <div style="background:linear-gradient(160deg,#eaf6ee,#e3f0f6);border-radius:0 0 22px 22px;padding:26px 18px 18px;text-align:center">
+      <span class="avatar" style="width:74px;height:74px;font-size:30px;margin:0 auto">D</span>
+      <div style="font-family:var(--serif);font-size:21px;font-weight:600;color:var(--ink);margin-top:9px">Daniele</div>
+      <div style="font-size:12.5px;color:var(--muted)">samurai.insider@gmail.com</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--verde-deep);background:#fff;border:1px solid var(--verde-pale);padding:7px 12px;border-radius:100px">🇮🇹 Italiano ${I.chev}</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--celeste-deep);background:#fff;border:1px solid var(--celeste-pale);padding:7px 12px;border-radius:100px">${I.pin} Villetta B.</span>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">${row('ic-lg',I.user,'Modifica profilo','')}${row('',I.bell,'Notifiche','',toggle(true))}</div>
+    <div class="sect-t">Community</div>
+    <div class="card">${row('ic-cel',I.share,'Invita un amico','')}${row('ic-lg',I.sprout,'I Custodi di Gaia','')}${row('ic-ter',I.leaf,'Sei un produttore?','')}</div>
+    <div class="card" style="margin-top:14px">${row('',I.doc,'Termini','')}${row('',I.lock,'Privacy','')}${row('logout',I.out,'<span class="logout">Esci</span>','','')}</div>
+  </div></div>` },
+];
+
+/* ---------- MODIFICA PROFILO ---------- */
+const field = (lb, val, {ph=false, ro=false, hint=''}={}) => `<div class="field"><label>${lb}</label><div class="inp ${ro?'ro':''}"><span class="${ph?'ph':''}">${val}</span></div>${hint?`<div class="hint">${hint}</div>`:''}</div>`;
+const B = [
+{ t:'Form centrato', d:'Avatar grande al centro con "Cambia foto", campi Nome/Email/Città, Salva. Classico, immediato.',
+  h:`<div class="vp"><div class="scroll" style="padding:0 18px 18px">
+    <div class="ed-top"><span class="back">${I.back}</span><span class="tt">Modifica profilo</span><span class="save">Salva</span></div>
+    <div class="ed-ava"><span class="avatar" style="width:96px;height:96px;font-size:38px">D</span><span class="cam">${I.cam}</span></div>
+    <div class="ed-chg">Cambia foto</div>
+    ${field('Nome','Daniele')}
+    ${field('Email','samurai.insider@gmail.com',{ro:true,hint:'Collegata al tuo accesso · non modificabile'})}
+    ${field('Comune / Città','Villetta Barrea')}
+    ${field('Telefono','Aggiungi un numero',{ph:true})}
+    <div class="btn-save">Salva modifiche</div>
+  </div></div>` },
+
+{ t:'Editoriale con sezioni', d:'Foto e nome in cima come "biglietto", poi sezioni (Dati personali · Contatti). Ariosa, ordinata, cresce bene con più campi.',
+  h:`<div class="vp"><div class="scroll" style="padding:0 18px 18px">
+    <div class="ed-top"><span class="back">${I.back}</span><span class="tt">Il tuo profilo</span><span class="save">Salva</span></div>
+    <div class="card" style="margin:6px 0 4px"><div class="phead"><div class="ed-ava" style="width:58px;height:58px;margin:0"><span class="avatar" style="width:58px;height:58px;font-size:24px">D</span><span class="cam" style="width:24px;height:24px;right:-3px;bottom:-3px">${I.cam}</span></div><div class="pn"><b>Daniele</b><span>Tocca la foto per cambiarla</span></div></div></div>
+    <div class="sect-t">Dati personali</div>
+    ${field('Nome','Daniele')}
+    ${field('Comune / Città','Villetta Barrea')}
+    <div class="sect-t">Contatti</div>
+    ${field('Email','samurai.insider@gmail.com',{ro:true})}
+    ${field('Telefono','Aggiungi un numero',{ph:true})}
+    <div class="btn-save">Salva modifiche</div>
+  </div></div>` },
+
+{ t:'Riga-per-riga (tap to edit)', d:'Come le impostazioni iOS: righe con valore a destra; tocchi una riga e la modifichi. Nessun form lungo, tutto inline.',
+  h:`<div class="vp"><div class="scroll" style="padding:0 16px 18px">
+    <div class="ed-top"><span class="back">${I.back}</span><span class="tt">Modifica profilo</span><span></span></div>
+    <div class="ed-ava"><span class="avatar" style="width:96px;height:96px;font-size:38px">D</span><span class="cam">${I.cam}</span></div>
+    <div class="ed-chg">Cambia foto</div>
+    <div class="card">
+      ${row('','', 'Nome','Daniele').replace('<span class="ic "></span>','')}
+      ${row('','', 'Comune','Villetta Barrea').replace('<span class="ic "></span>','')}
+      ${row('','', 'Telefono','<span style="color:var(--faint)">Aggiungi</span>').replace('<span class="ic "></span>','')}
+      <div class="row"><span class="lb">Email</span><span class="vl">samurai.insider@gmail.com</span></div>
+    </div>
+    <div style="font-size:11.5px;color:var(--faint);margin:10px 6px">L'email è collegata al tuo accesso e non è modificabile qui. Le modifiche si salvano subito.</div>
+  </div></div>` },
+];
+
+function build(id, arr){
+  const grid=document.getElementById(id);
+  arr.forEach((v,i)=>{
+    const cell=document.createElement('div'); cell.className='cell';
+    cell.innerHTML=`<div class="cap"><span class="n">${String(i+1).padStart(2,'0')}</span><span class="t">${v.t}</span></div>
+      <div class="desc">${v.d}</div><div class="phone"><div class="screen">${v.h}</div></div>`;
+    grid.appendChild(cell);
+  });
+}
+build('gridA', A);
+build('gridB', B);
+</script>
+</body>
+</html>

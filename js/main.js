@@ -7,6 +7,7 @@ import { enhanceHome, enhanceMapFull, enhanceCarrello } from './desktop.js';
 import { openAuthModal } from './screens/AuthModal.js';
 import { Custodi } from './screens/Custodi.js';
 import { Termini, Privacy } from './screens/Legal.js';
+import { initI18n, setLang, detectLang } from './i18n.js';
 import { OnbVideo } from './screens/OnbVideo.js';
 import { Zona } from './screens/Zona.js';
 import { Ricerca } from './screens/Ricerca.js';
@@ -110,6 +111,7 @@ const routes = [
   { re: /^#\/custodi$/, view: () => Custodi('cliente') },
   { re: /^#\/termini$/, view: () => Termini() },
   { re: /^#\/privacy$/, view: () => Privacy() },
+  { re: /^#\/profilo\/modifica$/, view: () => S.ProfiloEdit() },
   { re: /^#\/profilo$/, view: () => S.Profilo() },
   { re: /^#\/candidati\/form$/, view: () => Form() },
   { re: /^#\/candidati\/stato$/, view: () => StatoCandidatura() },
@@ -158,6 +160,7 @@ function render() {
 }
 
 S.setRerender(render);
+initI18n(render); // cambio lingua → ridisegna la schermata corrente
 window.addEventListener('hashchange', render);
 // POP-UP di accesso: qualunque elemento con [data-open-auth] apre il modale (valore "zone" = parti dallo step zona).
 document.addEventListener('click', (e) => {
@@ -171,6 +174,7 @@ try { window.matchMedia('(min-width: 1024px)').addEventListener('change', render
 
 // Bootstrap: prima risolviamo la sessione (cookie httpOnly) così il GATE sa subito se l'utente è loggato,
 // poi carichiamo i dati. authMe() non fallisce mai (ritorna null se non loggato).
-Promise.all([authMe().catch(() => null), loadData()]).then(render).catch(err => {
+// setLang(detectLang()) carica il dizionario giusto (lingua salvata o del dispositivo) PRIMA del primo render.
+Promise.all([authMe().catch(() => null), loadData(), setLang(detectLang(), { persist: false })]).then(render).catch(err => {
   app.innerHTML = `<div class="pad" style="padding:40px">Errore nel caricare i dati: ${err.message}</div>`;
 });

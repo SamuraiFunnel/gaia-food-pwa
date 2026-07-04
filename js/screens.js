@@ -1,6 +1,37 @@
 import { Icon } from './icons.js';
 import { StatusBar, Photo, VerifyBadge, ProducerCard, VideoBlock, BottomNav, initMap, catGlyph } from './components.js';
-import { getState, results, producerById, toggleSaved, hubSeen, lastFunction, resetHub, currentUser, userZoneIsActive, userZone } from './store.js';
+import { getState, results, producerById, toggleSaved, hubSeen, lastFunction, resetHub, currentUser, userZoneIsActive, userZone, updateProfile, uploadAvatar, signOut } from './store.js';
+import { t, getLang, setLang, LANGS } from './i18n.js';
+
+// Avatar utente: mostra la foto (URL Google o path caricato) se c'è, altrimenti l'iniziale.
+function avatarSrc(u) {
+  const p = u && u.picture;
+  if (!p) return '';
+  return /^https?:\/\//.test(p) ? p : './' + String(p).replace(/^\.?\//, '');
+}
+function avatarInner(u, name) {
+  const src = avatarSrc(u);
+  return src ? `<img src="${src}" alt="" loading="lazy" onerror="this.remove()">` : (String(name || 'U').trim()[0] || 'U').toUpperCase();
+}
+// Bottom-sheet di scelta lingua (riusa gli stili .sheet globali).
+function openLangSheet() {
+  const back = document.createElement('div'); back.className = 'sheet-backdrop';
+  back.setAttribute('role', 'dialog'); back.setAttribute('aria-modal', 'true');
+  back.innerHTML = `<div class="sheet"><div class="handle"></div>
+    <div class="sh-title">${t('settings.chooseLanguage')}</div>
+    <div style="margin-top:6px">${LANGS.map(l => `<button type="button" class="lang-row" data-lang="${l.code}"
+      style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:${l.code === getLang() ? 'var(--verde-pale)' : 'none'};border:none;border-radius:12px;padding:14px 12px;cursor:pointer;font-family:inherit">
+      <span style="font-size:20px">${l.flag}</span><span style="flex:1;font-size:15px;font-weight:600;color:var(--ink)">${l.label}</span>
+      ${l.code === getLang() ? Icon('check-circle', { size: 18, color: 'var(--verde)' }) : ''}</button>`).join('')}</div></div>`;
+  const close = () => back.remove();
+  back.onclick = (e) => { if (e.target === back) close(); };
+  back.querySelectorAll('[data-lang]').forEach(b => b.onclick = async () => {
+    const code = b.dataset.lang; close();
+    await setLang(code);                                   // ridisegna nella nuova lingua
+    try { if (currentUser()) updateProfile({ lang: code }); } catch (_) {}  // best-effort (multi-dispositivo)
+  });
+  document.getElementById('app').appendChild(back);
+}
 
 const km = n => String(n).replace('.', ',');
 
@@ -98,7 +129,7 @@ export function Home() {
     html: `<div class="screen home">
       ${StatusBar()}
       <div class="toprow">
-        <span class="loc">${Icon('map-pin', { size: 16, color: 'var(--verde)' })}<b>${locLabel}</b>${inZone ? ` · ${s.radius} km` : ''}</span>
+        <button class="loc" type="button" data-open-auth="zone" aria-label="Cambia zona">${Icon('map-pin', { size: 16, color: 'var(--verde)' })}<b>${locLabel}</b>${inZone ? ` · ${s.radius} km` : ''} ${Icon('chevron-down', { size: 14, color: 'var(--faint)' })}</button>
         <a class="iconbtn" href="#/profilo" data-link>${Icon('user', { size: 18 })}</a>
       </div>
       <div class="scroll">
@@ -348,51 +379,158 @@ export function Profilo() {
   const u = currentUser() || {};
   const uName = u.name || (u.email ? u.email.split('@')[0] : 'Il tuo profilo');
   const uMeta = u.email || 'Membro di Gaia Food';
+  const langCur = LANGS.find(l => l.code === getLang()) || LANGS[0];
+  const uz = userZone();
+  const zoneLabel = uz ? ((uz.comuni && uz.comuni[0]) || uz.label || uz.region || 'Zona') : 'Zona';
+  const chevr = Icon('chevron-right', { size: 18, color: 'var(--faint)' });
+  const rowIc = (bg, col, ic) => `<span class="p5-ic" style="background:${bg};color:${col}">${ic}</span>`;
   return {
-    html: `<div class="screen">${StatusBar()}
-      <div class="pad mt8"><h1 class="h1">Tu</h1></div>
-      <div class="scroll"><div class="pad mt16 gap8">
-        <div class="pcard"><div class="pc-photo photo" data-tone="pascolo" style="border-radius:50%"></div>
-          <div class="pc-body"><div class="pc-name">${uName}</div><div class="pc-meta">${uMeta}</div></div></div>
-        <a class="pcard" href="#/candidati" data-link style="margin-top:6px">
-          <span class="cr-ic" style="background:var(--verde-pale);color:var(--verde-deep);width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center">${Icon('leaf', { size: 20 })}</span>
-          <div class="pc-body"><div class="pc-name" style="font-size:15px">Sei un produttore vero?</div><div class="pc-meta">Candidati · nessun costo, mai</div></div>
-          ${Icon('chevron-right', { size: 18, color: 'var(--faint)' })}</a>
-        <a class="pcard" href="#/custodi" data-link>
-          <span class="cr-ic" style="background:var(--celeste-pale);color:var(--celeste-deep);width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center">${Icon('share', { size: 20 })}</span>
-          <div class="pc-body"><div class="pc-name" style="font-size:15px">Invita un amico</div><div class="pc-meta">Porta un amico · ricevi credito</div></div>
-          ${Icon('chevron-right', { size: 18, color: 'var(--faint)' })}</a>
-        <a class="pcard" href="#/custodi/produttore" data-link>
-          <span class="cr-ic" style="background:var(--verde-pale);color:var(--verde-deep);width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center">${Icon('sprout', { size: 20 })}</span>
-          <div class="pc-body"><div class="pc-name" style="font-size:15px">I Custodi di Gaia</div><div class="pc-meta">Per i produttori · ricevi una commissione</div></div>
-          ${Icon('chevron-right', { size: 18, color: 'var(--faint)' })}</a>
-        <button class="pcard" data-hub style="width:100%;text-align:left;background:var(--card,#fff);border:none;cursor:pointer">
-          <span class="cr-ic" style="background:var(--terra-pale,#f3ece2);color:var(--terra-deep,#8a6a44);width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center">${Icon('compass', { size: 20 })}</span>
-          <div class="pc-body"><div class="pc-name" style="font-size:15px">Cosa vuoi fare?</div><div class="pc-meta">Torna alla scelta delle funzioni</div></div>
-          ${Icon('chevron-right', { size: 18, color: 'var(--faint)' })}</button>
-        <div class="section-t mt16">Impostazioni</div>
-        <div class="pcard" style="display:block">
-          <div class="kv">${Icon('globe', { size: 18, color: 'var(--muted)' })} <span style="flex:1">Lingua</span> <span class="muted" style="font-size:13.5px">Italiano</span></div>
-          <div class="kv">${Icon('map-pin', { size: 18, color: 'var(--muted)' })} <span style="flex:1">Posizione</span>
-            <span style="display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;color:var(--verde-deep)"><span style="width:7px;height:7px;border-radius:50%;background:var(--verde)"></span> Attiva</span></div>
-          <div class="kv">${Icon('bell', { size: 18, color: 'var(--muted)' })} <span style="flex:1">Notifiche</span>
-            <button type="button" role="switch" aria-checked="${notifOn}" aria-label="Notifiche" data-notif
-              style="width:42px;height:25px;border-radius:100px;border:none;padding:0;cursor:pointer;position:relative;flex:none;transition:background .18s;background:${notifOn ? 'var(--verde)' : 'var(--bd3,#d8cdb8)'}">
-              <span style="position:absolute;top:2.5px;left:${notifOn ? '19.5px' : '2.5px'};width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .18s"></span>
-            </button></div>
+    html: `<div class="screen prof05">
+      <style>
+      .prof05 .scroll{ padding:0 16px 16px; }
+      .prof05 .p5-hero{ background:linear-gradient(160deg,#eaf6ee,#e3f0f6); border-radius:0 0 22px 22px; margin:0 -16px; padding:26px 18px 18px; text-align:center; }
+      .prof05 .p5-ava{ width:74px; height:74px; border-radius:50%; margin:0 auto; background:var(--verde-pale); color:var(--verde-deep); display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-weight:700; font-size:30px; overflow:hidden; }
+      .prof05 .p5-ava img{ width:100%; height:100%; object-fit:cover; }
+      .prof05 .p5-name{ font-family:var(--serif); font-size:21px; font-weight:600; color:var(--ink); margin-top:9px; }
+      .prof05 .p5-mail{ font-size:12.5px; color:var(--muted); margin-top:1px; }
+      .prof05 .p5-chips{ display:flex; gap:8px; justify-content:center; margin-top:12px; flex-wrap:wrap; }
+      .prof05 .p5-chip{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--verde-deep); background:#fff; border:1px solid var(--verde-pale); padding:8px 13px; border-radius:100px; cursor:pointer; font-family:inherit; }
+      .prof05 .p5-chip.cel{ color:var(--celeste-deep); border-color:var(--celeste-pale); }
+      .prof05 .p5-card{ background:var(--bianco); border:1px solid var(--bd); border-radius:16px; box-shadow:var(--sh-card); overflow:hidden; margin-top:16px; }
+      .prof05 .p5-row{ display:flex; align-items:center; gap:13px; width:100%; text-align:left; padding:14px 15px; border-bottom:1px solid var(--bd2); background:none; border-left:none; border-right:none; border-top:none; cursor:pointer; font-family:inherit; }
+      .prof05 .p5-row:last-child{ border-bottom:none; }
+      .prof05 .p5-ic{ width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex:none; }
+      .prof05 .p5-lb{ flex:1; font-size:14.5px; color:var(--ink); font-weight:500; }
+      .prof05 .p5-sect{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--muted2); margin:20px 4px 8px; }
+      .prof05 .p5-logout .p5-lb{ color:#C0392B; }
+      .prof05 .p5-toggle{ width:44px; height:26px; border-radius:100px; border:none; padding:0; position:relative; flex:none; cursor:pointer; transition:background .18s; }
+      .prof05 .p5-toggle i{ position:absolute; top:3px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:left .18s; }
+      </style>
+      ${StatusBar()}
+      <div class="scroll">
+        <div class="p5-hero">
+          <div class="p5-ava">${avatarInner(u, uName)}</div>
+          <div class="p5-name">${uName}</div>
+          <div class="p5-mail">${uMeta}</div>
+          <div class="p5-chips">
+            <button class="p5-chip" type="button" data-lang-open>${langCur.flag} ${langCur.label} ${Icon('chevron-down', { size: 14, color: 'var(--faint)' })}</button>
+            <button class="p5-chip cel" type="button" data-open-auth="zone">${Icon('map-pin', { size: 14, color: 'var(--celeste-deep)' })} ${zoneLabel}</button>
+          </div>
         </div>
-      </div></div>
+
+        <div class="p5-card">
+          <a class="p5-row" href="#/profilo/modifica" data-link>${rowIc('var(--verde-pale)', 'var(--verde-deep)', Icon('user', { size: 18 }))}<span class="p5-lb">${t('settings.editProfile')}</span>${chevr}</a>
+          <div class="p5-row" style="cursor:default">${rowIc('var(--carta-scura)', 'var(--ink-soft)', Icon('bell', { size: 18 }))}<span class="p5-lb">${t('settings.notifications')}</span>
+            <button type="button" role="switch" aria-checked="${notifOn}" aria-label="${t('settings.notifications')}" data-notif class="p5-toggle" style="background:${notifOn ? 'var(--verde)' : 'var(--bd3,#d8cdb8)'}"><i style="left:${notifOn ? '21px' : '3px'}"></i></button></div>
+        </div>
+
+        <div class="p5-sect">${t('settings.community')}</div>
+        <div class="p5-card">
+          <a class="p5-row" href="#/custodi" data-link>${rowIc('var(--celeste-pale)', 'var(--celeste-deep)', Icon('share', { size: 18 }))}<span class="p5-lb">${t('settings.invite')}</span>${chevr}</a>
+          <a class="p5-row" href="#/custodi/produttore" data-link>${rowIc('var(--verde-pale)', 'var(--verde-deep)', Icon('sprout', { size: 18 }))}<span class="p5-lb">${t('settings.custodi')}</span>${chevr}</a>
+          <a class="p5-row" href="#/candidati" data-link>${rowIc('var(--terra-pale)', 'var(--terra-deep)', Icon('leaf', { size: 18 }))}<span class="p5-lb">${t('settings.producer')}</span>${chevr}</a>
+        </div>
+
+        <div class="p5-card" style="margin-top:16px">
+          <a class="p5-row" href="#/termini" data-link>${rowIc('var(--carta-scura)', 'var(--ink-soft)', Icon('info', { size: 18 }))}<span class="p5-lb">${t('settings.terms')}</span>${chevr}</a>
+          <a class="p5-row" href="#/privacy" data-link>${rowIc('var(--carta-scura)', 'var(--ink-soft)', Icon('lock', { size: 18 }))}<span class="p5-lb">${t('settings.privacy')}</span>${chevr}</a>
+          <button class="p5-row p5-logout" type="button" data-logout>${rowIc('#f6e4e1', '#C0392B', Icon('arrow-left', { size: 18 }))}<span class="p5-lb">${t('settings.logout')}</span></button>
+        </div>
+        <div style="height:14px"></div>
+      </div>
       ${BottomNav('tu')}</div>`,
     onMount(el) {
-      const hub = el.querySelector('[data-hub]');
-      if (hub) hub.onclick = () => { resetHub(); location.hash = '#/hub'; };
+      const lang = el.querySelector('[data-lang-open]'); if (lang) lang.onclick = () => openLangSheet();
       const notif = el.querySelector('[data-notif]');
       if (notif) notif.onclick = () => {
         const on = notif.getAttribute('aria-checked') !== 'true';
         localStorage.setItem('gf_notif', on ? '1' : '0');
         notif.setAttribute('aria-checked', String(on));
         notif.style.background = on ? 'var(--verde)' : 'var(--bd3,#d8cdb8)';
-        notif.firstElementChild.style.left = on ? '19.5px' : '2.5px';
+        notif.firstElementChild.style.left = on ? '21px' : '3px';
+        try { if (currentUser()) updateProfile({ notif: on }); } catch (_) {}
+      };
+      const out = el.querySelector('[data-logout]');
+      if (out) out.onclick = async () => { try { await signOut(); } catch (_) {} location.hash = '#/'; setTimeout(() => location.reload(), 40); };
+    },
+  };
+}
+
+/* ---------------- MODIFICA PROFILO (variante "riga-per-riga") ---------------- */
+export function ProfiloEdit() {
+  const u = currentUser() || {};
+  const uName = u.name || (u.email ? u.email.split('@')[0] : '');
+  const uz = userZone();
+  const cityPh = (uz && ((uz.comuni && uz.comuni[0]) || uz.label)) || 'La tua città';
+  const esc = s => String(s || '').replace(/"/g, '&quot;');
+  return {
+    html: `<div class="screen no-nav pedit">
+      <style>
+      .pedit .scroll{ padding:0 16px 24px; }
+      .pedit .pe-top{ display:flex; align-items:center; gap:10px; padding:12px 4px; }
+      .pedit .pe-top .tt{ flex:1; text-align:center; font-weight:600; color:var(--ink); }
+      .pedit .pe-ava{ position:relative; width:96px; height:96px; margin:8px auto 6px; }
+      .pedit .pe-ava .av{ width:96px; height:96px; border-radius:50%; background:var(--verde-pale); color:var(--verde-deep); display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-weight:700; font-size:38px; overflow:hidden; }
+      .pedit .pe-ava .av img{ width:100%; height:100%; object-fit:cover; }
+      .pedit .pe-ava .cam{ position:absolute; right:-2px; bottom:-2px; width:32px; height:32px; border-radius:50%; background:var(--verde); color:#fff; display:flex; align-items:center; justify-content:center; border:3px solid var(--carta); cursor:pointer; }
+      .pedit .pe-chg{ text-align:center; font-size:13px; font-weight:600; color:var(--verde-deep); margin-bottom:18px; cursor:pointer; }
+      .pedit .pe-card{ background:var(--bianco); border:1px solid var(--bd); border-radius:16px; box-shadow:var(--sh-card); overflow:hidden; }
+      .pedit .pe-row{ display:flex; align-items:center; gap:12px; padding:13px 15px; border-bottom:1px solid var(--bd2); }
+      .pedit .pe-row:last-child{ border-bottom:none; }
+      .pedit .pe-row label{ font-size:14.5px; color:var(--ink); font-weight:500; flex:none; width:92px; }
+      .pedit .pe-row input{ flex:1; border:none; background:none; text-align:right; font-family:inherit; font-size:14.5px; color:var(--ink); min-width:0; }
+      .pedit .pe-row input::placeholder{ color:var(--faint); }
+      .pedit .pe-row input:focus{ outline:none; }
+      .pedit .pe-row.ro span{ flex:1; text-align:right; font-size:13px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .pedit .pe-note{ font-size:11.5px; color:var(--faint); margin:10px 6px; line-height:1.5; }
+      .pedit .pe-msg{ min-height:18px; text-align:center; font-size:12.5px; font-weight:600; margin-top:8px; }
+      </style>
+      ${StatusBar()}
+      <div class="scroll">
+        <div class="pe-top"><button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 18 })}</button><span class="tt">${t('profile.title')}</span><span style="width:44px;flex:none"></span></div>
+        <div class="pe-ava"><span class="av" data-ava>${avatarInner(u, uName)}</span><button class="cam" type="button" data-cam aria-label="${t('profile.changePhoto')}">${Icon('camera', { size: 17, color: '#fff' })}</button></div>
+        <div class="pe-chg" data-cam-txt>${t('profile.changePhoto')}</div>
+        <input type="file" accept="image/*" data-avatar-input style="display:none">
+        <div class="pe-card">
+          <div class="pe-row"><label>${t('profile.name')}</label><input data-field="name" value="${esc(u.name)}" placeholder="${t('profile.namePlaceholder')}"></div>
+          <div class="pe-row"><label>${t('profile.city')}</label><input data-field="city" value="${esc(u.city)}" placeholder="${esc(cityPh)}"></div>
+          <div class="pe-row"><label>${t('profile.phone')}</label><input data-field="phone" inputmode="tel" value="${esc(u.phone)}" placeholder="${t('profile.add')}"></div>
+          <div class="pe-row ro"><label>${t('profile.email')}</label><span>${u.email || ''}</span></div>
+        </div>
+        <div class="pe-msg" data-msg></div>
+        <div class="pe-note">${t('profile.emailNote')}</div>
+      </div>
+    </div>`,
+    onMount(el) {
+      const back = el.querySelector('[data-back]'); if (back) back.onclick = () => { location.hash = '#/profilo'; };
+      const msg = el.querySelector('[data-msg]');
+      const flash = (txt, ok = true) => { if (msg) { msg.textContent = txt; msg.style.color = ok ? 'var(--verde-deep)' : 'var(--red-alert)'; setTimeout(() => { if (msg.textContent === txt) msg.textContent = ''; }, 1600); } };
+      el.querySelectorAll('[data-field]').forEach(inp => {
+        const save = async () => {
+          const field = inp.dataset.field, val = inp.value.trim();
+          if (val === ((currentUser() || {})[field] || '')) return;
+          try { await updateProfile({ [field]: val }); flash(t('profile.saved') + ' ✓'); }
+          catch (e) { flash(t('profile.saveError'), false); }
+        };
+        inp.addEventListener('blur', save);
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } });
+      });
+      const fileInp = el.querySelector('[data-avatar-input]');
+      const pick = () => fileInp && fileInp.click();
+      const cam = el.querySelector('[data-cam]'); if (cam) cam.onclick = pick;
+      const camTxt = el.querySelector('[data-cam-txt]'); if (camTxt) camTxt.onclick = pick;
+      if (fileInp) fileInp.onchange = () => {
+        const f = fileInp.files && fileInp.files[0]; if (!f) return;
+        if (f.size > 5 * 1024 * 1024) { flash(t('profile.photoTooBig'), false); return; }
+        const fr = new FileReader();
+        fr.onload = async () => {
+          try {
+            await uploadAvatar(fr.result);
+            const av = el.querySelector('[data-ava]'); if (av) av.innerHTML = avatarInner(currentUser(), uName);
+            flash(t('profile.saved') + ' ✓');
+          } catch (e) { flash(t('profile.photoError'), false); }
+        };
+        fr.readAsDataURL(f);
       };
     },
   };

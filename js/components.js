@@ -1,4 +1,5 @@
 import { Icon } from './icons.js';
+import { t } from './i18n.js';
 
 // Spaziatore per la safe-area (notch) in standalone. In Safari safe-area-inset-top=0 → nessuno spazio.
 // Prima mostrava un'ora "9:41" e una batteria "100%" finte: rimosse, erano un residuo da wireframe.
@@ -50,9 +51,9 @@ export const VideoBlock = (v) => {
 
 export const BottomNav = (active) => `
   <nav class="bottomnav">
-    <a href="#/home" data-link class="${active === 'scopri' ? 'active' : ''}">${Icon('compass', { size: 22 })}Scopri</a>
-    <a href="#/salvati" data-link class="${active === 'salvati' ? 'active' : ''}">${Icon('bookmark', { size: 22 })}Salvati</a>
-    <a href="#/profilo" data-link class="${active === 'tu' ? 'active' : ''}">${Icon('user', { size: 22 })}Tu</a>
+    <a href="#/home" data-link class="${active === 'scopri' ? 'active' : ''}">${Icon('compass', { size: 22 })}${t('nav.scopri')}</a>
+    <a href="#/salvati" data-link class="${active === 'salvati' ? 'active' : ''}">${Icon('bookmark', { size: 22 })}${t('nav.salvati')}</a>
+    <a href="#/profilo" data-link class="${active === 'tu' ? 'active' : ''}">${Icon('user', { size: 22 })}${t('nav.tu')}</a>
   </nav>`;
 
 export const catGlyph = { latte: 'droplet', uova: 'egg', olio: 'leaf', grano: 'wheat', formaggio: 'cheese', miele: 'honey', carne: 'carne', 'frutta-verdura': 'frutta-verdura' };

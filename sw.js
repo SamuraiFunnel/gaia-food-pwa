@@ -7,7 +7,7 @@
    - CDN (font Google, MapLibre, tiles), foto → cache-first (riusa la copia, scarica una volta)
    Aggiornamento: il nuovo SW si attiva subito (skipWaiting) e prende il controllo (clients.claim).
 */
-const VERSION = 'gaia-food-v14';
+const VERSION = 'gaia-food-v15';
 const SHELL_CACHE = VERSION + '-shell';
 const RUNTIME_CACHE = VERSION + '-runtime';
 
@@ -17,7 +17,7 @@ const RUNTIME_CACHE = VERSION + '-runtime';
 const SHELL = [
   './', './index.html', './manifest.webmanifest',
   './css/app.css', './css/desktop.css', './css/polish.css',
-  './js/main.js', './js/store.js', './js/icons.js', './js/components.js',
+  './js/main.js', './js/store.js', './js/icons.js', './js/components.js', './js/i18n.js', './js/i18n/it.js', './js/i18n/en.js',
   './js/screens.js', './js/desktop.js', './js/map-style.json',
   './js/screens/AuthModal.js', './js/screens/OnbVideo.js', './js/screens/Zona.js',
   './js/screens/Ricerca.js', './js/screens/Filtri.js', './js/screens/Percorso.js',

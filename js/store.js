@@ -93,6 +93,16 @@ export async function setZone(zone) {
   state.user = d.user || { ...(state.user || {}), zone };
   return state.user;
 }
+// Aggiorna i dati del profilo (nome, città, lingua, notifiche): solo i campi passati.
+export async function updateProfile(fields) {
+  const d = await ja(`${API_BASE}/api/auth/profile`, { method: 'PATCH', body: JSON.stringify(fields) });
+  state.user = d.user; return state.user;
+}
+// Carica un avatar (dataURL base64) per l'utente loggato → aggiorna user.picture.
+export async function uploadAvatar(dataUrl) {
+  const d = await ja(`${API_BASE}/api/auth/avatar`, { method: 'POST', body: JSON.stringify({ dataUrl }) });
+  state.user = d.user; return state.user;
+}
 // Zona scelta dall'utente (dal profilo). null finché non l'ha scelta.
 export const userZone = () => (state.user && state.user.zone) || null;
 // Id della zona "attiva" nei dati attuali (es. 'alta-val-di-sangro' in Abruzzo): l'unica con produttori.

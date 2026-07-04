@@ -17,7 +17,9 @@ const USERS = path.join(DATA_RW, 'users.json'); // utenti finali (login Google/e
 const PHOTODIR = path.join(DATA_RW, 'assets', 'photos', 'producers');
 const VIDEODIR = path.join(DATA_RW, 'assets', 'videos', 'producers');
 const CANDPHOTODIR = path.join(DATA_RW, 'assets', 'photos', 'candidature');
+const USERPHOTODIR = path.join(DATA_RW, 'assets', 'photos', 'users'); // avatar utenti finali
 fs.mkdirSync(DATA_RW, { recursive: true });
+fs.mkdirSync(USERPHOTODIR, { recursive: true });
 fs.mkdirSync(PHOTODIR, { recursive: true });
 fs.mkdirSync(VIDEODIR, { recursive: true });
 fs.mkdirSync(CANDPHOTODIR, { recursive: true });
@@ -227,14 +229,36 @@ async function api(req, res, url) {
     return res.end('{}');
   }
   // Profilo: imposta/aggiorna la ZONA (regione) dell'utente loggato → vista personalizzata per territorio.
-  if (url === '/api/auth/profile' && method === 'PUT') {
+  // Profilo utente: aggiorna zona E/O dati del profilo (nome, città, lingua, notifiche). Solo i campi presenti.
+  if (url === '/api/auth/profile' && (method === 'PUT' || method === 'PATCH')) {
     const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
     const d = await body(req);
-    const z = d.zone;
-    const zone = (z && typeof z === 'object')
-      ? { id: str(z.id, 80), label: str(z.label, 160), region: str(z.region, 80), comuni: Array.isArray(z.comuni) ? z.comuni.slice(0, 60).map(c => str(c, 80)) : [] }
-      : null;
-    const user = upsertUser({ id: me.id, zone });
+    const upd = { id: me.id };
+    if ('name' in d) upd.name = str(d.name, 80).trim();
+    if ('city' in d) upd.city = str(d.city, 120).trim();
+    if ('phone' in d) upd.phone = str(d.phone, 40).trim();
+    if ('lang' in d) { const l = str(d.lang, 8).toLowerCase(); if (/^[a-z]{2}$/.test(l)) upd.lang = l; }
+    if ('notif' in d) upd.notif = !!d.notif;
+    if ('zone' in d) {
+      const z = d.zone;
+      upd.zone = (z && typeof z === 'object')
+        ? { id: str(z.id, 80), label: str(z.label, 160), region: str(z.region, 80), comuni: Array.isArray(z.comuni) ? z.comuni.slice(0, 60).map(c => str(c, 80)) : [] }
+        : null;
+    }
+    const user = upsertUser(upd);
+    return send(res, 200, { user });
+  }
+  // Upload avatar dell'utente finale (base64 → file su disco). Riusa il pattern dei produttori.
+  if (url === '/api/auth/avatar' && method === 'POST') {
+    const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
+    const { dataUrl } = await body(req, BODY_MAX_MEDIA);
+    const m = /^data:image\/(png|jpe?g|webp);base64,(.+)$/.exec(dataUrl || '');
+    if (!m) return send(res, 400, { error: 'immagine non valida' });
+    const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+    const safe = crypto.createHash('sha1').update(me.id).digest('hex').slice(0, 16); // id = email → hash per nome-file
+    const file = `${safe}.${ext}`;
+    fs.writeFileSync(path.join(USERPHOTODIR, file), Buffer.from(m[2], 'base64'));
+    const user = upsertUser({ id: me.id, picture: `assets/photos/users/${file}` });
     return send(res, 200, { user });
   }
 

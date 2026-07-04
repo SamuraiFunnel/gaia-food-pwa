@@ -26,7 +26,7 @@ services:
       - key: GF_VERIFIER_PASSWORD
         sync: false            # password area verificatore
       - key: GF_GOOGLE_CLIENT_ID
-        sync: false            # il client id OAuth di Google (vedi _GO-LIVE.md §2)
+        value: 859091446705-vurahofd16q5gd4ccfef03qajcd0vbrk.apps.googleusercontent.com  # client id OAuth (pubblico, non segreto)
     disk:
       name: gaia-data
       mountPath: /var/data

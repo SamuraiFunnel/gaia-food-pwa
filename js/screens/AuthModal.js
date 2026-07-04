@@ -130,6 +130,7 @@ export function openAuthModal({ step = 'auth' } = {}) {
     .auth-modal .am-zrow:active{ background:var(--carta); }
     .auth-modal .am-zrow .zr-name{ flex:1; font-size:15px; font-weight:500; }
     .auth-modal .am-zrow.is-active .zr-name{ font-weight:600; }
+    .auth-modal .am-zrow.is-selected{ background:var(--verde-pale); border-radius:12px; } .auth-modal .am-zrow.is-selected .zr-name{ font-weight:600; }
     .auth-modal .am-zpill{ flex:none; display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
       letter-spacing:.04em; text-transform:uppercase; color:var(--verde-deep); background:var(--verde-pale); padding:3px 9px; border-radius:100px; }
     .auth-modal .am-zsoon{ flex:none; font-size:10.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--faint); }
@@ -283,14 +284,17 @@ export function openAuthModal({ step = 'auth' } = {}) {
   };
 
   if (zlist) {
+    const _uz = (currentUser() && currentUser().zone) || null;
+    const currentRegion = _uz ? (_uz.region || _uz.label || '') : '';
     zlist.innerHTML = REGIONI.map(name => {
       const active = name === 'Abruzzo';
+      const selected = currentRegion && name.toLowerCase() === String(currentRegion).toLowerCase();
       const sub = active ? ` · ${activeLabel}` : '';
       const tail = active
         ? `<span class="am-zpill">${Icon('check-circle', { size: 12, color: 'var(--verde)', stroke: 2.3 })} Attiva</span>`
-        : `<span class="am-zsoon">presto nella tua zona</span>`;
-      return `<button class="am-zrow ${active ? 'is-active' : ''}" role="option" data-zrow data-zname="${name}">
-        <span class="zr-pin">${Icon('map-pin', { size: 18, color: active ? 'var(--verde-deep)' : 'var(--faint2)', stroke: 2 })}</span>
+        : (selected ? `<span class="am-zsoon">selezionata · presto</span>` : `<span class="am-zsoon">presto nella tua zona</span>`);
+      return `<button class="am-zrow ${active ? 'is-active' : ''} ${selected ? 'is-selected' : ''}" role="option" aria-selected="${selected ? 'true' : 'false'}" data-zrow data-zname="${name}">
+        <span class="zr-pin">${Icon('map-pin', { size: 18, color: (active || selected) ? 'var(--verde-deep)' : 'var(--faint2)', stroke: 2 })}</span>
         <span class="zr-name">${name}${sub}</span>${tail}</button>`;
     }).join('');
     zlist.querySelectorAll('[data-zrow]').forEach(b => b.addEventListener('click', () => chooseZone(b.dataset.zname, b)));
@@ -307,10 +311,28 @@ export function openAuthModal({ step = 'auth' } = {}) {
     if (!navigator.geolocation) { setZMsg('Posizione non disponibile: scegli la regione qui sotto.'); return; }
     const old = geoBtn.innerHTML; geoBtn.disabled = true;
     geoBtn.innerHTML = `${Icon('navigation', { size: 18, color: 'var(--verde-deep)', stroke: 2 })} Ti sto trovando…`;
+    const restore = () => { geoBtn.disabled = false; geoBtn.innerHTML = old; };
+    // Zona coperta oggi (Alta Val di Sangro, centro ~[13.934,41.776]): bounding box.
+    const inCovered = (lat, lng) => lat >= 41.55 && lat <= 42.05 && lng >= 13.65 && lng <= 14.25;
     navigator.geolocation.getCurrentPosition(
-      () => chooseZone('Abruzzo'),
-      () => { geoBtn.disabled = false; geoBtn.innerHTML = old; setZMsg('Non riusciamo a leggere la posizione: scegli la regione qui sotto.'); },
-      { timeout: 8000 }
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;   // ← ora usa le coordinate REALI
+        if (inCovered(lat, lng)) { chooseZone('Abruzzo'); return; }
+        // Fuori dalla zona coperta: prova a riconoscere la regione reale (reverse-geocoding leggero, senza chiave).
+        try {
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=it&zoom=8`, { headers: { Accept: 'application/json' } });
+          if (!r.ok) throw new Error('geo');
+          const d = await r.json();
+          const region = (d.address && (d.address.state || d.address.region)) || '';
+          const match = REGIONI.find(x => x.toLowerCase() === String(region).toLowerCase());
+          if (match) { chooseZone(match); return; }              // regione riconosciuta → "presto nella tua zona"
+          restore(); setZMsg('Sei fuori dalle zone attive. Scegli la tua regione qui sotto.');
+        } catch (e) {
+          restore(); setZMsg('Non riusciamo a rilevare la regione: scegli la regione qui sotto.');
+        }
+      },
+      () => { restore(); setZMsg('Non riusciamo a leggere la posizione: scegli la regione qui sotto.'); },
+      { timeout: 9000, enableHighAccuracy: false, maximumAge: 60000 }
     );
   });
 }
