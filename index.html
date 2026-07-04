@@ -29,6 +29,8 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
+        // C'era GIÀ un service worker al controllo di questa pagina? (falso solo alla PRIMISSIMA visita)
+        const hadController = !!navigator.serviceWorker.controller;
         navigator.serviceWorker.register('./sw.js').then(reg => {
           // "Aggiornamento disponibile": quando un nuovo SW è in waiting, offri il refresh.
           function notifyUpdate(worker) {
@@ -55,7 +57,10 @@
         }).catch(() => {});
         let reloaded = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (reloaded) return; reloaded = true; window.location.reload();
+          // Ricarica SOLO su un AGGIORNAMENTO del SW (c'era già un controller): al primo claim
+          // — prima visita — NON ricaricare, altrimenti l'app fa un reload/flicker a metà sessione.
+          if (reloaded || !hadController) return;
+          reloaded = true; window.location.reload();
         });
       });
     }

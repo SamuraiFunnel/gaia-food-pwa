@@ -87,13 +87,18 @@ async function main() {
   // 1) SPLASH pubblico con la CTA d'accesso
   await rpc('Page.navigate', { url: APP + '/#/' });
   await waitFor(`document.querySelector('.s02-cta')`, 'Splash con CTA');
-  // Warm-up service worker: alla PRIMA visita il SW, quando prende il controllo (claim), ricarica
-  // la pagina UNA volta (index.html: controllerchange → reload). Aspettiamo che la ricarica si consumi,
-  // così non interrompe il flusso a metà. Su un utente reale è un flicker una-tantum al primo avvio.
-  try { await waitFor(`navigator.serviceWorker && navigator.serviceWorker.controller`, 'SW in controllo', 5000); } catch {}
-  await sleep(1200);
-  await waitFor(`document.querySelector('.s02-cta')`, 'Splash stabile dopo il SW');
   ok('Splash renderizzato con la CTA di accesso');
+
+  // 1-bis) REGRESSIONE del fix SW: piantiamo un sentinel su window. Alla prima visita il SW prende
+  // il controllo (claim); col vecchio bug la pagina si ricaricava e il sentinel sparirebbe. Col fix
+  // (reload solo su AGGIORNAMENTO) il sentinel sopravvive → nessun reload indesiderato.
+  const sentinel = 'gf-' + Date.now();
+  await ev(`window.__gfSentinel = '${sentinel}'`);
+  try { await waitFor(`navigator.serviceWorker && navigator.serviceWorker.controller`, 'SW claim', 5000); } catch {}
+  await sleep(1200); // oltre la finestra del claim
+  const survived = await ev(`window.__gfSentinel`);
+  if (survived !== sentinel) throw new Error('reload indesiderato al primo avvio: il SW ha ricaricato al claim (fix non attivo)');
+  ok('Nessun reload al primo avvio: il claim del SW non ricarica la pagina');
 
   // 2) la CTA apre il POP-UP (non naviga)
   await ev(`document.querySelector('.s02-cta').click()`);
