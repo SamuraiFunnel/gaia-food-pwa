@@ -150,6 +150,7 @@ function render() {
     return;
   }
   document.body.classList.toggle('app-bare', ['#/', '#/onboarding', '#/zona', '#/hub'].includes(h));
+  document.body.classList.toggle('app-splash', h === '#/' || h === ''); // splash = hero a tutta larghezza su desktop
   const r = routes.find(r => r.re.test(h)) || routes[0];
   let view;
   try { view = r.view(h.match(r.re)); }

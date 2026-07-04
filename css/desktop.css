@@ -193,6 +193,9 @@
   body.app-bare { justify-content: center; }
   body.app-bare #rail { display: none; }
   body.app-bare #app { max-width: 540px; flex: 0 1 540px; box-shadow: 0 0 80px rgba(31,24,18,.10); }
+  /* Lo SPLASH invece va a tutta larghezza (hero split netto), non incorniciato in colonna telefono. */
+  body.app-splash { justify-content: stretch; }
+  body.app-splash #app { max-width: none; flex: 1 1 auto; box-shadow: none; }
 }
 
 /* schermi molto larghi: la lista Home prende ancora più colonne da sola (auto-fill) */

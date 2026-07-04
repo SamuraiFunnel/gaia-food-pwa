@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=1440">
+<title>Splash v2 — desktop + mobile</title>
+<link rel="stylesheet" href="../../css/app.css">
+<style>
+  :root{ --ink:#1F2A33; --verde:#16A34A; --verde-deep:#128a3e; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:#E7DECF; font-family:var(--sans); color:var(--ink); }
+  .lab-h{ padding:22px 40px 6px; font-size:13px; color:#6b6152; } .lab-h b{ color:#1F2A33; }
+  .V{ width:1400px; margin:0 auto 34px; }
+  .lab{ display:flex; align-items:center; gap:10px; padding:12px 20px; color:#fff; background:#1F1812; border-radius:14px 14px 0 0; font-size:13.5px; }
+  .lab .n{ width:24px;height:24px;border-radius:50%;background:var(--verde);display:flex;align-items:center;justify-content:center;font-weight:700; }
+  .lab .d{ color:#c9c0b3; }
+  .row{ display:flex; gap:22px; align-items:stretch; background:#efe7d8; padding:22px; border-radius:0 0 14px 14px; }
+  .desk{ width:1010px; height:540px; border-radius:18px; overflow:hidden; position:relative; background:var(--carta); box-shadow:0 20px 44px -24px rgba(20,14,8,.5); flex:none; }
+  .phone{ width:300px; height:600px; border-radius:34px; overflow:hidden; position:relative; background:var(--carta); box-shadow:0 20px 44px -22px rgba(20,14,8,.55); border:7px solid #14100b; flex:none; }
+  .cap{ position:absolute; top:8px; left:14px; z-index:9; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:#a99; }
+
+  /* atomi condivisi */
+  .lk{ font-size:20px; }
+  .lk.sm{ font-size:16px; }
+  .eyebrow{ display:inline-flex; align-items:center; gap:8px; font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--verde-deep); }
+  .eyebrow.pill{ background:#e4f3e8; padding:7px 12px; border-radius:100px; letter-spacing:.05em; }
+  .eyebrow::before{ content:''; width:14px; height:2px; background:var(--verde); border-radius:2px; } .eyebrow.pill::before{ display:none; }
+  .h{ font-family:var(--serif); font-weight:600; letter-spacing:-.02em; line-height:1.05; margin:14px 0 12px; }
+  .h em{ font-style:italic; color:var(--verde); }
+  .sub{ color:var(--muted); line-height:1.55; }
+  .cta{ display:inline-flex; align-items:center; justify-content:center; gap:10px; background:var(--grad-azione); color:#fff; border:none; border-radius:14px; font-family:var(--sans); font-weight:600; cursor:pointer; box-shadow:0 14px 30px -14px rgba(22,163,74,.7); text-decoration:none; }
+  .legal{ font-size:11px; color:var(--faint); margin-top:12px; }
+  .legal a{ color:var(--muted); }
+  img{ display:block; }
+  /* desktop scale */
+  .desk .h{ font-size:46px; } .desk .sub{ font-size:16px; max-width:40ch; } .desk .cta{ padding:17px 30px; font-size:16px; }
+  /* mobile scale */
+  .phone .h{ font-size:30px; } .phone .sub{ font-size:14px; } .phone .cta{ padding:15px; font-size:15px; width:100%; }
+
+  /* ============ A · CARD LOGIN SU FOTO ============ */
+  .A .bg{ position:absolute; inset:0; } .A .bg img{ width:100%;height:100%;object-fit:cover; }
+  .A .scrim{ position:absolute; inset:0; background:rgba(20,26,18,.28); }
+  .A .card{ position:absolute; z-index:2; background:rgba(251,249,245,.92); backdrop-filter:blur(12px); border-radius:22px;
+    box-shadow:0 30px 70px -30px rgba(0,0,0,.5); text-align:center; }
+  .A.desk-wrap {}
+  .desk.A-d .card{ left:50%; top:50%; transform:translate(-50%,-50%); width:440px; padding:40px 40px 34px; }
+  .phone.A-m .card{ left:18px; right:18px; bottom:22px; padding:26px 22px 22px; }
+  .A .card .lk{ justify-content:center; } .A .card .h{ margin:16px 0 10px; } .A .card .cta{ margin-top:20px; }
+  .A .card .sub{ margin:0 auto; }
+
+  /* ============ B · MINIMAL EDITORIALE CENTRATO ============ */
+  .B-d, .B-m{ display:flex; flex-direction:column; }
+  .B .top{ display:flex; justify-content:center; padding:26px 0 0; }
+  .B .mid{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 40px; }
+  .B .mid .sub{ margin:0 auto; } .B .mid .cta{ margin-top:22px; }
+  .B .strip{ height:118px; background:no-repeat center 38%/cover; }
+  .phone.B-m .strip{ height:150px; }
+  .phone.B-m .top{ padding:22px 0 0; }
+
+  /* ============ C · SPLIT NETTO ============ */
+  .C-d{ display:grid; grid-template-columns:1fr 1fr; }
+  .C-d .pane{ padding:52px 46px; display:flex; flex-direction:column; justify-content:center; }
+  .C-d .ph img{ width:100%; height:100%; object-fit:cover; }
+  .C .cta{ align-self:flex-start; } .C .lk{ margin-bottom:auto; }
+  .C-d .pane .lk{ position:absolute; top:34px; left:46px; }
+  .phone.C-m{ display:flex; flex-direction:column; }
+  .phone.C-m .ph{ height:270px; } .phone.C-m .ph img{ width:100%;height:100%;object-fit:cover; }
+  .phone.C-m .pane{ padding:24px 22px; flex:1; display:flex; flex-direction:column; }
+  .phone.C-m .pane .cta{ margin-top:auto; }
+
+  /* ============ D · IMMERSIVO DAL BASSO ============ */
+  .D .bg{ position:absolute; inset:0; } .D .bg img{ width:100%;height:100%;object-fit:cover; }
+  .D .scrim{ position:absolute; inset:0; background:linear-gradient(180deg, rgba(15,20,15,.35) 0%, rgba(15,20,15,0) 34%, rgba(15,20,15,.55) 78%, rgba(15,20,15,.82) 100%); }
+  .D .lk{ position:absolute; z-index:2; top:26px; left:30px; }
+  .D .foot{ position:absolute; z-index:2; left:34px; right:34px; bottom:30px; }
+  .phone.D-m .lk{ top:22px; left:20px; } .phone.D-m .foot{ left:20px; right:20px; bottom:24px; }
+  .D .h{ color:#fff; } .D .h em{ color:#8fd39a; } .D .sub{ color:rgba(255,255,255,.86); } .D .eyebrow{ color:#8fd39a; } .D .eyebrow::before{ background:#8fd39a; }
+  .phone.D-m .cta{ width:100%; }
+</style>
+</head>
+<body>
+<div class="lab-h"><b>Splash v2 — 4 direzioni nuove</b> · desktop + mobile affiancati · <b>un solo pulsante d'accesso</b> (niente più "Accedi" doppio). Stile sito (crema, serif+corsivo verde, logo, CTA gradiente).</div>
+
+<!-- A -->
+<section class="V A">
+  <div class="lab"><span class="n">A</span> <b>Card login su foto</b> <span class="d">— foto piena + card centrale "vetro" con logo, titolo e un unico CTA. Premium, uguale su desktop e mobile.</span></div>
+  <div class="row">
+    <div class="desk A-d"><span class="cap">Desktop</span><div class="bg"><img src="../../assets/photos/paesaggio.png" alt=""></div><div class="scrim"></div>
+      <div class="card"><span class="gf-lockup lk"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span>
+        <div class="h">Il cibo vero,<br><em>vicino a te.</em></div>
+        <p class="sub">I produttori veri della tua zona, verificati di persona sul campo.</p>
+        <a class="cta" href="#">Accedi o registrati</a>
+        <div class="legal">Continuando accetti Termini e Privacy.</div></div></div>
+    <div class="phone A-m"><span class="cap">Mobile</span><div class="bg"><img src="../../assets/photos/paesaggio.png" alt=""></div><div class="scrim"></div>
+      <div class="card"><span class="gf-lockup lk sm"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span>
+        <div class="h">Il cibo vero,<br><em>vicino a te.</em></div>
+        <p class="sub">Verificati di persona, sul campo.</p>
+        <a class="cta" href="#">Accedi o registrati</a>
+        <div class="legal">Termini · Privacy</div></div></div>
+  </div>
+</section>
+
+<!-- B -->
+<section class="V B">
+  <div class="lab"><span class="n">B</span> <b>Minimal editoriale centrato</b> <span class="d">— tutto crema, logo + titolo + CTA centrati, una striscia di paesaggio in basso. Arioso, tipografico, premium.</span></div>
+  <div class="row">
+    <div class="desk B-d"><span class="cap">Desktop</span>
+      <div class="top"><span class="gf-lockup lk"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span></div>
+      <div class="mid"><span class="eyebrow pill">✓ Verificato di persona, sul campo</span>
+        <div class="h">Il cibo vero,<br><em>vicino a te.</em></div>
+        <p class="sub" style="max-width:34ch">Scopri i produttori veri della tua zona. Accedi per iniziare.</p>
+        <a class="cta" href="#">Accedi o registrati</a></div>
+      <div class="strip" style="background-image:url(../../assets/photos/paesaggio.png)"></div></div>
+    <div class="phone B-m"><span class="cap">Mobile</span>
+      <div class="top"><span class="gf-lockup lk sm"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span></div>
+      <div class="mid"><span class="eyebrow pill">✓ Sul campo</span>
+        <div class="h">Il cibo vero,<br><em>vicino a te.</em></div>
+        <p class="sub">I produttori veri vicino a te.</p>
+        <a class="cta" href="#">Accedi o registrati</a></div>
+      <div class="strip" style="background-image:url(../../assets/photos/paesaggio.png)"></div></div>
+  </div>
+</section>
+
+<!-- C -->
+<section class="V C">
+  <div class="lab"><span class="n">C</span> <b>Split netto</b> <span class="d">— metà foto piena, metà pannello crema con logo + titolo + un CTA. Struttura chiara, identica logica desktop↔mobile.</span></div>
+  <div class="row">
+    <div class="desk C-d"><span class="cap">Desktop</span>
+      <div class="pane" style="position:relative"><span class="gf-lockup lk"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span>
+        <span class="eyebrow" style="margin-top:26px">Benvenuto in Gaia Food</span>
+        <div class="h">Il cibo vero,<br><em>vicino a te.</em></div>
+        <p class="sub">Registrati o accedi per scoprire i produttori veri vicino a te.</p>
+        <a class="cta" href="#" style="margin-top:22px">Accedi o registrati</a></div>
+      <div class="ph"><img src="../../assets/photos/pascolo.png" alt=""></div></div>
+    <div class="phone C-m"><span class="cap">Mobile</span>
+      <div class="ph"><img src="../../assets/photos/pascolo.png" alt=""></div>
+      <div class="pane"><span class="gf-lockup lk sm"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span>
+        <div class="h">Il cibo vero,<br><em>vicino a te.</em></div>
+        <p class="sub">I produttori veri vicino a te.</p>
+        <a class="cta" href="#">Accedi o registrati</a></div></div>
+  </div>
+</section>
+
+<!-- D -->
+<section class="V D">
+  <div class="lab"><span class="n">D</span> <b>Immersivo dal basso</b> <span class="d">— foto piena, logo in alto, testo + CTA ancorati in basso. Evoluzione responsive dello splash mobile attuale (che ti piaceva).</span></div>
+  <div class="row">
+    <div class="desk D-d"><span class="cap">Desktop</span><div class="bg"><img src="../../assets/photos/paesaggio.png" alt=""></div><div class="scrim"></div>
+      <span class="gf-lockup lk on-dark"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span>
+      <div class="foot" style="max-width:560px"><span class="eyebrow">Benvenuto in Gaia Food</span>
+        <div class="h">Il cibo vero,<br><em>vicino a te.</em></div>
+        <p class="sub">Registrati o accedi per scoprire i produttori veri vicino a te.</p>
+        <a class="cta" href="#" style="margin-top:20px">Accedi o registrati</a></div></div>
+    <div class="phone D-m"><span class="cap">Mobile</span><div class="bg"><img src="../../assets/photos/paesaggio.png" alt=""></div><div class="scrim"></div>
+      <span class="gf-lockup lk sm on-dark"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span>
+      <div class="foot"><span class="eyebrow">Benvenuto</span>
+        <div class="h">Il cibo vero,<br><em>vicino a te.</em></div>
+        <p class="sub">I produttori veri vicino a te.</p>
+        <a class="cta" href="#">Accedi o registrati</a></div></div>
+  </div>
+</section>
+
+</body>
+</html>

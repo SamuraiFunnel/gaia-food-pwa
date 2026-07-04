@@ -54,20 +54,16 @@ export function Splash() {
   return {
     html: `<div class="splash s02">
       <style>
-      /* SPLASH v02 "Editoriale" — foto in alto, blocco carta in basso con headline serif + un solo CTA.
-         Ancorato a 100dvh + safe-area, colonna flessibile: niente scroll. Scope: .s02. */
-      .s02{ position:relative; min-height:100vh; min-height:100dvh; display:flex; flex-direction:column;
-        overflow:hidden; background:var(--carta); }
-      /* La foto prende lo spazio che avanza; il blocco testo è alto quanto serve (vedi .s02-body flex:none).
-         Così su OGNI telefono: niente gap morto, niente scroll. min-height evita che la foto sparisca. */
-      .s02 .s02-ph{ position:relative; flex:1 1 auto; min-height:34dvh; overflow:hidden; }
+      /* SPLASH · "Split netto". MOBILE: foto sopra + blocco carta sotto (logo, headline serif, 1 CTA).
+         DESKTOP(≥1024): testo su carta a sinistra, foto piena a destra. Niente scroll (100dvh). Scope: .s02. */
+      .s02{ min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; overflow:hidden; background:var(--carta); }
+      .s02 .s02-ph{ position:relative; flex:1 1 auto; min-height:40dvh; overflow:hidden; }
       .s02 .s02-ph .photo{ position:absolute; inset:0; width:100%; height:100%; border-radius:0; }
       .s02 .s02-fade{ position:absolute; inset:0; z-index:1;
-        background:linear-gradient(180deg, rgba(10,16,10,.34) 0%, rgba(244,241,235,0) 52%, var(--carta) 100%); }
-      .s02 .s02-logo{ position:absolute; z-index:2; left:24px; font-size:23px;
-        top:calc(env(safe-area-inset-top, 0px) + 38px); filter:drop-shadow(0 3px 12px rgba(0,0,0,.45)); }
+        background:linear-gradient(180deg, rgba(10,16,10,.12) 0%, rgba(244,241,235,0) 42%, var(--carta) 100%); }
       .s02 .s02-body{ position:relative; z-index:2; flex:none; display:flex; flex-direction:column;
-        padding:18px 26px calc(env(safe-area-inset-bottom, 0px) + 26px); }
+        padding:6px 26px calc(env(safe-area-inset-bottom, 0px) + 26px); }
+      .s02 .s02-logo{ font-size:22px; margin:0 0 16px; }
       .s02 .s02-eyebrow{ font-size:11px; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
         color:var(--verde-deep); display:inline-flex; align-items:center; gap:8px; }
       .s02 .s02-eyebrow::before{ content:''; width:15px; height:1.5px; background:var(--verde); border-radius:2px; }
@@ -80,14 +76,25 @@ export function Splash() {
         font-family:var(--sans); font-size:15.5px; font-weight:600; text-decoration:none;
         border:none; cursor:pointer; box-shadow:0 14px 30px -14px rgba(22,163,74,.7); }
       .s02 .s02-cta:active{ transform:translateY(1px); }
+      /* DESKTOP: split netto — testo sinistra su carta, foto piena destra */
+      @media(min-width:1024px){
+        .s02{ flex-direction:row; }
+        .s02 .s02-body{ order:0; width:46%; min-width:440px; max-width:680px; justify-content:center; padding:64px 68px; }
+        .s02 .s02-ph{ order:1; width:54%; flex:1 1 auto; min-height:100dvh; }
+        .s02 .s02-fade{ background:none; }
+        .s02 .s02-logo{ position:absolute; top:46px; left:68px; margin:0; }
+        .s02 .s02-title{ font-size:54px; margin:16px 0 16px; }
+        .s02 .s02-sub{ font-size:16.5px; max-width:40ch; }
+        .s02 .s02-cta{ width:auto; align-self:flex-start; padding:18px 36px; font-size:16.5px; }
+      }
       @media(prefers-reduced-motion:reduce){ .s02 *{ transition:none !important; } }
       </style>
       <div class="s02-ph">
         ${Photo('paesaggio', '', '')}
         <div class="s02-fade"></div>
-        <div class="s02-logo">${Lockup('dark')}</div>
       </div>
       <div class="s02-body">
+        <div class="s02-logo">${Lockup('')}</div>
         <span class="s02-eyebrow">${logged ? t('splash.eyebrowBack') : t('splash.eyebrowNew')}</span>
         <h1 class="s02-title">${t('splash.title1')}<br><em>${t('splash.title2')}</em></h1>
         <p class="s02-sub">${logged ? t('splash.subLogged') : t('splash.subNew')}</p>

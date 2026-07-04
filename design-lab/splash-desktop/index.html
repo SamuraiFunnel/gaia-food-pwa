@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>Splash desktop — varianti</title>
+<link rel="stylesheet" href="../../css/app.css">
+<style>
+  :root{ --ink:#1F2A33; --verde:#16A34A; --verde-deep:#128a3e; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:#E7DECF; font-family:var(--sans); color:var(--ink); }
+  .lab-h{ padding:22px 40px; font-size:13px; letter-spacing:.02em; color:#6b6152; }
+  .lab-h b{ color:#1F2A33; }
+  .variant{ width:1360px; margin:0 auto 40px; background:var(--carta); border-radius:20px; overflow:hidden;
+    box-shadow:0 24px 60px -30px rgba(20,14,8,.4); }
+  .vlabel{ display:flex; align-items:center; gap:10px; padding:12px 22px; background:#1F1812; color:#fff; font-size:13px; }
+  .vlabel .n{ width:24px; height:24px; border-radius:50%; background:var(--verde); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; }
+  .vlabel .desc{ color:#c9c0b3; }
+  .stage{ min-height:660px; position:relative; }
+
+  /* header comune */
+  .hd{ display:flex; align-items:center; justify-content:space-between; padding:26px 44px; }
+  .hd .gf-lockup{ font-size:22px; }
+  .hd .enter{ display:inline-flex; align-items:center; gap:8px; background:#1F1812; color:#fff; border-radius:100px;
+    padding:12px 22px; font-weight:600; font-size:14.5px; text-decoration:none; }
+  .eyebrow{ display:inline-flex; align-items:center; gap:9px; font-size:12px; font-weight:700; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--verde-deep); }
+  .eyebrow.pill{ background:#e4f3e8; padding:9px 15px; border-radius:100px; letter-spacing:.06em; }
+  .eyebrow::before{ content:''; width:16px; height:2px; background:var(--verde); border-radius:2px; }
+  .eyebrow.pill::before{ display:none; }
+  h1.hero{ font-family:var(--serif); font-weight:600; letter-spacing:-.02em; line-height:1.05; color:var(--ink);
+    font-size:62px; margin:20px 0 18px; }
+  h1.hero em{ font-style:italic; color:var(--verde); }
+  .sub{ font-size:17px; line-height:1.6; color:var(--muted); max-width:42ch; }
+  .cta{ display:inline-flex; align-items:center; justify-content:center; gap:11px; background:var(--grad-azione);
+    color:#fff; border:none; border-radius:16px; padding:19px 34px; font-family:var(--sans); font-size:16.5px;
+    font-weight:600; cursor:pointer; box-shadow:0 16px 34px -16px rgba(22,163,74,.7); text-decoration:none; }
+  .note{ font-size:13px; color:var(--faint); margin-top:14px; display:flex; align-items:center; gap:7px; }
+  .badge-float{ display:inline-flex; align-items:center; gap:9px; background:#fff; border-radius:14px; padding:11px 15px;
+    box-shadow:0 14px 30px -12px rgba(20,14,8,.4); font-size:13px; font-weight:600; }
+  .badge-float .ic{ width:30px; height:30px; border-radius:50%; background:var(--verde-pale); color:var(--verde-deep);
+    display:flex; align-items:center; justify-content:center; }
+  img{ display:block; }
+
+  /* ---------- V1 · Sito-mirror ---------- */
+  .v1 .stage{ display:grid; grid-template-columns:1.05fr .95fr; }
+  .v1 .left{ padding:110px 60px 56px; display:flex; flex-direction:column; justify-content:center; }
+  .v1 .right{ position:relative; }
+  .v1 .right .ph{ position:absolute; inset:100px 44px 46px 10px; border-radius:22px; overflow:hidden; box-shadow:0 30px 60px -28px rgba(20,14,8,.5); }
+  .v1 .right .ph img{ width:100%; height:100%; object-fit:cover; }
+  .v1 .right .badge-float{ position:absolute; left:0; bottom:22px; }
+  .v1 .hd{ grid-column:1 / -1; position:absolute; top:0; left:0; right:0; }
+
+  /* ---------- V2 · Foto inclinate (come sito) ---------- */
+  .v2 .stage{ display:grid; grid-template-columns:1fr 1fr; }
+  .v2 .left{ padding:120px 60px 60px; display:flex; flex-direction:column; justify-content:center; }
+  .v2 .right{ position:relative; }
+  .v2 .card{ position:absolute; border-radius:20px; overflow:hidden; box-shadow:0 26px 54px -24px rgba(20,14,8,.55); }
+  .v2 .card img{ width:100%; height:100%; object-fit:cover; }
+  .v2 .c1{ width:320px; height:400px; left:40px; top:150px; transform:rotate(-5deg); z-index:2; }
+  .v2 .c2{ width:330px; height:360px; left:300px; top:90px; transform:rotate(4deg); }
+  .v2 .badge-float{ position:absolute; left:120px; bottom:70px; z-index:3; }
+  .v2 .hd{ position:absolute; top:0; left:0; right:0; }
+
+  /* ---------- V3 · Full-bleed cinematografico ---------- */
+  .v3 .stage{ display:grid; grid-template-columns:44% 56%; }
+  .v3 .left{ padding:96px 56px 44px; display:flex; flex-direction:column; justify-content:center; }
+  .v3 .right{ position:relative; overflow:hidden; }
+  .v3 .right img{ width:100%; height:100%; object-fit:cover; }
+  .v3 .right::after{ content:''; position:absolute; inset:0 auto 0 0; width:120px; background:linear-gradient(90deg,var(--carta),transparent); }
+  .v3 .hd{ position:absolute; top:0; left:0; right:0; z-index:3; }
+  .v3 .hd .gf-lockup, .v3 .hd .enter{ }
+
+  /* ---------- V4 · Immersivo scuro (app-like) ---------- */
+  .v4 .stage{ position:relative; overflow:hidden; }
+  .v4 .bg{ position:absolute; inset:0; }
+  .v4 .bg img{ width:100%; height:100%; object-fit:cover; }
+  .v4 .scrim{ position:absolute; inset:0; background:linear-gradient(90deg, rgba(15,20,15,.82) 0%, rgba(15,20,15,.5) 40%, rgba(15,20,15,.1) 70%, transparent 100%); }
+  .v4 .inner{ position:relative; z-index:2; padding:80px 60px 44px; min-height:660px; display:flex; flex-direction:column; justify-content:center; max-width:640px; }
+  .v4 h1.hero{ color:#fff; } .v4 h1.hero em{ color:#8fd39a; }
+  .v4 .sub{ color:rgba(255,255,255,.86); } .v4 .eyebrow{ color:#8fd39a; } .v4 .eyebrow::before{ background:#8fd39a; }
+  .v4 .hd{ position:absolute; top:0; left:0; right:0; z-index:3; }
+  .v4 .hd .enter{ background:rgba(255,255,255,.16); backdrop-filter:blur(6px); }
+
+  /* ---------- V5 · Poster centrato + stat ---------- */
+  .v5 .stage{ display:flex; flex-direction:column; }
+  .v5 .hd{ }
+  .v5 .center{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 40px; }
+  .v5 h1.hero{ font-size:60px; max-width:16ch; }
+  .v5 .sub{ text-align:center; margin:0 auto; }
+  .v5 .cta{ margin-top:26px; }
+  .v5 .band{ height:150px; background:no-repeat center/cover; position:relative; }
+  .v5 .stats{ display:flex; justify-content:center; gap:0; background:var(--bianco); border-top:1px solid var(--bd2); }
+  .v5 .stat{ flex:1; text-align:center; padding:20px 10px; border-right:1px solid var(--bd2); }
+  .v5 .stat:last-child{ border-right:none; }
+  .v5 .stat b{ font-family:var(--serif); font-size:30px; color:var(--verde-deep); display:block; }
+  .v5 .stat span{ font-size:12.5px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="lab-h"><b>Splash desktop — 5 varianti</b> · allineate al sito gaia.food (palette crema, headline serif + corsivo verde, logo, CTA gradiente). Mobile resta invariato. CTA = accesso.</div>
+
+<!-- V1 -->
+<section class="variant v1">
+  <div class="vlabel"><span class="n">1</span> <b>Sito-mirror</b> <span class="desc">— la hero del sito, 1:1: testo+CTA a sinistra, foto grande a destra, badge flottante.</span></div>
+  <div class="stage">
+    <div class="hd"><span class="gf-lockup" role="img" aria-label="Gaia Food"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span><a class="enter" href="#">Accedi →</a></div>
+    <div class="left">
+      <span class="eyebrow pill">✓ Verificato di persona, sul campo</span>
+      <h1 class="hero">Il cibo vero,<br><em>vicino a te.</em></h1>
+      <p class="sub">Registrati o accedi per scoprire i produttori veri della tua zona — verificati di persona, sul campo.</p>
+      <div style="margin-top:26px"><a class="cta" href="#">Accedi o registrati</a></div>
+      <div class="note">🔒 Nessun ospite: entri, salvi i tuoi produttori, e li ritrovi ovunque.</div>
+    </div>
+    <div class="right">
+      <div class="ph"><img src="../../assets/photos/paesaggio.png" alt=""></div>
+      <div class="badge-float"><span class="ic">✓</span> Verificato sul campo · 6 categorie</div>
+    </div>
+  </div>
+</section>
+
+<!-- V2 -->
+<section class="variant v2">
+  <div class="vlabel"><span class="n">2</span> <b>Foto inclinate</b> <span class="desc">— massima continuità col sito: due card foto ruotate (formaggio + pascolo) e badge "l'app che collega".</span></div>
+  <div class="stage">
+    <div class="hd"><span class="gf-lockup" role="img" aria-label="Gaia Food"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span><a class="enter" href="#">Accedi →</a></div>
+    <div class="left">
+      <span class="eyebrow">Benvenuto in Gaia Food</span>
+      <h1 class="hero">Il cibo vero,<br><em>vicino a te.</em></h1>
+      <p class="sub">Le persone, l'app e i produttori veri intorno a te — tutto collegato. Accedi e scopri chi c'è.</p>
+      <div style="margin-top:26px"><a class="cta" href="#">Accedi o registrati</a></div>
+    </div>
+    <div class="right">
+      <div class="card c1"><img src="../../assets/photos/formaggio.png" alt=""></div>
+      <div class="card c2"><img src="../../assets/photos/pascolo.png" alt=""></div>
+      <div class="badge-float"><span class="ic">👥</span> Le persone <span style="color:var(--muted);font-weight:500">+ l'app che collega</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- V3 -->
+<section class="variant v3">
+  <div class="vlabel"><span class="n">3</span> <b>Full-bleed cinematografico</b> <span class="desc">— foto paesaggio a tutta altezza a destra, pannello testo su carta a sinistra, sfumatura di raccordo.</span></div>
+  <div class="stage">
+    <div class="hd"><span class="gf-lockup" role="img" aria-label="Gaia Food"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span><a class="enter" href="#">Accedi →</a></div>
+    <div class="left">
+      <span class="eyebrow">Benvenuto in Gaia Food</span>
+      <h1 class="hero" style="font-size:56px">Il cibo vero,<br><em>vicino a te.</em></h1>
+      <p class="sub">Registrati o accedi per scoprire i produttori veri vicino a te.</p>
+      <div style="margin-top:26px"><a class="cta" href="#">Accedi o registrati</a></div>
+    </div>
+    <div class="right"><img src="../../assets/photos/paesaggio.png" alt=""></div>
+  </div>
+</section>
+
+<!-- V4 -->
+<section class="variant v4">
+  <div class="vlabel"><span class="n">4</span> <b>Immersivo scuro</b> <span class="desc">— come lo splash mobile ma in orizzontale: foto piena, testo bianco + corsivo verde. Più "app", più scenico.</span></div>
+  <div class="stage">
+    <div class="bg"><img src="../../assets/photos/paesaggio.png" alt=""></div>
+    <div class="scrim"></div>
+    <div class="hd"><span class="gf-lockup on-dark" role="img" aria-label="Gaia Food"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span><a class="enter" href="#">Accedi →</a></div>
+    <div class="inner">
+      <span class="eyebrow">Benvenuto in Gaia Food</span>
+      <h1 class="hero">Il cibo vero,<br><em>vicino a te.</em></h1>
+      <p class="sub">Registrati o accedi per scoprire i produttori veri vicino a te.</p>
+      <div style="margin-top:26px"><a class="cta" href="#">Accedi o registrati</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- V5 -->
+<section class="variant v5">
+  <div class="vlabel"><span class="n">5</span> <b>Poster centrato + statistiche</b> <span class="desc">— titolo centrato, CTA, e la barra numeri del sito (100% · 6 · 0 · ~3 mesi) per la prova sociale.</span></div>
+  <div class="stage">
+    <div class="hd"><span class="gf-lockup" role="img" aria-label="Gaia Food"><img class="gf-pin" src="../../assets/brand/gaia-food-pin.webp" alt=""><span class="gf-word">GAIA<span class="food">FOOD</span></span></span><a class="enter" href="#">Accedi →</a></div>
+    <div class="center">
+      <span class="eyebrow pill">✓ Verificato di persona, sul campo</span>
+      <h1 class="hero">Il cibo vero,<br><em>vicino a te.</em></h1>
+      <p class="sub">Registrati o accedi per scoprire i produttori veri della tua zona.</p>
+      <a class="cta" href="#">Accedi o registrati</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>100%</b><span>verificati di persona</span></div>
+      <div class="stat"><b>6</b><span>categorie di cibo vero</span></div>
+      <div class="stat"><b>0</b><span>intermediari</span></div>
+      <div class="stat"><b>~3 mesi</b><span>tra un controllo e l'altro</span></div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
