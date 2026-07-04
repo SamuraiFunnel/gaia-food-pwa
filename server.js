@@ -96,6 +96,22 @@ function upsertUser(fields) {
 }
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+// --- password: hash scrypt (zero dipendenze). Salvato come "salt:hash" (hex). ---
+const PW_MIN = 8;
+function hashPassword(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return salt + ':' + crypto.scryptSync(String(pw), salt, 64).toString('hex');
+}
+function verifyPassword(pw, stored) {
+  if (!stored || String(stored).indexOf(':') < 0) return false;
+  const i = stored.indexOf(':'), salt = stored.slice(0, i), hash = stored.slice(i + 1);
+  let calc; try { calc = crypto.scryptSync(String(pw), salt, 64).toString('hex'); } catch { return false; }
+  const a = Buffer.from(hash, 'hex'), b = Buffer.from(calc, 'hex');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+// Utente "pubblico": non esporre MAI passHash al client.
+function publicUser(u) { if (!u) return null; const { passHash, ...rest } = u; return rest; }
+
 // --- Referral "I Custodi di Gaia": ogni utente ha un "seme" (codice personale);
 //     chi si iscrive con un seme resta collegato all'invitante (referredBy). ---
 function ensureSeed(u) {
@@ -238,25 +254,40 @@ async function api(req, res, url) {
     const user = upsertUser({ id: email, email, name: str(info.name, 160), picture: str(info.picture, 1200), provider: 'google' });
     if (isNew) linkReferral(user, gbody.seme);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(res, user.id) });
-    return res.end(JSON.stringify({ user }));
+    return res.end(JSON.stringify({ user: publicUser(user) }));
   }
-  // Email: per il pilota è un accesso diretto (nessuna verifica del possesso).
-  // TODO: magic-link reale (invio token via email + endpoint di conferma) prima del go-live.
-  if (url === '/api/auth/email' && method === 'POST') {
+  // Registrazione: email + password (min PW_MIN). Se esiste già un account CON password → 409.
+  if (url === '/api/auth/register' && method === 'POST') {
     { const t = throttle(authHits, req, 10); if (t.limited) return send(res, 429, { error: 'Troppi tentativi, riprova tra poco', retryAfter: t.retryAfter }); }
     const d = await body(req);
     const email = String(d.email || '').trim().toLowerCase();
+    const pw = String(d.password || '');
     if (!EMAIL_RE.test(email)) return send(res, 400, { error: 'Email non valida' });
-    const isNew = !readUsers().users.some(x => x.id === email);
-    const user = upsertUser({ id: email, email, provider: 'email' });
+    if (pw.length < PW_MIN) return send(res, 400, { error: `La password deve avere almeno ${PW_MIN} caratteri` });
+    const existing = readUsers().users.find(x => x.id === email);
+    if (existing && existing.passHash) return send(res, 409, { error: 'Esiste già un account con questa email. Accedi.' });
+    const isNew = !existing;
+    const user = upsertUser({ id: email, email, provider: 'email', passHash: hashPassword(pw) });
     if (isNew) linkReferral(user, d.seme);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(res, user.id) });
-    return res.end(JSON.stringify({ user }));
+    return res.end(JSON.stringify({ user: publicUser(user) }));
+  }
+  // Login: email + password. Errore GENERICO (non riveliamo se l'email esiste).
+  if (url === '/api/auth/login' && method === 'POST') {
+    { const t = throttle(authHits, req, 10); if (t.limited) return send(res, 429, { error: 'Troppi tentativi, riprova tra poco', retryAfter: t.retryAfter }); }
+    const d = await body(req);
+    const email = String(d.email || '').trim().toLowerCase();
+    const pw = String(d.password || '');
+    if (!EMAIL_RE.test(email) || !pw) return send(res, 400, { error: 'Email o password mancanti' });
+    const user = readUsers().users.find(x => x.id === email);
+    if (!user || !user.passHash || !verifyPassword(pw, user.passHash)) return send(res, 401, { error: 'Email o password non corretti' });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(res, user.id) });
+    return res.end(JSON.stringify({ user: publicUser(user) }));
   }
   // Config pubblica per il client: espone SOLO il Google client id (non è un segreto)
   // così il bottone GSI può renderizzarsi senza hard-coding nel JS. Vuoto = login Google "da configurare".
   if (url === '/api/auth/config' && method === 'GET') return send(res, 200, { googleClientId: GOOGLE_CLIENT_ID });
-  if (url === '/api/auth/me' && method === 'GET') return send(res, 200, { user: userOf(req) || null });
+  if (url === '/api/auth/me' && method === 'GET') return send(res, 200, { user: publicUser(userOf(req)) });
   if (url === '/api/auth/logout' && method === 'POST') {
     const t = userTokenOf(req); if (t) userSessions.delete(t);
     res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'gf_user=; Path=/; Max-Age=0' });
@@ -280,7 +311,7 @@ async function api(req, res, url) {
         : null;
     }
     const user = upsertUser(upd);
-    return send(res, 200, { user });
+    return send(res, 200, { user: publicUser(user) });
   }
   // Upload avatar dell'utente finale (base64 → file su disco). Riusa il pattern dei produttori.
   if (url === '/api/auth/avatar' && method === 'POST') {
@@ -293,7 +324,7 @@ async function api(req, res, url) {
     const file = `${safe}.${ext}`;
     fs.writeFileSync(path.join(USERPHOTODIR, file), Buffer.from(m[2], 'base64'));
     const user = upsertUser({ id: me.id, picture: `assets/photos/users/${file}` });
-    return send(res, 200, { user });
+    return send(res, 200, { user: publicUser(user) });
   }
 
   // --- Custodi (referral): il "seme" dell'utente + persone portate + credito + livello ---
@@ -481,5 +512,5 @@ module.exports = {
   requestHandler,
   // logica di business / utility pure (testabili a unità)
   custodiSummary, slugify, num, str, cleanVideo, cleanSeasonal, normalizePatch,
-  throttle, EMAIL_RE,
+  throttle, EMAIL_RE, hashPassword, verifyPassword, publicUser,
 };

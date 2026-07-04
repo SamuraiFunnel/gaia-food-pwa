@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=1200">
+<title>Auth form — varianti</title>
+<link rel="stylesheet" href="../../css/app.css">
+<style>
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:#E7DECF; font-family:var(--sans); color:var(--ink); }
+  .labh{ padding:20px 34px 4px; font-size:13px; color:#6b6152; } .labh b{ color:#1F1812; }
+  .row{ display:flex; gap:26px; justify-content:center; align-items:flex-start; padding:20px 20px 50px; flex-wrap:wrap; }
+  .col{ width:340px; }
+  .cap{ text-align:center; font-size:13px; color:#1F1812; margin:0 0 10px; }
+  .cap b{ display:inline-block; background:#1F1812; color:#fff; border-radius:100px; padding:3px 12px; font-weight:600; }
+  .cap span{ color:#6b6152; }
+  /* telefono */
+  .phone{ width:340px; height:660px; border-radius:36px; overflow:hidden; position:relative; border:8px solid #14100b;
+    background:#1f1812; box-shadow:0 24px 50px -22px rgba(20,14,8,.55); }
+  .bg{ position:absolute; inset:0; background:#2a231a; }
+  .bg img{ width:100%; height:52%; object-fit:cover; opacity:.9; }
+  .scrim{ position:absolute; inset:0; background:rgba(20,14,8,.42); }
+  /* sheet (dal basso) */
+  .sheet{ position:absolute; left:0; right:0; bottom:0; background:var(--bianco); border-radius:24px 24px 0 0;
+    padding:16px 20px 22px; box-shadow:0 -12px 40px -12px rgba(20,14,8,.5); }
+  .grab{ width:38px; height:5px; border-radius:100px; background:var(--bd3,#d8cdb8); margin:0 auto 12px; }
+  .title{ font-family:var(--serif); font-weight:600; font-size:22px; text-align:center; margin:0; color:var(--ink); }
+  .sub{ margin:6px 8px 14px; font-size:12.5px; line-height:1.45; color:var(--muted); text-align:center; }
+  /* segmented (tab) */
+  .seg{ display:flex; background:var(--carta); border-radius:12px; padding:4px; gap:4px; margin:0 0 14px; }
+  .seg button{ flex:1; border:none; background:none; font-family:inherit; font-size:14px; font-weight:600; color:var(--muted);
+    padding:9px; border-radius:9px; cursor:pointer; }
+  .seg button.on{ background:#fff; color:var(--ink); box-shadow:0 1px 4px rgba(20,14,8,.12); }
+  /* google */
+  .gbtn{ width:100%; height:50px; border:1px solid var(--bd3,#d8cdb8); border-radius:var(--r-input,14px); background:#fff;
+    display:flex; align-items:center; justify-content:center; gap:10px; font-weight:600; font-size:14.5px; color:var(--ink); cursor:pointer; }
+  .gbtn.primary{ height:52px; box-shadow:0 6px 16px -8px rgba(20,14,8,.3); }
+  .glogo{ width:18px; height:18px; }
+  .or{ display:flex; align-items:center; gap:10px; margin:13px 0; }
+  .or .ln{ flex:1; height:1px; background:var(--bd2,#e6ddcd); } .or span{ font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--faint,#a99); }
+  /* campi */
+  .field{ display:flex; align-items:center; gap:9px; height:50px; background:var(--bianco); border:1px solid var(--bd,#e0d6c4);
+    border-radius:var(--r-input,14px); padding:0 8px 0 14px; margin-bottom:10px; }
+  .field .ic{ color:var(--terra-deep,#9a7b53); flex:none; display:flex; }
+  .field input{ flex:1; min-width:0; border:none; background:none; font-family:var(--sans); font-size:15px; color:var(--ink); outline:none; padding:14px 0; }
+  .field .eye{ border:none; background:none; color:var(--faint,#a99); cursor:pointer; padding:6px; flex:none; }
+  .hint{ font-size:11px; color:var(--faint,#a99); margin:-4px 2px 10px; }
+  .go{ width:100%; height:52px; border:none; border-radius:var(--r-input,14px); background:var(--grad-azione); color:#fff;
+    font-family:var(--sans); font-size:15.5px; font-weight:600; cursor:pointer; box-shadow:0 12px 26px -12px rgba(22,163,74,.7); margin-top:2px; }
+  .switch{ text-align:center; font-size:13px; color:var(--muted); margin:13px 0 2px; }
+  .switch a{ color:var(--verde-deep,#128a3e); font-weight:600; text-decoration:none; }
+  .legal{ text-align:center; font-size:10.5px; line-height:1.5; color:var(--faint,#a99); margin:12px 6px 0; }
+  .legal a{ color:var(--muted); text-decoration:underline; }
+  svg{ display:block; }
+  .G{ } /* google logo colors via inline */
+</style>
+</head>
+<body>
+<div class="labh"><b style="background:none;color:#1F1812;padding:0">Auth form — 3 varianti</b> · email + password + Google · toggle Accedi/Registrati. Vista mobile (bottom-sheet); su desktop stesso contenuto in un modale centrato.</div>
+<div class="row">
+
+  <!-- A -->
+  <div class="col">
+    <p class="cap"><b>A · Tab in alto</b> <span>— Accedi/Registrati come tab, poi Google + email/password</span></p>
+    <div class="phone">
+      <div class="bg"><img src="../../assets/photos/paesaggio.png" alt=""></div><div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <h2 class="title">Entra in Gaia&nbsp;Food</h2>
+        <div class="seg"><button class="on">Accedi</button><button>Registrati</button></div>
+        <button class="gbtn"><svg class="glogo" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.3H12v4.5h5.9a5 5 0 0 1-2.2 3.3v2.8h3.6c2-1.9 3.2-4.7 3.2-8.3Z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.3 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.2v2.8A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.2a11 11 0 0 0 0 9.9l3.6-2.9Z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.6l3.2-3.1A11 11 0 0 0 2.2 7.1l3.6 2.8C6.7 7.3 9.1 5.4 12 5.4Z"/></svg> Continua con Google</button>
+        <div class="or"><span class="ln"></span><span>oppure</span><span class="ln"></span></div>
+        <label class="field"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span><input type="email" placeholder="La tua email"></label>
+        <label class="field"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.5" y="11" width="15" height="9.5" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></span><input type="password" placeholder="Password" value="••••••••"><button class="eye"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></label>
+        <button class="go">Accedi</button>
+        <p class="legal">Continuando accetti <a href="#">Termini</a> e <a href="#">Privacy</a>.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- B -->
+  <div class="col">
+    <p class="cap"><b>B · Login-first + link</b> <span>— un solo form; in fondo "Non hai un account? Registrati"</span></p>
+    <div class="phone">
+      <div class="bg"><img src="../../assets/photos/paesaggio.png" alt=""></div><div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <h2 class="title">Bentornato</h2>
+        <p class="sub">Accedi per ritrovare i tuoi produttori del cuore.</p>
+        <button class="gbtn"><svg class="glogo" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.3H12v4.5h5.9a5 5 0 0 1-2.2 3.3v2.8h3.6c2-1.9 3.2-4.7 3.2-8.3Z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.3 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.2v2.8A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.2a11 11 0 0 0 0 9.9l3.6-2.9Z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.6l3.2-3.1A11 11 0 0 0 2.2 7.1l3.6 2.8C6.7 7.3 9.1 5.4 12 5.4Z"/></svg> Continua con Google</button>
+        <div class="or"><span class="ln"></span><span>oppure</span><span class="ln"></span></div>
+        <label class="field"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span><input type="email" placeholder="La tua email"></label>
+        <label class="field"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.5" y="11" width="15" height="9.5" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></span><input type="password" placeholder="Password" value="••••••••"><button class="eye"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></label>
+        <button class="go">Accedi</button>
+        <p class="switch">Non hai un account? <a href="#">Registrati</a></p>
+        <p class="legal">Continuando accetti <a href="#">Termini</a> e <a href="#">Privacy</a>.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- C -->
+  <div class="col">
+    <p class="cap"><b>C · Google-first (in modalità Registrati)</b> <span>— Google in evidenza; qui mostro il "crea account"</span></p>
+    <div class="phone">
+      <div class="bg"><img src="../../assets/photos/paesaggio.png" alt=""></div><div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <h2 class="title">Crea il tuo account</h2>
+        <button class="gbtn primary"><svg class="glogo" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.3H12v4.5h5.9a5 5 0 0 1-2.2 3.3v2.8h3.6c2-1.9 3.2-4.7 3.2-8.3Z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.3 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.2v2.8A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.2a11 11 0 0 0 0 9.9l3.6-2.9Z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.6l3.2-3.1A11 11 0 0 0 2.2 7.1l3.6 2.8C6.7 7.3 9.1 5.4 12 5.4Z"/></svg> Registrati con Google</button>
+        <div class="or"><span class="ln"></span><span>oppure con email</span><span class="ln"></span></div>
+        <label class="field"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span><input type="email" placeholder="La tua email"></label>
+        <label class="field"><span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.5" y="11" width="15" height="9.5" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></span><input type="password" placeholder="Crea una password" value="••••••••"><button class="eye"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></label>
+        <div class="hint">Almeno 8 caratteri.</div>
+        <button class="go">Crea account</button>
+        <p class="switch">Hai già un account? <a href="#">Accedi</a></p>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

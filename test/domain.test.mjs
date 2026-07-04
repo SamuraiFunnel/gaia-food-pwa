@@ -10,7 +10,24 @@ import path from 'node:path';
 process.env.GF_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-unit-'));
 const {
   custodiSummary, slugify, num, str, cleanVideo, cleanSeasonal, normalizePatch, throttle, EMAIL_RE,
+  hashPassword, verifyPassword, publicUser,
 } = await import('../server.js');
+
+// ---------------------------------------------------------------- password (scrypt)
+test('hashPassword/verifyPassword: roundtrip + password errata + salt casuale', () => {
+  const h = hashPassword('correct horse battery');
+  assert.match(h, /^[0-9a-f]+:[0-9a-f]+$/);           // formato salt:hash
+  assert.equal(verifyPassword('correct horse battery', h), true);
+  assert.equal(verifyPassword('sbagliata', h), false);
+  assert.equal(verifyPassword('correct horse battery', ''), false);     // stored vuoto
+  assert.equal(verifyPassword('correct horse battery', 'senza-due-punti'), false);
+  assert.notEqual(hashPassword('x'), hashPassword('x')); // salt diverso ogni volta
+});
+test('publicUser: rimuove passHash, tiene il resto; null-safe', () => {
+  assert.deepEqual(publicUser({ id: 'a@x.it', email: 'a@x.it', passHash: 'salt:hash', name: 'A' }),
+    { id: 'a@x.it', email: 'a@x.it', name: 'A' });
+  assert.equal(publicUser(null), null);
+});
 
 // ---------------------------------------------------------------- slugify
 test('slugify: minuscole, trattini, niente accenti', () => {

@@ -43,10 +43,11 @@ function api(method, p, { body, cookie, ip } = {}) {
 }
 // Estrae il cookie di sessione utente da una risposta di login.
 const userCookie = (res) => ((res.headers['set-cookie'] || []).map((s) => s.split(';')[0]).find((s) => s.startsWith('gf_user=')) || '');
-// Login via email → ritorna il cookie di sessione.
+// Crea un account (email+password) e ritorna il cookie di sessione.
 async function signIn(email, ip, seme) {
-  const r = await api('POST', '/api/auth/email', { body: seme ? { email, seme } : { email }, ip });
-  assert.equal(r.status, 200, `login ${email} → ${r.status}`);
+  const body = { email, password: 'testPassword1' }; if (seme) body.seme = seme;
+  const r = await api('POST', '/api/auth/register', { body, ip });
+  assert.equal(r.status, 200, `register ${email} → ${r.status}`);
   return userCookie(r);
 }
 
@@ -62,13 +63,13 @@ test('GET /api/auth/me senza cookie → user null', async () => {
   assert.equal(r.json.user, null);
 });
 
-// -------------------------------------------------- login email
-test('POST /api/auth/email: email non valida → 400', async () => {
-  const r = await api('POST', '/api/auth/email', { body: { email: 'non-una-email' }, ip: 'e1' });
+// -------------------------------------------------- registrazione email
+test('POST /api/auth/register: email non valida → 400', async () => {
+  const r = await api('POST', '/api/auth/register', { body: { email: 'non-una-email', password: 'unaPassword1' }, ip: 'e1' });
   assert.equal(r.status, 400);
 });
-test('POST /api/auth/email: valida → 200, utente creato, cookie di sessione, /me lo riconosce', async () => {
-  const r = await api('POST', '/api/auth/email', { body: { email: 'Mario@X.it' }, ip: 'e2' });
+test('POST /api/auth/register: valida → 200, utente creato, cookie di sessione, /me lo riconosce', async () => {
+  const r = await api('POST', '/api/auth/register', { body: { email: 'Mario@X.it', password: 'unaPassword1' }, ip: 'e2' });
   assert.equal(r.status, 200);
   assert.equal(r.json.user.email, 'mario@x.it'); // normalizzata lowercase
   const cookie = userCookie(r);
@@ -155,10 +156,10 @@ test('producers: GET pubblico ok (seed), POST senza ruolo → 403', async () => 
 });
 
 // -------------------------------------------------- rate limiting
-test('rate-limit: /api/auth/email oltre 10/min dallo stesso IP → 429', async () => {
+test('rate-limit: /api/auth/login oltre 10/min dallo stesso IP → 429', async () => {
   const statuses = [];
   for (let i = 0; i < 11; i++) {
-    const r = await api('POST', '/api/auth/email', { body: { email: 'flood@x.it' }, ip: 'flood-ip' });
+    const r = await api('POST', '/api/auth/login', { body: { email: 'flood@x.it', password: 'qualsiasi1' }, ip: 'flood-ip' });
     statuses.push(r.status);
   }
   assert.equal(statuses.at(-1), 429, `ultima richiesta dovrebbe essere 429, statuses=${statuses.join(',')}`);
@@ -183,6 +184,28 @@ test('statico: index, asset JS, SPA fallback; config.json mai servito (403)', as
   assert.equal((await api('GET', '/js/i18n.js')).status, 200);    // asset reale del repo
   assert.equal((await api('GET', '/una/rotta/spa')).status, 200);  // non-file, non-api → fallback index
   assert.equal((await api('GET', '/data/config.json')).status, 403); // segreti mai serviti
+});
+
+// -------------------------------------------------- email + password (register / login)
+test('register: password corta 400 · valida → 200+cookie+/me (no passHash) · duplicato → 409', async () => {
+  assert.equal((await api('POST', '/api/auth/register', { body: { email: 'pw@x.it', password: 'corta1' }, ip: 'reg1' })).status, 400);
+  const r = await api('POST', '/api/auth/register', { body: { email: 'pw@x.it', password: 'unaBuonaPassword' }, ip: 'reg2' });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.user.email, 'pw@x.it');
+  assert.equal(r.json.user.passHash, undefined, 'passHash non deve MAI uscire');
+  const me = await api('GET', '/api/auth/me', { cookie: userCookie(r) });
+  assert.equal(me.json.user.email, 'pw@x.it');
+  assert.equal(me.json.user.passHash, undefined);
+  assert.equal((await api('POST', '/api/auth/register', { body: { email: 'pw@x.it', password: 'altraPassword12' }, ip: 'reg3' })).status, 409);
+});
+test('login: giusta → 200 · sbagliata → 401 · inesistente → 401 · senza password → 400', async () => {
+  await api('POST', '/api/auth/register', { body: { email: 'log@x.it', password: 'passwordGiusta1' }, ip: 'log1' });
+  const ok = await api('POST', '/api/auth/login', { body: { email: 'log@x.it', password: 'passwordGiusta1' }, ip: 'log2' });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.json.user.passHash, undefined);
+  assert.equal((await api('POST', '/api/auth/login', { body: { email: 'log@x.it', password: 'sbagliata' }, ip: 'log3' })).status, 401);
+  assert.equal((await api('POST', '/api/auth/login', { body: { email: 'nessuno@x.it', password: 'qualsiasi1' }, ip: 'log4' })).status, 401);
+  assert.equal((await api('POST', '/api/auth/login', { body: { email: 'log@x.it' }, ip: 'log5' })).status, 400);
 });
 
 // -------------------------------------------------- API inesistente

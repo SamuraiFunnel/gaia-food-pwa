@@ -106,11 +106,13 @@ async function main() {
   if (await ev(`location.hash && location.hash !== '#/' ? true : false`)) throw new Error('la CTA ha navigato invece di aprire il pop-up');
   ok('La CTA apre il pop-up di accesso senza cambiare pagina');
 
-  // 3) login via email → passo ZONA (dimostra che il POST /api/auth/email ha funzionato)
-  await ev(`(()=>{const i=document.querySelector('.auth-modal input[name=email]'); i.value='e2e@test.it'; i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-  await ev(`document.querySelector('.auth-modal [data-email-form] .am-go').click()`);
-  await waitFor(`document.querySelector('.auth-modal.step-zone')`, 'passo Zona dopo il login');
-  ok('Login email riuscito → si apre il passo "Dove ti trovi?"');
+  // 3) registrazione email+password → passo ZONA (POST /api/auth/register)
+  await ev(`(()=>{const e=document.querySelector('.auth-modal input[name=email]'); e.value='e2e@test.it'; e.dispatchEvent(new Event('input',{bubbles:true}));
+    const p=document.querySelector('.auth-modal input[name=password]'); p.value='e2ePassword1'; p.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await ev(`document.querySelector('.auth-modal [data-auth-toggle]').click()`);   // passa a "Registrati"
+  await ev(`document.querySelector('.auth-modal [data-auth-submit]').click()`);
+  await waitFor(`document.querySelector('.auth-modal.step-zone')`, 'passo Zona dopo la registrazione');
+  ok('Registrazione email+password riuscita → si apre il passo "Dove ti trovi?"');
 
   // 4) scelgo Abruzzo → entro in HOME
   await ev(`document.querySelector('.auth-modal [data-zname="Abruzzo"]').click()`);

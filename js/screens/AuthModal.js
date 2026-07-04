@@ -1,5 +1,5 @@
 import { Icon } from '../icons.js';
-import { signInWithGoogle, signInWithEmail, authConfig, setZone, getState, activeZoneId, currentUser } from '../store.js';
+import { signInWithGoogle, loginPassword, registerPassword, authConfig, setZone, getState, activeZoneId, currentUser } from '../store.js';
 import { t } from '../i18n.js';
 
 /* ============================================================
@@ -108,6 +108,19 @@ export function openAuthModal({ step = 'auth' } = {}) {
       box-shadow:0 6px 16px -8px rgba(22,163,74,.7); }
     .auth-modal .am-go:active{ transform:translateY(1px); }
     .auth-modal .am-go[disabled]{ opacity:.6; }
+    /* --- password + submit + switch (auth v2) --- */
+    .auth-modal .am-field{ margin-top:10px; }
+    .auth-modal .am-eye{ width:38px; height:38px; flex:none; border:none; background:none; color:var(--faint);
+      display:flex; align-items:center; justify-content:center; cursor:pointer; border-radius:10px; }
+    .auth-modal .am-eye:active{ background:var(--carta); }
+    .auth-modal .am-hint{ font-size:11px; color:var(--faint); margin:8px 2px 0; }
+    .auth-modal .am-submit{ width:100%; height:52px; margin-top:14px; border:none; border-radius:var(--r-input);
+      background:var(--grad-azione); color:#fff; font-family:var(--sans); font-size:15.5px; font-weight:600;
+      cursor:pointer; box-shadow:0 12px 26px -12px rgba(22,163,74,.7); }
+    .auth-modal .am-submit:active{ transform:translateY(1px); }
+    .auth-modal .am-submit[disabled]{ opacity:.6; cursor:default; }
+    .auth-modal .am-switch{ text-align:center; font-size:13px; color:var(--muted); margin:14px 2px 0; }
+    .auth-modal .am-switch a{ color:var(--verde-deep); font-weight:600; text-decoration:none; cursor:pointer; }
     .auth-modal .am-msg{ min-height:16px; margin:7px 2px 0; font-size:12px; line-height:1.4; color:var(--red-alert); text-align:left; }
     .auth-modal .am-legal{ margin:12px 6px 2px; font-size:11px; line-height:1.55; color:var(--faint); text-align:center; }
     .auth-modal .am-legal a{ color:var(--muted); text-decoration:underline; }
@@ -150,10 +163,10 @@ export function openAuthModal({ step = 'auth' } = {}) {
     <button class="am-x" data-close aria-label="${t('auth.close')}">${Icon('x', { size: 18 })}</button>
     <div class="am-grab" aria-hidden="true"></div>
 
-    <!-- STEP 1 · accesso -->
+    <!-- STEP 1 · accesso (email+password + Google, login-first + link registrati) -->
     <div class="am-step am-auth">
-      <h2 class="am-title">${t('auth.title')}</h2>
-      <p class="am-sub">${t('auth.subtitle')}</p>
+      <h2 class="am-title" data-auth-title>${t('auth.loginTitle')}</h2>
+      <p class="am-sub" data-auth-sub>${t('auth.loginSub')}</p>
       <div class="am-gwrap" data-google></div>
       <div class="am-or"><span class="ln"></span><span>${t('auth.or')}</span><span class="ln"></span></div>
       <form data-email-form novalidate>
@@ -161,10 +174,18 @@ export function openAuthModal({ step = 'auth' } = {}) {
           <span class="ic">${Icon('mail', { size: 19, stroke: 2 })}</span>
           <input type="email" name="email" inputmode="email" autocomplete="email" spellcheck="false"
             placeholder="${t('auth.emailPlaceholder')}" aria-label="${t('auth.emailPlaceholder')}">
-          <button class="am-go" type="submit" aria-label="${t('auth.emailSubmitAria')}">${Icon('arrow-right', { size: 19, color: '#fff', stroke: 2.3 })}</button>
         </label>
+        <label class="am-email am-field" data-pass-box>
+          <span class="ic">${Icon('lock', { size: 19, stroke: 2 })}</span>
+          <input type="password" name="password" autocomplete="current-password"
+            placeholder="${t('auth.password')}" aria-label="${t('auth.password')}" data-pass>
+          <button class="am-eye" type="button" data-eye aria-label="${t('auth.showPassword')}">${Icon('eye', { size: 19 })}</button>
+        </label>
+        <p class="am-hint" data-hint hidden>${t('auth.passwordMin')}</p>
+        <button class="am-submit" type="submit" data-auth-submit>${t('auth.login')}</button>
       </form>
       <p class="am-msg" data-msg role="status" aria-live="polite"></p>
+      <p class="am-switch"><span data-switch-txt>${t('auth.noAccount')}</span> <a data-auth-toggle role="button" tabindex="0">${t('auth.register')}</a></p>
       <p class="am-legal">${t('auth.legal', { terms: `<a href="#/termini" data-close>${t('settings.terms')}</a>`, privacy: `<a href="#/privacy" data-close>${t('auth.privacyLabel')}</a>` })}</p>
     </div>
 
@@ -205,22 +226,66 @@ export function openAuthModal({ step = 'auth' } = {}) {
   const msgEl = wrap.querySelector('[data-msg]');
   const setMsg = (t, ok = false) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.style.color = ok ? 'var(--verde-deep)' : 'var(--red-alert)'; } };
 
-  // ---- email ----
+  // ---- email + password (login / registrazione, login-first) ----
+  let mode = 'login'; // 'login' | 'register'
   const form = wrap.querySelector('[data-email-form]');
-  const box = wrap.querySelector('[data-email-box]');
+  const emailBox = wrap.querySelector('[data-email-box]');
+  const passBox = wrap.querySelector('[data-pass-box]');
   const input = form && form.querySelector('input[name="email"]');
-  const goBtn = form && form.querySelector('.am-go');
+  const passInput = form && form.querySelector('input[name="password"]');
+  const submitBtn = wrap.querySelector('[data-auth-submit]');
+  const titleEl = wrap.querySelector('[data-auth-title]');
+  const subEl = wrap.querySelector('[data-auth-sub]');
+  const hintEl = wrap.querySelector('[data-hint]');
+  const switchTxt = wrap.querySelector('[data-switch-txt]');
+  const toggleLink = wrap.querySelector('[data-auth-toggle]');
+  const eyeBtn = wrap.querySelector('[data-eye]');
+
+  function paintMode() {
+    const reg = mode === 'register';
+    if (titleEl) titleEl.textContent = t(reg ? 'auth.registerTitle' : 'auth.loginTitle');
+    if (subEl) subEl.textContent = t(reg ? 'auth.registerSub' : 'auth.loginSub');
+    if (submitBtn) submitBtn.textContent = t(reg ? 'auth.createAccount' : 'auth.login');
+    if (passInput) { passInput.placeholder = t(reg ? 'auth.passwordCreate' : 'auth.password'); passInput.setAttribute('autocomplete', reg ? 'new-password' : 'current-password'); }
+    if (hintEl) hintEl.hidden = !reg;
+    if (switchTxt) switchTxt.textContent = t(reg ? 'auth.haveAccount' : 'auth.noAccount');
+    if (toggleLink) toggleLink.textContent = t(reg ? 'auth.login' : 'auth.register');
+    setMsg('');
+  }
+  paintMode();
+
+  if (toggleLink) {
+    const doToggle = () => { mode = (mode === 'login') ? 'register' : 'login'; paintMode(); (input && !input.value ? input : passInput).focus(); };
+    toggleLink.addEventListener('click', (e) => { e.preventDefault(); doToggle(); });
+    toggleLink.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doToggle(); } });
+  }
+  if (eyeBtn && passInput) eyeBtn.addEventListener('click', () => { passInput.type = passInput.type === 'password' ? 'text' : 'password'; });
+
+  // Errore localizzato in base allo status del server (401 credenziali · 409 email esistente · 400 password).
+  const authErr = (e) => (e && e.status === 401) ? t('auth.wrongCredentials')
+    : (e && e.status === 409) ? t('auth.emailExists')
+    : (e && e.status === 400) ? t('auth.passwordTooShort')
+    : ((e && e.message) || t('common.retry'));
+
   if (form) {
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const email = (input.value || '').trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { box.classList.add('err'); setMsg(t('auth.invalidEmail')); input.focus(); return; }
-      box.classList.remove('err'); setMsg('');
-      goBtn.disabled = true; input.disabled = true;
-      try { await signInWithEmail(email); goZoneStep(); }
-      catch (e) { goBtn.disabled = false; input.disabled = false; setMsg(t('auth.emailFailed', { err: e.message || t('common.retry') })); }
+      const pw = passInput ? passInput.value : '';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { emailBox.classList.add('err'); setMsg(t('auth.invalidEmail')); input.focus(); return; }
+      if (!pw) { passBox.classList.add('err'); setMsg(t('auth.passwordRequired')); passInput.focus(); return; }
+      if (mode === 'register' && pw.length < 8) { passBox.classList.add('err'); setMsg(t('auth.passwordTooShort')); passInput.focus(); return; }
+      emailBox.classList.remove('err'); passBox.classList.remove('err'); setMsg('');
+      submitBtn.disabled = true; input.disabled = true; passInput.disabled = true;
+      try {
+        if (mode === 'register') await registerPassword(email, pw); else await loginPassword(email, pw);
+        goZoneStep();
+      } catch (e) {
+        submitBtn.disabled = false; input.disabled = false; passInput.disabled = false;
+        setMsg(authErr(e));
+      }
     });
-    input.addEventListener('input', () => { box.classList.remove('err'); if (msgEl && msgEl.textContent) setMsg(''); });
+    [input, passInput].forEach((el) => el && el.addEventListener('input', () => { emailBox.classList.remove('err'); passBox.classList.remove('err'); if (msgEl && msgEl.textContent) setMsg(''); }));
   }
 
   // ---- Google reale ----

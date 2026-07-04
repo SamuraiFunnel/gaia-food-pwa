@@ -63,7 +63,7 @@ export async function uploadPhoto(id, dataUrl) { const d = await j('./api/produc
 
 // ---- Auth utente finale (Google reale / email) ----
 // credentials:'include' = il cookie httpOnly gf_user viaggia anche cross-origin (API su dominio separato in prod).
-const ja = (url, opts = {}) => fetch(url, { headers: { 'Content-Type': 'application/json' }, credentials: 'include', ...opts }).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || r.status); return d; });
+const ja = (url, opts = {}) => fetch(url, { headers: { 'Content-Type': 'application/json' }, credentials: 'include', ...opts }).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) { const e = new Error(d.error || r.status); e.status = r.status; throw e; } return d; });
 
 // "Seme" del referral: se l'app è aperta con ?seme=<codice> (nell'URL o nell'hash), lo ricordiamo
 // per collegare l'iscrizione all'invitante (Custodi). Catturato una volta al caricamento del modulo.
@@ -76,7 +76,9 @@ try {
 export const getSeed = () => { try { return localStorage.getItem('gf_seed') || ''; } catch { return ''; } };
 
 export async function signInWithGoogle(idToken) { const d = await ja('./api/auth/google', { method: 'POST', body: JSON.stringify({ idToken, seme: getSeed() }) }); state.user = d.user; return d.user; }
-export async function signInWithEmail(email) { const d = await ja('./api/auth/email', { method: 'POST', body: JSON.stringify({ email, seme: getSeed() }) }); state.user = d.user; return d.user; }
+// Email + password: login e registrazione (auth v2).
+export async function loginPassword(email, password) { const d = await ja('./api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); state.user = d.user; return d.user; }
+export async function registerPassword(email, password) { const d = await ja('./api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, seme: getSeed() }) }); state.user = d.user; return d.user; }
 // Dati della sezione "I Custodi di Gaia" (seme, persone portate, credito, livello) dell'utente loggato.
 export async function custodiMe() { return ja('./api/custodi/me'); }
 export async function authMe() { try { const d = await ja('./api/auth/me'); state.user = d.user; return d.user; } catch (e) { state.user = null; return null; } }
