@@ -1,0 +1,259 @@
+import { Icon } from '../icons.js';
+import { StatusBar, Photo } from '../components.js';
+import { markHubSeen } from '../store.js';
+
+/* ---------------- HUB D'INGRESSO — "Cosa vuoi fare?" ----------------
+   Look = design-lab/hub/V1-velo-scuro.html ("velo scuro").
+   Tre pilastri del prodotto come CARD HERO con foto:
+     1) "Trova un produttore" — ATTIVA, protagonista, CTA freccia → #/home
+     2) "Ricevi a casa"     — BLOCCATA (velo scuro + lucchetto + "In arrivo") → #/consegna/non-disponibile
+     3) "Lungo il Percorso" — BLOCCATA (stesso trattamento) → #/percorso
+   Desktop (≥1024): layout largo (1ª grande a sinistra, le 2 bloccate impilate
+   a destra). Mobile: colonna. Niente blocco "scarica app" (rimosso da V1).
+
+   LOGICA PRESERVATA — la scelta di una voce (o "Salta") segna l'Hub come
+   "visto" via markHubSeen: agli avvii successivi si salta direttamente.
+   `data-fn` con valore = funzione reale ricordata come ultima usata;
+   `data-fn` vuoto (teaser "in arrivo") segna comunque l'Hub come visto.
+   Le card HERO sono `<a data-link>` perché il router gestisca la rotta. */
+
+// SVG bespoke replicati da V1 (per fedeltà visiva; il resto usa Icon()).
+const svgGo = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>`;
+const svgLock = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>`;
+const svgPinTag = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21c4-3.5 7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 3 7.5 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>`;
+const svgSpark = `<svg class="spark" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.6 4.8L18.5 8l-4.9 1.2L12 14l-1.6-4.8L5.5 8l4.9-1.2L12 2Z"/></svg>`;
+const svgClock = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>`;
+
+export function Hub() {
+  return {
+    html: `<div class="screen no-nav hub-screen">
+      ${StatusBar()}
+      <style>
+      /* === HUB "velo scuro" — scope: .hub-screen (non tocca le altre schermate) === */
+      .hub-screen .scroll{ width:100%; }
+      .hub-screen .hub-wrap{ width:100%; max-width:430px; margin:0 auto; padding:6px 22px 40px; }
+
+      .hub-screen .intro{ padding:18px 2px 18px; }
+      .hub-screen .eyebrow2{
+        font-size:10.5px; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+        color:var(--verde-deep); display:inline-flex; align-items:center; gap:7px;
+      }
+      .hub-screen .eyebrow2::before{ content:''; width:16px; height:1.5px; background:var(--verde); border-radius:2px; }
+      .hub-screen .title{
+        font-family:var(--serif); font-weight:600; letter-spacing:-.02em; line-height:1.04;
+        font-size:33px; color:var(--ink); margin-top:12px;
+      }
+      .hub-screen .title em{ font-style:italic; color:var(--verde); }
+      .hub-screen .subtitle{ font-size:14.5px; line-height:1.5; color:var(--muted); margin-top:10px; max-width:34ch; }
+
+      /* ---------- CARDS HERO ---------- */
+      .hub-screen .cards{ display:flex; flex-direction:column; gap:15px; }
+      .hub-screen .hcard{
+        position:relative; border-radius:22px; overflow:hidden; isolation:isolate;
+        min-height:188px; display:flex; flex-direction:column; justify-content:flex-end;
+        box-shadow:var(--sh-card); border:1px solid rgba(31,24,18,.06);
+        -webkit-tap-highlight-color:transparent;
+      }
+      .hub-screen .hcard .bg{ position:absolute; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; display:block; }
+      .hub-screen .hcard .body{ position:relative; z-index:3; padding:18px; color:#fff; }
+      .hub-screen .hcard .row{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
+      .hub-screen .hcard h2{
+        font-family:var(--serif); font-weight:600; letter-spacing:-.015em; line-height:1.12;
+        font-size:23px; color:#fff; text-shadow:0 1px 18px rgba(0,0,0,.45);
+      }
+      .hub-screen .hcard p{
+        font-size:13.5px; line-height:1.45; color:rgba(255,255,255,.94);
+        margin-top:6px; max-width:30ch; text-shadow:0 1px 14px rgba(0,0,0,.4);
+      }
+      /* pill icona in alto a sinistra */
+      .hub-screen .hcard .tag{
+        position:absolute; z-index:3; top:14px; left:14px;
+        display:inline-flex; align-items:center; gap:7px;
+        padding:7px 12px 7px 9px; border-radius:100px;
+        background:rgba(255,255,255,.18);
+        -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px);
+        border:1px solid rgba(255,255,255,.28);
+        font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#fff;
+      }
+      .hub-screen .hcard .tag svg{ flex:none; }
+
+      /* ===== CARD ATTIVA (1ª) ===== */
+      .hub-screen .hcard.active{ min-height:228px; }
+      .hub-screen .hcard.active .scrim{
+        position:absolute; inset:0; z-index:1;
+        background:
+          linear-gradient(180deg, rgba(20,30,18,0) 30%, rgba(18,26,16,.32) 60%, rgba(14,20,12,.82) 100%),
+          linear-gradient(105deg, rgba(22,163,74,.16), rgba(14,165,233,.05) 60%, transparent);
+      }
+      .hub-screen .hcard.active .tag{ background:rgba(22,163,74,.34); border-color:rgba(255,255,255,.36); }
+      .hub-screen .go{
+        flex:none; width:52px; height:52px; border-radius:50%;
+        background:#fff; color:var(--verde-deep);
+        display:flex; align-items:center; justify-content:center;
+        box-shadow:0 10px 24px -10px rgba(0,0,0,.6);
+        transition:transform .25s ease, box-shadow .25s ease;
+      }
+      .hub-screen .hcard.active:hover .go{ transform:translateX(3px) scale(1.04); box-shadow:0 14px 30px -12px rgba(0,0,0,.7); }
+      .hub-screen .go svg{ display:block; }
+      .hub-screen .pickline{
+        display:inline-flex; align-items:center; gap:7px; margin-top:11px;
+        font-size:11.5px; font-weight:700; letter-spacing:.02em; color:#fff;
+      }
+      .hub-screen .pickline .dot{ width:6px; height:6px; border-radius:50%; background:var(--verde-light); box-shadow:0 0 0 4px rgba(34,197,94,.3); }
+
+      /* ===== CARD BLOCCATE (2ª, 3ª) — VELO SCURO ===== */
+      .hub-screen .hcard.locked .bg{ filter:saturate(.82) brightness(.96); }
+      .hub-screen .hcard.locked .veil{
+        position:absolute; inset:0; z-index:1;
+        background:
+          radial-gradient(120% 90% at 50% 30%, rgba(10,14,9,.42), rgba(8,12,7,.66) 100%),
+          linear-gradient(180deg, rgba(10,14,9,.5), rgba(8,11,7,.66));
+      }
+      .hub-screen .hcard.locked h2{ color:rgba(255,255,255,.94); }
+      .hub-screen .hcard.locked p{ color:rgba(255,255,255,.78); }
+      .hub-screen .lockwrap{
+        position:absolute; z-index:3; inset:0;
+        display:flex; align-items:center; justify-content:center; pointer-events:none;
+      }
+      .hub-screen .lockwrap .lock{
+        width:58px; height:58px; border-radius:50%;
+        display:flex; align-items:center; justify-content:center; color:#fff;
+        background:rgba(255,255,255,.12);
+        -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+        border:1px solid rgba(255,255,255,.28);
+        box-shadow:0 14px 34px -16px rgba(0,0,0,.8);
+      }
+      .hub-screen .hcard.locked .tag{
+        left:auto; right:14px; background:rgba(255,255,255,.16);
+        border-color:rgba(255,255,255,.3); color:rgba(255,255,255,.96);
+      }
+      .hub-screen .hcard.locked .tag .spark{ color:var(--celeste); }
+      .hub-screen .soonline{
+        display:inline-flex; align-items:center; gap:7px; margin-top:11px;
+        font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+        color:rgba(255,255,255,.8);
+      }
+      .hub-screen .soonline svg{ flex:none; opacity:.85; }
+
+      /* ---------- "salta" in fondo ---------- */
+      .hub-screen .skip{ margin-top:22px; text-align:center; }
+      .hub-screen .skip a{
+        display:inline-flex; align-items:center; gap:9px;
+        font-size:13.5px; font-weight:600; color:var(--ink-soft);
+        padding:11px 18px; border-radius:100px;
+        border:1px solid var(--bd2); background:var(--bianco);
+        box-shadow:var(--sh-card); transition:border-color .2s ease, color .2s ease;
+      }
+      .hub-screen .skip a:hover{ color:var(--verde-deep); border-color:rgba(22,163,74,.35); }
+      .hub-screen .skip a .sep{ color:var(--faint); font-weight:400; }
+      .hub-screen .skip a svg{ flex:none; }
+
+      /* ============================================================
+         DESKTOP ≥1024 — layout largo (rompe il cap 440px solo per l'Hub)
+         ============================================================ */
+      @media(min-width:1024px){
+        #app:has(.hub-screen){ max-width:none; background:var(--carta); }
+        .hub-screen .hub-wrap{
+          max-width:1240px; padding:18px 40px 64px;
+          display:grid; grid-template-columns:minmax(0,1fr);
+          grid-template-areas:"intro" "cards" "skip"; align-content:start;
+        }
+        .hub-screen .intro{ grid-area:intro; padding:24px 0 26px; max-width:560px; }
+        .hub-screen .title{ font-size:46px; }
+        .hub-screen .subtitle{ font-size:16px; max-width:42ch; }
+        .hub-screen .cards{
+          grid-area:cards; display:grid;
+          grid-template-columns:1.35fr 1fr; grid-template-rows:auto auto; gap:18px;
+        }
+        .hub-screen .hcard.active{ grid-row:1 / span 2; min-height:420px; }
+        .hub-screen .hcard.active h2{ font-size:30px; }
+        .hub-screen .hcard.active p{ font-size:15px; max-width:34ch; }
+        .hub-screen .hcard.active .body{ padding:24px; }
+        .hub-screen .hcard.locked{ min-height:201px; }
+        .hub-screen .hcard.locked h2{ font-size:21px; }
+        .hub-screen .skip{ grid-area:skip; text-align:left; margin-top:22px; }
+      }
+      @media(min-width:1360px){
+        .hub-screen .hcard.locked{ min-height:222px; }
+        .hub-screen .hcard.active{ min-height:462px; }
+      }
+      @media(prefers-reduced-motion:reduce){
+        .hub-screen *{ transition:none !important; animation:none !important; }
+      }
+      </style>
+
+      <div class="scroll">
+        <div class="hub-wrap">
+
+          <section class="intro">
+            <span class="eyebrow2">Benvenuto in Gaia Food</span>
+            <h1 class="title">Cosa vuoi <em>fare?</em></h1>
+            <p class="subtitle">Tre modi per vivere il cibo vero. Per ora si parte dal primo.</p>
+          </section>
+
+          <section class="cards">
+
+            <!-- 1 · ATTIVA → #/home -->
+            <a class="hcard active" href="#/home" data-link data-fn="#/home" aria-label="Trova un produttore — esplora la mappa">
+              <img class="bg" src="./assets/hub/trova.jpg" loading="lazy" decoding="async"
+                   alt="Pascolo all'alba con mucche e un casolare di pietra ai piedi della montagna">
+              <div class="scrim" aria-hidden="true"></div>
+              <span class="tag">${svgPinTag}Attiva</span>
+              <div class="body">
+                <div class="row">
+                  <div>
+                    <h2>Trova un produttore</h2>
+                    <p>Esplora la mappa e scopri chi produce vero, vicino a te.</p>
+                    <span class="pickline"><span class="dot" aria-hidden="true"></span>Inizia da qui</span>
+                  </div>
+                  <span class="go" aria-hidden="true">${svgGo}</span>
+                </div>
+              </div>
+            </a>
+
+            <!-- 2 · BLOCCATA → #/consegna/non-disponibile -->
+            <a class="hcard locked" href="#/consegna/non-disponibile" data-link data-fn
+               aria-label="Ricevi a casa — in arrivo, non ancora disponibile">
+              <img class="bg" src="./assets/hub/ricevi.jpg" loading="lazy" decoding="async"
+                   alt="Ape carico di casse di frutta, verdura e pane: la consegna a casa dai produttori">
+              <div class="veil" aria-hidden="true"></div>
+              <div class="lockwrap" aria-hidden="true"><span class="lock">${svgLock}</span></div>
+              <span class="tag">${svgSpark}In arrivo</span>
+              <div class="body">
+                <h2>Ricevi a casa</h2>
+                <p>Ordina dai produttori: un mezzo ritira e porta tutto a casa tua.</p>
+                <span class="soonline">${svgClock}Presto disponibile</span>
+              </div>
+            </a>
+
+            <!-- 3 · BLOCCATA → #/percorso -->
+            <a class="hcard locked" href="#/percorso" data-link data-fn
+               aria-label="Lungo il Percorso — in arrivo, non ancora disponibile">
+              <img class="bg" src="./assets/hub/percorso.jpg" loading="lazy" decoding="async"
+                   alt="Strada di campagna tra le colline verso la montagna al tramonto: il viaggio tra i produttori">
+              <div class="veil" aria-hidden="true"></div>
+              <div class="lockwrap" aria-hidden="true"><span class="lock">${svgLock}</span></div>
+              <span class="tag">${svgSpark}In arrivo</span>
+              <div class="body">
+                <h2>Lungo il Percorso</h2>
+                <p>Scegli le tappe e viaggia tra i produttori del territorio.</p>
+                <span class="soonline">${svgClock}Presto disponibile</span>
+              </div>
+            </a>
+
+          </section>
+
+        </div>
+        <div style="height:28px"></div>
+      </div>
+    </div>`,
+    onMount(el) {
+      // Scelta una funzione → l'Hub è "visto": agli avvii successivi si salta.
+      // `data-fn` con valore = funzione reale ricordata come ultima usata;
+      // `data-fn` vuoto (teaser "in arrivo") segna comunque l'Hub come visto.
+      el.querySelectorAll('[data-fn]').forEach(a => a.addEventListener('click', () => {
+        markHubSeen(a.getAttribute('data-fn') || null);
+      }));
+    },
+  };
+}

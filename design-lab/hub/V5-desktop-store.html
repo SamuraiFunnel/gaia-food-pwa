@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gaia Food — Cosa vuoi fare? · V5 desktop-store</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- design system condiviso (token); la pagina resta comunque auto-contenuta -->
+<link rel="stylesheet" href="../../css/app.css">
+<style>
+/* ============================================================
+   V5 — DESKTOP-STORE
+   Pensata desktop-first: web app vera (larga, non finto-telefono).
+   ≥1024px: hero a sinistra + 2 bloccate impilate a destra +
+   pannello "Scarica l'app" (App Store / Google Play + QR).
+   <1024px: collassa in colonna mobile semplice (~390px).
+   I token sono ridichiarati qui per l'apertura standalone.
+   ============================================================ */
+:root{
+  --carta:#F4F1EB; --carta-scura:#EDE6DA; --bianco:#FBF9F5; --canvas:#E7DECF;
+  --ink:#1F1812; --ink-soft:#564B41; --muted:#75695B; --muted2:#8A7D6C; --faint:#A89A87;
+  --verde:#16A34A; --verde-deep:#15803D; --verde-pale:#E7F5EC;
+  --celeste:#0EA5E9; --celeste-deep:#0C7FB0; --celeste-pale:#E2F2F9;
+  --terra:#C2A07A; --terra-deep:#8C6838; --terra-pale:#F3E9D9;
+  --bd:#ECE4D7; --bd2:#E5DCCF; --bd3:#E0D7C8;
+  --grad-azione:linear-gradient(135deg,#16A34A,#0EA5E9);
+  --serif:'Fraunces',Georgia,serif;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --r-card:22px; --r-btn:15px; --r-pill:100px;
+  --sh-card:0 1px 2px rgba(31,24,18,.04),0 12px 26px -18px rgba(31,24,18,.3);
+  --sh-hero:0 2px 8px rgba(31,24,18,.07),0 40px 80px -40px rgba(31,24,18,.5);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans); color:var(--ink); line-height:1.55;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  min-height:100vh;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(14,165,233,.07), transparent 55%),
+    radial-gradient(120% 90% at 0% 100%, rgba(22,163,74,.07), transparent 55%),
+    var(--canvas);
+}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+.serif{font-family:var(--serif)}
+em{font-style:italic}
+
+/* ---------- top brand bar (desktop chrome) ---------- */
+.topbar{
+  max-width:1200px; margin:0 auto; padding:24px 40px 8px;
+  display:flex; align-items:center; justify-content:space-between; gap:20px;
+}
+.brand{ display:flex; align-items:center; gap:11px; }
+.brand .mark{
+  width:38px; height:38px; border-radius:12px; flex:none;
+  background:var(--grad-azione); display:flex; align-items:center; justify-content:center;
+  box-shadow:0 8px 18px -8px rgba(22,163,74,.6);
+}
+.brand .wordmark{ font-family:var(--serif); font-size:21px; font-weight:600; letter-spacing:-.01em; }
+.brand .wordmark b{ color:var(--verde-deep); font-weight:600; }
+.topnav{ display:flex; align-items:center; gap:8px; }
+.topnav .pill{
+  display:inline-flex; align-items:center; gap:7px; padding:9px 15px; border-radius:var(--r-pill);
+  font-size:13px; font-weight:600; color:var(--ink-soft); background:var(--bianco);
+  border:1px solid var(--bd);
+}
+.topnav .pill.solid{ background:var(--ink); color:#fff; border-color:transparent; }
+.topnav .pill.solid:hover{ filter:brightness(1.08); }
+
+/* ---------- page shell ---------- */
+.page{ max-width:1200px; margin:0 auto; padding:18px 40px 56px; }
+
+/* ---------- intro / heading ---------- */
+.intro{ text-align:center; max-width:760px; margin:18px auto 30px; }
+.kicker{
+  display:inline-flex; align-items:center; gap:8px; margin-bottom:16px;
+  font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--verde-deep);
+  background:var(--verde-pale); padding:6px 14px; border-radius:var(--r-pill);
+}
+.kicker .dot{ width:6px; height:6px; border-radius:50%; background:var(--verde);
+  box-shadow:0 0 0 4px rgba(22,163,74,.18); }
+.h1{ font-family:var(--serif); font-size:48px; font-weight:600; letter-spacing:-.025em; line-height:1.04; color:var(--ink); }
+.h1 em{ color:var(--verde); }
+.sub{ font-size:17px; color:var(--muted); margin-top:14px; line-height:1.55; }
+
+/* ---------- main grid (desktop-first) ---------- */
+.grid{
+  display:grid; gap:22px;
+  grid-template-columns:1.55fr 1fr;
+  grid-template-areas:
+    "hero side"
+    "store side";
+  align-items:stretch;
+}
+.col-side{ grid-area:side; display:flex; flex-direction:column; gap:22px; }
+
+/* ============ CARD (shared photo-hero base) ============ */
+.card{
+  position:relative; border-radius:var(--r-card); overflow:hidden;
+  display:flex; flex-direction:column; justify-content:flex-end;
+  color:#fff; isolation:isolate; min-height:200px;
+  transition:transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s ease;
+}
+.card .bg{ position:absolute; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; }
+.card .scrim{
+  position:absolute; inset:0; z-index:1; pointer-events:none;
+  background:
+    radial-gradient(120% 80% at 20% 0%, rgba(255,255,255,.10), transparent 55%),
+    linear-gradient(180deg, rgba(31,24,18,.04) 0%, rgba(31,24,18,.30) 48%, rgba(31,24,18,.82) 100%);
+}
+.card .inner{ position:relative; z-index:2; padding:26px 28px; }
+.card .ic{
+  position:absolute; top:18px; left:18px; z-index:2; width:48px; height:48px; border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,.18); backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px);
+  border:1px solid rgba(255,255,255,.28); color:#fff;
+}
+.card .c-t{ font-family:var(--serif); font-size:27px; font-weight:600; letter-spacing:-.01em; line-height:1.08; }
+.card .c-s{ font-size:14.5px; color:rgba(255,255,255,.93); margin-top:7px; line-height:1.5; max-width:46ch; }
+
+/* ---- ACTIVE hero (protagonista) ---- */
+.card.hero{ grid-area:hero; min-height:430px; box-shadow:var(--sh-hero); cursor:pointer; }
+.card.hero .c-t{ font-size:36px; }
+.card.hero .c-s{ font-size:16px; max-width:40ch; }
+.card.hero .step-tag{
+  position:absolute; top:20px; right:20px; z-index:2;
+  display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:var(--r-pill);
+  background:rgba(255,255,255,.92); color:var(--verde-deep); backdrop-filter:blur(6px);
+  font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+}
+.card.hero .step-tag .lv{ width:6px; height:6px; border-radius:50%; background:var(--verde);
+  box-shadow:0 0 0 4px rgba(22,163,74,.22); }
+.card.hero .go{
+  display:inline-flex; align-items:center; gap:10px; margin-top:20px;
+  padding:14px 22px; border-radius:var(--r-btn); background:#fff; color:var(--ink);
+  font-size:15px; font-weight:700; box-shadow:0 14px 30px -14px rgba(0,0,0,.55);
+  transition:gap .3s ease;
+}
+.card.hero:hover{ transform:translateY(-4px); box-shadow:0 6px 14px rgba(31,24,18,.12),0 48px 90px -42px rgba(31,24,18,.6); }
+.card.hero:hover .go{ gap:16px; }
+.card.hero:hover .bg{ transform:scale(1.04); }
+.card.hero .bg{ transition:transform .8s cubic-bezier(.2,.7,.2,1); }
+
+/* ---- LOCKED cards (in arrivo) ---- */
+.card.locked{ min-height:204px; flex:1; cursor:not-allowed; box-shadow:var(--sh-card); }
+.card.locked .bg{
+  filter:saturate(.32) brightness(.74) blur(1.5px); transform:scale(1.06);
+}
+.card.locked .scrim{
+  background:
+    linear-gradient(180deg, rgba(31,24,18,.42) 0%, rgba(31,24,18,.58) 55%, rgba(31,24,18,.86) 100%);
+}
+.card.locked::after{ /* velo carta freddo per togliere vitalità */
+  content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
+  background:linear-gradient(135deg, rgba(244,241,235,.30), rgba(31,24,18,.14));
+  mix-blend-mode:luminosity;
+}
+.card.locked .ic{ background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.22); color:rgba(255,255,255,.85); }
+.card.locked .c-t{ font-size:24px; color:rgba(255,255,255,.96); }
+.card.locked .c-s{ color:rgba(255,255,255,.80); font-size:13.5px; }
+.card.locked .badge-soon{
+  position:absolute; top:18px; right:18px; z-index:2;
+  display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:var(--r-pill);
+  background:rgba(31,24,18,.55); backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px);
+  border:1px solid rgba(255,255,255,.18);
+  font-size:10.5px; font-weight:700; letter-spacing:.10em; text-transform:uppercase; color:#fff;
+}
+.card.locked .badge-soon .pulse{ width:7px; height:7px; border-radius:50%; background:var(--terra);
+  box-shadow:0 0 0 4px rgba(194,160,122,.30); }
+.card.locked .lock{
+  position:absolute; top:16px; left:16px; z-index:3;
+  width:40px; height:40px; border-radius:50%;
+  background:rgba(31,24,18,.50); backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px);
+  border:1px solid rgba(255,255,255,.22);
+  display:flex; align-items:center; justify-content:center; color:#fff;
+}
+.card.locked .ic{ display:none; } /* sostituito dal lucchetto in alto */
+
+/* ============ STORE PANEL ("Stai su desktop") ============ */
+.store{
+  grid-area:store;
+  position:relative; border-radius:var(--r-card); overflow:hidden;
+  background:var(--bianco); border:1px solid var(--bd);
+  box-shadow:var(--sh-card);
+  display:grid; grid-template-columns:1fr auto; gap:26px; align-items:center;
+  padding:26px 28px;
+}
+.store::before{
+  content:''; position:absolute; left:0; top:0; bottom:0; width:5px;
+  background:var(--grad-azione);
+}
+.store .st-eyebrow{
+  font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--celeste-deep);
+  display:flex; align-items:center; gap:8px;
+}
+.store .st-eyebrow svg{ flex:none; }
+.store .st-t{ font-family:var(--serif); font-size:23px; font-weight:600; letter-spacing:-.01em; margin-top:8px; color:var(--ink); }
+.store .st-s{ font-size:14px; color:var(--muted); margin-top:6px; max-width:42ch; line-height:1.5; }
+.store .st-actions{ display:flex; flex-wrap:wrap; gap:12px; margin-top:18px; align-items:center; }
+
+/* primary: usa la web app */
+.btn-web{
+  display:inline-flex; align-items:center; gap:10px; padding:14px 22px; border-radius:var(--r-btn);
+  background:var(--grad-azione); color:#fff; font-size:15px; font-weight:700;
+  box-shadow:0 12px 26px -12px rgba(22,163,74,.6); transition:transform .25s ease, filter .25s ease;
+}
+.btn-web:hover{ transform:translateY(-2px); filter:brightness(1.04); }
+
+.st-divider{ font-size:12.5px; color:var(--faint); font-weight:600; }
+
+/* store badges (placeholder, in-codice) */
+.badges{ display:flex; gap:10px; flex-wrap:wrap; }
+.storebadge{
+  display:inline-flex; align-items:center; gap:11px; padding:9px 16px 9px 14px; border-radius:13px;
+  background:var(--ink); color:#fff; min-width:148px;
+  transition:transform .25s ease, box-shadow .25s ease;
+}
+.storebadge:hover{ transform:translateY(-2px); box-shadow:0 14px 26px -14px rgba(31,24,18,.6); }
+.storebadge svg{ flex:none; }
+.storebadge .bb{ display:flex; flex-direction:column; line-height:1.1; }
+.storebadge .bb .s1{ font-size:9.5px; opacity:.78; letter-spacing:.02em; }
+.storebadge .bb .s2{ font-size:16px; font-weight:600; letter-spacing:-.01em; }
+
+/* QR placeholder */
+.qr{ display:flex; flex-direction:column; align-items:center; gap:10px; flex:none; }
+.qr .qbox{
+  width:124px; height:124px; border-radius:18px; padding:10px;
+  background:#fff; border:1px solid var(--bd2);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.6), 0 10px 24px -14px rgba(31,24,18,.4);
+  position:relative;
+}
+.qr .qbox svg{ width:100%; height:100%; display:block; }
+.qr .qcap{ font-size:11.5px; color:var(--muted); font-weight:600; text-align:center; max-width:130px; line-height:1.3; }
+
+/* ---------- skip ---------- */
+.skip{ text-align:center; margin-top:34px; }
+.skip a{
+  display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--ink-soft);
+  padding:11px 18px; border-radius:var(--r-pill); border:1px solid var(--bd2); background:var(--bianco);
+  transition:border-color .25s ease, color .25s ease;
+}
+.skip a:hover{ color:var(--verde-deep); border-color:var(--verde-pale); }
+.skip a .arr{ transition:transform .25s ease; }
+.skip a:hover .arr{ transform:translateX(3px); }
+
+.footnote{ text-align:center; font-size:12px; color:var(--faint); margin-top:22px; }
+
+/* ============================================================
+   RESPONSIVE — collassa a colonna mobile (~390px) sotto 1024px
+   ============================================================ */
+@media (max-width:1023px){
+  body{ background:var(--carta); }
+  .topbar{ padding:18px 20px 4px; }
+  .topnav .pill.web{ display:none; } /* su mobile la web app È già qui */
+  .page{ padding:8px 20px 44px; max-width:480px; }
+  .intro{ margin:8px auto 22px; text-align:left; }
+  .intro .kicker{ margin-bottom:14px; }
+  .h1{ font-size:34px; }
+  .sub{ font-size:15px; margin-top:10px; }
+
+  .grid{
+    grid-template-columns:1fr;
+    grid-template-areas:
+      "hero"
+      "side"
+      "store";
+    gap:14px;
+  }
+  .col-side{ gap:14px; }
+  .card.hero{ min-height:300px; }
+  .card.hero .c-t{ font-size:28px; }
+  .card.hero .c-s{ font-size:14.5px; max-width:none; }
+  .card.hero .inner{ padding:20px; }
+  .card.hero .go{ padding:13px 20px; font-size:14.5px; }
+  .card.locked{ min-height:172px; }
+  .card.locked .c-t{ font-size:21px; }
+  .card .inner{ padding:18px 20px; }
+
+  .store{ grid-template-columns:1fr; gap:18px; padding:22px 20px; }
+  .store .qr{ flex-direction:row; align-self:flex-start; }
+  .store .qr .qbox{ width:96px; height:96px; }
+  .store .qr .qcap{ text-align:left; max-width:none; }
+  .badges{ width:100%; }
+  .storebadge{ flex:1; }
+}
+
+@media (max-width:430px){
+  .page{ padding:6px 18px 40px; }
+  .h1{ font-size:30px; }
+  .card.hero{ min-height:268px; }
+  .store .st-actions{ gap:10px; }
+  .btn-web{ width:100%; }
+  .badges{ flex-direction:column; }
+  .storebadge{ width:100%; }
+  .store .qr{ display:none; } /* su telefono il QR non serve: l'app È nelle store */
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{ transition:none !important; animation:none !important; }
+  .card.hero:hover .bg{ transform:none; }
+}
+</style>
+</head>
+<body>
+
+  <!-- ============ DESKTOP CHROME / BRAND BAR ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M12 21c-4-2.5-7-6-7-10a7 7 0 0 1 14 0c0 4-3 7.5-7 10Z" stroke="#fff" stroke-width="1.7"/>
+          <path d="M12 14c1.6-.4 3-1.8 3-3.6 0-.5-.1-1-.3-1.4-1.5.2-2.7 1.5-2.7 3.2v1.8Zm0 0c-1.6-.4-3-1.8-3-3.6 0-.5.1-1 .3-1.4 1.5.2 2.7 1.5 2.7 3.2V14Z" fill="#fff"/>
+        </svg>
+      </span>
+      <span class="wordmark serif">Gaia <b>Food</b></span>
+    </div>
+    <nav class="topnav" aria-label="Azioni rapide">
+      <a class="pill solid" href="#">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 19h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Scarica l'app
+      </a>
+    </nav>
+  </header>
+
+  <main class="page">
+
+    <!-- ============ INTRO ============ -->
+    <section class="intro">
+      <span class="kicker"><span class="dot"></span> La rete del cibo vero</span>
+      <h1 class="h1 serif">Cosa vuoi <em>fare?</em></h1>
+      <p class="sub">Tre modi per vivere il cibo vero. Per ora si parte dal primo.</p>
+    </section>
+
+    <!-- ============ MAIN GRID ============ -->
+    <section class="grid">
+
+      <!-- CARD 1 — ATTIVA (protagonista) -->
+      <a class="card hero" href="#" aria-label="Trova un produttore — apri la mappa">
+        <img class="bg" src="./assets/trova.jpg" loading="lazy"
+             alt="Pascolo all'alba con mucche e un casolare di pietra tra le montagne">
+        <span class="scrim" aria-hidden="true"></span>
+        <span class="step-tag"><span class="lv"></span> Attiva ora</span>
+        <span class="ic" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 21c-4-3-7-6.3-7-10a7 7 0 0 1 14 0c0 3.7-3 7-7 10Z" stroke="#fff" stroke-width="1.7"/><circle cx="12" cy="11" r="2.6" stroke="#fff" stroke-width="1.7"/></svg>
+        </span>
+        <div class="inner">
+          <h2 class="c-t serif">Trova un produttore</h2>
+          <p class="c-s">Esplora la mappa e scopri chi produce vero, vicino a te.</p>
+          <span class="go">Apri la mappa
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h13m0 0-5-5m5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </div>
+      </a>
+
+      <!-- COLONNA DESTRA — 2 BLOCCATE impilate -->
+      <div class="col-side">
+
+        <!-- CARD 2 — IN ARRIVO -->
+        <div class="card locked" role="group" aria-label="Ricevi a casa — in arrivo, non ancora disponibile" aria-disabled="true">
+          <img class="bg" src="./assets/ricevi.jpg" loading="lazy"
+               alt="Ape carica di casse di frutta, verdura e pane, davanti a un casale">
+          <span class="scrim" aria-hidden="true"></span>
+          <span class="lock" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="5" y="10.5" width="14" height="10" rx="2.4" stroke="#fff" stroke-width="1.7"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="#fff" stroke-width="1.7"/><circle cx="12" cy="15.4" r="1.4" fill="#fff"/></svg>
+          </span>
+          <span class="badge-soon"><span class="pulse"></span> In arrivo</span>
+          <div class="inner">
+            <h3 class="c-t serif">Ricevi a casa</h3>
+            <p class="c-s">Ordina dai produttori: un mezzo ritira e porta tutto a casa tua.</p>
+          </div>
+        </div>
+
+        <!-- CARD 3 — IN ARRIVO -->
+        <div class="card locked" role="group" aria-label="Lungo il Percorso — in arrivo, non ancora disponibile" aria-disabled="true">
+          <img class="bg" src="./assets/percorso.jpg" loading="lazy"
+               alt="Strada che attraversa le colline al tramonto, tra casolari e ulivi">
+          <span class="scrim" aria-hidden="true"></span>
+          <span class="lock" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="5" y="10.5" width="14" height="10" rx="2.4" stroke="#fff" stroke-width="1.7"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="#fff" stroke-width="1.7"/><circle cx="12" cy="15.4" r="1.4" fill="#fff"/></svg>
+          </span>
+          <span class="badge-soon"><span class="pulse"></span> In arrivo</span>
+          <div class="inner">
+            <h3 class="c-t serif">Lungo il Percorso</h3>
+            <p class="c-s">Scegli le tappe e viaggia tra i produttori del territorio.</p>
+          </div>
+        </div>
+
+      </div>
+
+
+    </section>
+
+    <!-- ============ SKIP ============ -->
+    <div class="skip">
+      <a href="#">Salta · guarda subito i produttori
+        <svg class="arr" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h13m0 0-5-5m5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+
+
+  </main>
+
+</body>
+</html>

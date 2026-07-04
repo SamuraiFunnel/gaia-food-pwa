@@ -1,0 +1,5 @@
+{
+  "_nota": "Copia questo file in config.json SOLO per lo sviluppo locale e cambia le password. In produzione NON usare config.json: imposta le variabili d'ambiente GF_ADMIN_PASSWORD e GF_VERIFIER_PASSWORD. config.json è git-ignored e bloccato dal server (403).",
+  "adminPassword": "cambiami-in-locale",
+  "verifierPassword": "cambiami-in-locale"
+}

@@ -1,0 +1,54 @@
+# Gaia Food App — .gitignore (scoped a questa cartella app/)
+
+# Dipendenze (l'app è no-build, ma il backend Node potrebbe averle in altri host)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Variabili d'ambiente e segreti — MAI committare password in chiaro
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+certs/
+*.crt
+
+# Certificati locali per HTTPS in dev (mkcert ecc.)
+localhost*.pem
+localhost*.key
+
+# I 6 scatti "seed" dei produttori in assets/photos/producers/ SONO asset del repo
+# e VANNO deployati (le card di sito e app li usano). Le eventuali foto caricate a
+# runtime dall'area riservata vivono sull'host di scrittura, non qui — quindi NON
+# ignoriamo più l'intera cartella.
+
+# Segreti: le password NON vanno committate/deployate. In produzione si usano le env
+# GF_ADMIN_PASSWORD / GF_VERIFIER_PASSWORD; config.json resta SOLO locale.
+data/config.json
+
+# Peso morto NON referenziato dall'app (perf/deploy): non committare/deployare.
+# - _gemini-old/ = vecchi scatti di categoria sostituiti (6.4MB), nessun riferimento nel codice
+# - gaia-food-pin-finale.png = duplicato byte-identico di gaia-food-mark.png (1.39MB)
+# (l'app usa i lockup SVG; il mark canonico resta gaia-food-mark.png)
+# NB: i file restano in locale — qui li teniamo solo fuori dal deploy. La rimozione
+# fisica la conferma Daniele.
+assets/photos/_gemini-old/
+assets/brand/gaia-food-pin-finale.png
+
+# Vercel
+.vercel/
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Dati SCRIVIBILI a runtime → vivono sul disco persistente (GF_DATA_DIR), non nel repo.
+data/users.json
+data/waitlist.json
+data/candidature.json

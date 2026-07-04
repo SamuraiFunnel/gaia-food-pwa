@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaia Food · Schermata principale — 10 varianti (fit-to-screen)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --carta:#F4F1EB; --carta-scura:#EDE6DA; --bianco:#FBF9F5; --canvas:#E7DECF;
+  --ink:#1F1812; --ink-soft:#564B41; --muted:#75695B; --muted2:#8A7D6C; --faint:#A89A87;
+  --verde:#16A34A; --verde-deep:#15803D; --verde-pale:#E7F5EC; --verde-light:#22C55E;
+  --celeste:#0EA5E9; --celeste-deep:#0C7FB0; --celeste-pale:#E2F2F9;
+  --terra:#C2A07A; --terra-deep:#8C6838; --terra-pale:#F3E9D9;
+  --bd:#ECE4D7; --bd2:#E5DCCF;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+  --sh-card:0 1px 2px rgba(31,24,18,.05),0 18px 40px -22px rgba(31,24,18,.5);
+}
+*{box-sizing:border-box; margin:0; padding:0}
+body{ font-family:var(--sans); background:#211d18; color:#efe7db; padding:34px 22px 80px; }
+.page-h{ max-width:1200px; margin:0 auto 30px; }
+.page-h .kick{ font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:#c8a86f; font-weight:700; }
+.page-h h1{ font-family:var(--serif); font-size:34px; font-weight:600; letter-spacing:-.02em; margin-top:8px; color:#fff; }
+.page-h p{ font-size:14.5px; line-height:1.6; color:#c3b7a6; margin-top:12px; max-width:70ch; }
+.page-h .rule{ margin-top:14px; padding:12px 16px; background:#2c261f; border:1px solid #3a332a; border-radius:12px; font-size:13px; color:#d8ccbb; max-width:70ch; }
+.page-h .rule b{ color:#7fd39a; }
+
+.grid{ max-width:1240px; margin:0 auto; display:flex; flex-wrap:wrap; gap:34px 30px; justify-content:center; }
+.cell{ width:330px; }
+.cell .cap{ display:flex; align-items:baseline; gap:9px; margin:0 4px 12px; }
+.cell .cap .n{ font-family:var(--serif); font-size:20px; font-weight:600; color:#fff; }
+.cell .cap .t{ font-size:13px; font-weight:600; color:#eadfce; }
+.cell .cap .d{ font-size:12px; color:#9c8f7d; margin:0 4px 12px; line-height:1.45; }
+.cell .desc{ font-size:12px; color:#9c8f7d; margin:-6px 4px 12px; line-height:1.45; }
+
+/* --- telefono --- */
+.phone{ width:330px; height:696px; border-radius:44px; padding:11px;
+  background:linear-gradient(160deg,#3a332a,#191510); box-shadow:0 40px 80px -30px rgba(0,0,0,.8), inset 0 0 0 1px rgba(255,255,255,.05); }
+.screen{ position:relative; width:100%; height:100%; border-radius:34px; overflow:hidden; background:var(--carta);
+  /* la "viewport" del telefono: qui dentro NIENTE scroll, tutto fit */ }
+.screen .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%); width:120px; height:26px; background:#191510; border-radius:0 0 16px 16px; z-index:60; }
+.fit-badge{ position:absolute; right:12px; bottom:12px; z-index:60; font-size:10px; font-weight:700; letter-spacing:.02em;
+  color:#0d3d21; background:rgba(190,240,205,.92); padding:5px 9px; border-radius:100px; display:inline-flex; align-items:center; gap:5px; box-shadow:0 6px 16px -6px rgba(0,0,0,.5); }
+
+/* la viewport interna condivisa da tutte le varianti */
+.vp{ position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden;
+  padding-top:30px; font-family:var(--sans); }
+
+/* ============ elementi comuni ============ */
+.eyebrow2{ font-size:10px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--verde-deep); display:inline-flex; align-items:center; gap:7px; }
+.eyebrow2::before{ content:''; width:15px; height:1.5px; background:var(--verde); border-radius:2px; }
+.h-title{ font-family:var(--serif); font-weight:600; letter-spacing:-.02em; line-height:1.05; color:var(--ink); }
+.h-title em{ font-style:italic; color:var(--verde); }
+.sub{ color:var(--muted); }
+
+svg{ display:block }
+.ico-go{ width:20px;height:20px } .ico-lock{ width:18px;height:18px }
+
+/* ============ V1 — Hero + 2 sotto, fit ============ */
+.v1{ padding:34px 18px 22px; gap:14px; }
+.v1 .intro{ padding:2px 2px 2px; }
+.v1 .h-title{ font-size:29px; margin-top:9px } .v1 .sub{ font-size:13px; margin-top:8px; line-height:1.45 }
+.v1 .cards{ flex:1; display:flex; flex-direction:column; gap:11px; min-height:0; }
+.v1 .card{ position:relative; border-radius:20px; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; }
+.v1 .card img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.v1 .card .body{ position:relative; z-index:3; padding:14px; color:#fff; }
+.v1 .card.active{ flex:1.7; }
+.v1 .card.active .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(12,20,12,.82)); }
+.v1 .card.active h2{ font-family:var(--serif); font-size:21px; font-weight:600; text-shadow:0 1px 12px rgba(0,0,0,.4) }
+.v1 .card.active p{ font-size:12px; color:rgba(255,255,255,.92); margin-top:4px; text-shadow:0 1px 10px rgba(0,0,0,.5) }
+.v1 .row{ flex:1; display:flex; gap:11px; min-height:0 }
+.v1 .card.locked{ flex:1; }
+.v1 .card.locked .veil{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(8,12,7,.35),rgba(8,12,7,.68)) }
+.v1 .card.locked h2{ font-family:var(--serif); font-size:15px; font-weight:600 }
+.v1 .card .go{ position:absolute; right:12px; bottom:12px; width:40px;height:40px;border-radius:50%;background:#fff;color:var(--verde-deep);display:flex;align-items:center;justify-content:center; z-index:4 }
+.v1 .card .lock{ position:absolute; top:50%;left:50%;transform:translate(-50%,-60%); width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px) }
+.v1 .tag{ position:absolute; z-index:4; top:11px; left:11px; font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#fff;background:rgba(22,163,74,.5);border:1px solid rgba(255,255,255,.3);padding:4px 9px;border-radius:100px }
+.v1 .card.locked .tag{ left:auto; right:11px; background:rgba(255,255,255,.16) }
+
+/* ============ V2 — 3 fasce full-bleed ============ */
+.v2{ padding-top:0; }
+.v2 .band{ position:relative; flex:1; overflow:hidden; display:flex; flex-direction:column; justify-content:center; padding:0 22px; }
+.v2 .band img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.v2 .band .ov{ position:absolute; inset:0; }
+.v2 .band.a{ flex:1.5 }
+.v2 .band.a .ov{ background:linear-gradient(90deg,rgba(10,18,10,.78),rgba(10,18,10,.22)) }
+.v2 .band.l .ov{ background:linear-gradient(90deg,rgba(8,12,7,.8),rgba(8,12,7,.45)) }
+.v2 .band+.band{ border-top:1px solid rgba(255,255,255,.12) }
+.v2 .txt{ position:relative; z-index:3; color:#fff }
+.v2 .txt .k{ font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.85 }
+.v2 .txt h2{ font-family:var(--serif); font-size:23px; font-weight:600; margin-top:5px; text-shadow:0 1px 12px rgba(0,0,0,.5) }
+.v2 .band.a h2{ font-size:27px }
+.v2 .txt p{ font-size:11.5px; color:rgba(255,255,255,.85); margin-top:3px; max-width:26ch }
+.v2 .arr{ position:absolute; right:20px; top:50%; transform:translateY(-50%); z-index:3; width:44px;height:44px;border-radius:50%;background:#fff;color:var(--verde-deep);display:flex;align-items:center;justify-content:center }
+.v2 .band.l .arr{ background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.3) }
+.v2 .over{ position:absolute; top:20px; left:22px; z-index:4 }
+.v2 .over .eyebrow2{ color:#fff } .v2 .over .eyebrow2::before{ background:#fff }
+.v2 .over h1{ font-family:var(--serif); color:#fff; font-size:20px; font-weight:600; margin-top:5px; text-shadow:0 1px 10px rgba(0,0,0,.6) }
+
+/* ============ V3 — accordion peek ============ */
+.v3{ padding:34px 16px 18px; gap:13px; }
+.v3 .h-title{ font-size:27px; margin-top:8px } .v3 .sub{ font-size:12.5px; margin-top:7px }
+.v3 .stack{ flex:1; display:flex; flex-direction:column; gap:9px; min-height:0 }
+.v3 .exp{ position:relative; flex:1; border-radius:20px; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end }
+.v3 .exp img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+.v3 .exp .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,0) 35%,rgba(10,18,10,.85)) }
+.v3 .exp .body{ position:relative; z-index:3; padding:16px; color:#fff }
+.v3 .exp h2{ font-family:var(--serif); font-size:22px; font-weight:600 }
+.v3 .exp p{ font-size:12px; color:rgba(255,255,255,.9); margin-top:4px }
+.v3 .exp .go{ position:absolute; right:14px; bottom:14px; z-index:4; width:44px;height:44px;border-radius:50%;background:#fff;color:var(--verde-deep);display:flex;align-items:center;justify-content:center }
+.v3 .peek{ position:relative; height:62px; border-radius:16px; overflow:hidden; display:flex; align-items:center; gap:11px; padding:0 14px; color:#fff }
+.v3 .peek img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+.v3 .peek .veil{ position:absolute; inset:0; background:linear-gradient(90deg,rgba(8,12,7,.82),rgba(8,12,7,.55)) }
+.v3 .peek .pl{ position:relative; z-index:3; width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;flex:none }
+.v3 .peek .pt{ position:relative; z-index:3; flex:1 }
+.v3 .peek .pt b{ font-family:var(--serif); font-size:15px; font-weight:600; display:block }
+.v3 .peek .pt span{ font-size:10px; letter-spacing:.1em; text-transform:uppercase; opacity:.8 }
+
+/* ============ V4 — lista editoriale, no foto ============ */
+.v4{ padding:44px 24px 24px; background:var(--carta); gap:0 }
+.v4 .h-title{ font-size:31px; margin-top:10px } .v4 .sub{ font-size:13px; margin-top:9px }
+.v4 .list{ flex:1; display:flex; flex-direction:column; justify-content:center; gap:6px }
+.v4 .item{ position:relative; display:flex; align-items:center; gap:15px; padding:20px 6px; border-top:1px solid var(--bd2) }
+.v4 .item:last-child{ border-bottom:1px solid var(--bd2) }
+.v4 .num{ font-family:var(--serif); font-size:14px; color:var(--faint); width:22px; font-weight:600 }
+.v4 .ic{ width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;flex:none;background:var(--verde-pale);color:var(--verde-deep) }
+.v4 .item.locked .ic{ background:var(--carta-scura); color:var(--muted2) }
+.v4 .tx{ flex:1 } .v4 .tx b{ font-family:var(--serif); font-size:18px; font-weight:600; color:var(--ink); display:block }
+.v4 .tx span{ font-size:12px; color:var(--muted); display:block; margin-top:2px }
+.v4 .item.locked .tx b{ color:var(--muted) }
+.v4 .end{ color:var(--verde); flex:none } .v4 .item.locked .end{ color:var(--faint) }
+.v4 .end .soon{ font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--terra-deep);background:var(--terra-pale);padding:4px 8px;border-radius:100px }
+
+/* ============ V5 — bento ============ */
+.v5{ padding:34px 16px 16px; gap:12px }
+.v5 .h-title{ font-size:26px; margin-top:7px } .v5 .sub{ font-size:12px; margin-top:6px }
+.v5 .bento{ flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1.5fr 1fr; gap:10px; min-height:0 }
+.v5 .b{ position:relative; border-radius:19px; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; color:#fff }
+.v5 .b img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+.v5 .b .body{ position:relative; z-index:3; padding:13px }
+.v5 .b.big{ grid-column:1 / span 2 }
+.v5 .b.big .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(10,18,10,.85)) }
+.v5 .b.big h2{ font-family:var(--serif); font-size:22px; font-weight:600 }
+.v5 .b.big p{ font-size:11.5px; color:rgba(255,255,255,.9); margin-top:3px }
+.v5 .b.sm .veil{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(8,12,7,.35),rgba(8,12,7,.72)) }
+.v5 .b.sm h2{ font-family:var(--serif); font-size:15px; font-weight:600 }
+.v5 .b .go{ position:absolute; right:12px; bottom:12px; z-index:4; width:38px;height:38px;border-radius:50%;background:#fff;color:var(--verde-deep);display:flex;align-items:center;justify-content:center }
+.v5 .b .lk{ position:absolute; top:11px; right:11px; z-index:4; width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center }
+.v5 .b .tag{ position:absolute; z-index:4; top:11px; left:11px; font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:rgba(22,163,74,.55);border:1px solid rgba(255,255,255,.3);padding:3px 8px;border-radius:100px }
+
+/* ============ V6 — full-bleed immersivo + pills ============ */
+.v6{ padding:0; position:relative }
+.v6>img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0 }
+.v6 .grad{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg,rgba(8,14,8,.5) 0%,rgba(8,14,8,.15) 30%,rgba(6,12,6,.55) 62%,rgba(5,10,5,.9) 100%) }
+.v6 .top{ position:relative; z-index:3; padding:38px 24px 0; color:#fff }
+.v6 .top .eyebrow2{ color:#eafff0 } .v6 .top .eyebrow2::before{ background:#8ef0b0 }
+.v6 .top h1{ font-family:var(--serif); font-size:32px; font-weight:600; margin-top:10px; line-height:1.06; text-shadow:0 2px 16px rgba(0,0,0,.5) }
+.v6 .top h1 em{ font-style:italic; color:#8ef0b0 }
+.v6 .spacer{ flex:1 }
+.v6 .picks{ position:relative; z-index:3; padding:0 16px 22px; display:flex; flex-direction:column; gap:10px }
+.v6 .pick{ display:flex; align-items:center; gap:13px; padding:15px 16px; border-radius:18px; background:rgba(255,255,255,.12); backdrop-filter:blur(14px); border:1px solid rgba(255,255,255,.22); color:#fff }
+.v6 .pick.primary{ background:#fff; color:var(--ink) }
+.v6 .pick .pi{ width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none;background:rgba(255,255,255,.16) }
+.v6 .pick.primary .pi{ background:var(--verde-pale); color:var(--verde-deep) }
+.v6 .pick .pt{ flex:1 } .v6 .pick .pt b{ font-family:var(--serif); font-size:16px; font-weight:600; display:block }
+.v6 .pick .pt span{ font-size:10.5px; opacity:.8 } .v6 .pick.primary .pt span{ color:var(--muted) }
+.v6 .pick .pe{ flex:none; opacity:.9 }
+.v6 .pick .soon{ font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.85 }
+
+/* ============ V7 — percorso / timeline ============ */
+.v7{ padding:40px 22px 22px; background:var(--carta); gap:0 }
+.v7 .h-title{ font-size:27px; margin-top:8px } .v7 .sub{ font-size:12.5px; margin-top:8px }
+.v7 .tl{ flex:1; display:flex; flex-direction:column; justify-content:center; position:relative; padding-left:6px }
+.v7 .step{ position:relative; display:flex; gap:16px; padding:14px 0 }
+.v7 .rail{ position:relative; width:34px; flex:none; display:flex; justify-content:center }
+.v7 .rail::before{ content:''; position:absolute; top:0; bottom:-28px; width:2px; background:var(--bd2) }
+.v7 .step:last-child .rail::before{ display:none }
+.v7 .dot{ position:relative; z-index:2; width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:600;font-size:14px }
+.v7 .step.on .dot{ background:var(--verde); color:#fff; box-shadow:0 0 0 5px var(--verde-pale) }
+.v7 .step.off .dot{ background:#fff; color:var(--muted2); border:1.5px solid var(--bd2) }
+.v7 .cont{ flex:1; padding-bottom:6px }
+.v7 .cont b{ font-family:var(--serif); font-size:18px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:8px }
+.v7 .cont .soon{ font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--terra-deep);background:var(--terra-pale);padding:3px 7px;border-radius:100px }
+.v7 .cont p{ font-size:12px; color:var(--muted); margin-top:3px }
+.v7 .cont .cta{ display:inline-flex; align-items:center; gap:7px; margin-top:9px; font-size:12.5px; font-weight:600; color:var(--verde-deep) }
+
+/* ============ V8 — minimal centrato ============ */
+.v8{ padding:24px 26px 26px; background:linear-gradient(180deg,var(--bianco),var(--carta)); align-items:center; text-align:center }
+.v8 .top{ padding-top:26px }
+.v8 .mark{ width:52px;height:52px;border-radius:16px;background:var(--verde-pale);color:var(--verde-deep);display:flex;align-items:center;justify-content:center;margin:0 auto 16px }
+.v8 .h-title{ font-size:30px } .v8 .sub{ font-size:13px; margin-top:10px; max-width:26ch }
+.v8 .btns{ flex:1; display:flex; flex-direction:column; justify-content:center; gap:13px; width:100%; }
+.v8 .bt{ display:flex; align-items:center; gap:13px; padding:17px 18px; border-radius:17px; text-align:left; }
+.v8 .bt.primary{ background:var(--verde); color:#fff; box-shadow:0 16px 30px -16px rgba(22,163,74,.7) }
+.v8 .bt.ghost{ background:#fff; border:1px solid var(--bd2); color:var(--ink) }
+.v8 .bt .bi{ width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none;background:rgba(255,255,255,.22) }
+.v8 .bt.ghost .bi{ background:var(--carta-scura); color:var(--muted2) }
+.v8 .bt .btx{ flex:1 } .v8 .bt .btx b{ font-family:var(--serif); font-size:16px; font-weight:600; display:block }
+.v8 .bt .btx span{ font-size:11px; opacity:.85 }
+.v8 .bt.primary .btx span{ color:rgba(255,255,255,.85) } .v8 .bt.ghost .btx span{ color:var(--muted) }
+.v8 .bt .soon{ font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--terra-deep);background:var(--terra-pale);padding:3px 7px;border-radius:100px;flex:none }
+
+/* ============ V9 — carosello swipe ============ */
+.v9{ padding:0; position:relative }
+.v9>img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0 }
+.v9 .grad{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg,rgba(8,14,8,.35),rgba(6,12,6,.9)) }
+.v9 .hd{ position:relative; z-index:3; padding:38px 24px 0; color:#fff }
+.v9 .hd .eyebrow2{ color:#eafff0 } .v9 .hd .eyebrow2::before{ background:#8ef0b0 }
+.v9 .hd h1{ font-family:var(--serif); font-size:22px; font-weight:600; margin-top:8px }
+.v9 .spacer{ flex:1 }
+.v9 .cardz{ position:relative; z-index:3; padding:0 20px 18px; color:#fff }
+.v9 .tag{ font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#0d3d21;background:#8ef0b0;padding:4px 10px;border-radius:100px;display:inline-block }
+.v9 .cardz h2{ font-family:var(--serif); font-size:30px; font-weight:600; margin-top:12px; text-shadow:0 2px 14px rgba(0,0,0,.5) }
+.v9 .cardz p{ font-size:13px; color:rgba(255,255,255,.9); margin-top:6px; max-width:28ch }
+.v9 .cta{ margin-top:16px; display:inline-flex; align-items:center; gap:9px; background:#fff; color:var(--ink); font-weight:600; font-size:14px; padding:13px 20px; border-radius:100px }
+.v9 .dots{ display:flex; gap:7px; margin-top:18px }
+.v9 .dots i{ width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.4) } .v9 .dots i.on{ width:22px;border-radius:100px;background:#fff }
+
+/* ============ V10 — dashboard "buongiorno" ============ */
+.v10{ padding:38px 18px 18px; background:var(--carta); gap:14px }
+.v10 .greet{ display:flex; align-items:center; justify-content:space-between }
+.v10 .greet .g{ font-size:12px; color:var(--muted) }
+.v10 .greet .h-title{ font-size:24px; margin-top:3px }
+.v10 .greet .av{ width:42px;height:42px;border-radius:50%;background:var(--verde-pale);color:var(--verde-deep);display:flex;align-items:center;justify-content:center;font-weight:700;font-family:var(--serif);flex:none }
+.v10 .zone{ display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:600; color:var(--verde-deep); background:var(--verde-pale); padding:7px 12px; border-radius:100px; align-self:flex-start }
+.v10 .qh{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted2); margin-top:2px }
+.v10 .tiles{ flex:1; display:flex; flex-direction:column; gap:11px; min-height:0 }
+.v10 .tile{ position:relative; flex:1; border-radius:19px; overflow:hidden; display:flex; align-items:flex-end; color:#fff }
+.v10 .tile img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+.v10 .tile .ov{ position:absolute; inset:0 }
+.v10 .tile.active{ flex:1.4 } .v10 .tile.active .ov{ background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(10,18,10,.82)) }
+.v10 .tile.locked .ov{ background:linear-gradient(90deg,rgba(8,12,7,.8),rgba(8,12,7,.4)) }
+.v10 .tile .body{ position:relative; z-index:3; padding:14px }
+.v10 .tile h2{ font-family:var(--serif); font-size:19px; font-weight:600 }
+.v10 .tile.locked h2{ font-size:16px }
+.v10 .tile p{ font-size:11px; color:rgba(255,255,255,.88); margin-top:2px }
+.v10 .tile .go{ position:absolute; right:12px; bottom:12px; z-index:4; width:38px;height:38px;border-radius:50%;background:#fff;color:var(--verde-deep);display:flex;align-items:center;justify-content:center }
+.v10 .tile .tag{ position:absolute; z-index:4; top:10px; left:10px; font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:rgba(22,163,74,.55);border:1px solid rgba(255,255,255,.3);padding:3px 8px;border-radius:100px }
+.v10 .tile.locked .tag{ left:auto; right:10px; background:rgba(255,255,255,.18) }
+</style>
+</head>
+<body>
+<div class="page-h">
+  <div class="kick">Gaia Food · Design Lab</div>
+  <h1>Schermata principale — 10 varianti</h1>
+  <p>La schermata d'ingresso “Cosa vuoi fare?” con le tre scelte (Trova un produttore · Ricevi a casa · Lungo il Percorso). Ogni mockup è a misura telefono.</p>
+  <div class="rule">Regola comune a tutte: <b>stanno in una sola videata, zero scroll</b>. Il layout è ancorato all'altezza reale dello schermo (<b>100dvh + safe-area</b>) e le card si dividono lo spazio disponibile con <b>flex</b>. Sparisce lo scroll fantasma di adesso.</div>
+</div>
+<div class="grid" id="grid"></div>
+
+<script>
+const IMG = { trova:'../hub/assets/trova.jpg', ricevi:'../hub/assets/ricevi.jpg', percorso:'../hub/assets/percorso.jpg' };
+const GO = '<svg class="ico-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>';
+const LOCK = '<svg class="ico-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>';
+const PIN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c4-3.5 7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 3 7.5 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>';
+const CART = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M2 3h2l2.4 12.5a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.2L21 7H5.2"/></svg>';
+const ROUTE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2.4"/><circle cx="18" cy="5" r="2.4"/><path d="M8.4 19H14a4 4 0 0 0 0-8H10a4 4 0 0 1 0-8h5.6"/></svg>';
+
+const INTRO = `<span class="eyebrow2">Benvenuto in Gaia Food</span>
+  <h1 class="h-title">Cosa vuoi <em>fare?</em></h1>
+  <p class="sub">Tre modi per vivere il cibo vero. Per ora si parte dal primo.</p>`;
+
+const V = [
+{ t:'Hero + 2 sotto', d:'La direzione attuale ma sistemata: eroe grande in alto, le 2 bloccate affiancate sotto. Tutto in una videata.',
+  h:`<div class="vp v1">
+    <div class="intro">${INTRO}</div>
+    <div class="cards">
+      <div class="card active"><img src="${IMG.trova}"><div class="scrim"></div><span class="tag">Attiva</span>
+        <div class="body"><h2>Trova un produttore</h2><p>Esplora la mappa e scopri chi produce vero, vicino a te.</p></div><span class="go">${GO}</span></div>
+      <div class="row">
+        <div class="card locked"><img src="${IMG.ricevi}"><div class="veil"></div><span class="tag">In arrivo</span><span class="lock">${LOCK}</span><div class="body"><h2>Ricevi a casa</h2></div></div>
+        <div class="card locked"><img src="${IMG.percorso}"><div class="veil"></div><span class="tag">In arrivo</span><span class="lock">${LOCK}</span><div class="body"><h2>Lungo il Percorso</h2></div></div>
+      </div>
+    </div>
+  </div>` },
+
+{ t:'3 fasce full-bleed', d:'Schermo diviso in tre bande immersive a tutta larghezza, la prima più alta. Molto “app di viaggio”.',
+  h:`<div class="vp v2">
+    <div class="over"><span class="eyebrow2">Gaia Food</span><h1>Cosa vuoi fare?</h1></div>
+    <div class="band a"><img src="${IMG.trova}"><div class="ov"></div><div class="txt"><div class="k">① Attiva</div><h2>Trova un produttore</h2><p>Scopri chi produce vero, vicino a te.</p></div><span class="arr">${GO}</span></div>
+    <div class="band l"><img src="${IMG.ricevi}"><div class="ov"></div><div class="txt"><div class="k">In arrivo</div><h2>Ricevi a casa</h2></div><span class="arr">${LOCK}</span></div>
+    <div class="band l"><img src="${IMG.percorso}"><div class="ov"></div><div class="txt"><div class="k">In arrivo</div><h2>Lungo il Percorso</h2></div><span class="arr">${LOCK}</span></div>
+  </div>` },
+
+{ t:'Accordion “peek”', d:'La scelta attiva è aperta e grande; le due bloccate restano come strisce in fondo che sbirciano. Zero scroll, gerarchia fortissima.',
+  h:`<div class="vp v3">
+    <div class="intro">${INTRO}</div>
+    <div class="stack">
+      <div class="exp"><img src="${IMG.trova}"><div class="scrim"></div><div class="body"><h2>Trova un produttore</h2><p>Esplora la mappa e scopri chi produce vero, vicino a te.</p></div><span class="go">${GO}</span></div>
+      <div class="peek"><img src="${IMG.ricevi}"><div class="veil"></div><span class="pl">${LOCK}</span><div class="pt"><b>Ricevi a casa</b><span>In arrivo</span></div></div>
+      <div class="peek"><img src="${IMG.percorso}"><div class="veil"></div><span class="pl">${LOCK}</span><div class="pt"><b>Lungo il Percorso</b><span>In arrivo</span></div></div>
+    </div>
+  </div>` },
+
+{ t:'Lista editoriale (no foto)', d:'Niente immagini: righe grandi, ariose, stile menu. Leggerissima, elegante, carica in un lampo. Massima leggibilità.',
+  h:`<div class="vp v4">
+    <div class="intro">${INTRO}</div>
+    <div class="list">
+      <div class="item"><span class="num">01</span><span class="ic">${PIN}</span><div class="tx"><b>Trova un produttore</b><span>Esplora la mappa vicino a te</span></div><span class="end">${GO}</span></div>
+      <div class="item locked"><span class="num">02</span><span class="ic">${CART}</span><div class="tx"><b>Ricevi a casa</b><span>Ordina e te lo portano</span></div><span class="end"><span class="soon">Presto</span></span></div>
+      <div class="item locked"><span class="num">03</span><span class="ic">${ROUTE}</span><div class="tx"><b>Lungo il Percorso</b><span>Viaggia tra i produttori</span></div><span class="end"><span class="soon">Presto</span></span></div>
+    </div>
+  </div>` },
+
+{ t:'Bento grid', d:'Griglia bento: una tessera grande in alto e due piccole affiancate sotto, che riempiono l’altezza esatta.',
+  h:`<div class="vp v5">
+    <div class="intro">${INTRO}</div>
+    <div class="bento">
+      <div class="b big"><img src="${IMG.trova}"><div class="scrim"></div><span class="tag">Attiva</span><div class="body"><h2>Trova un produttore</h2><p>Chi produce vero, vicino a te.</p></div><span class="go">${GO}</span></div>
+      <div class="b sm"><img src="${IMG.ricevi}"><div class="veil"></div><span class="lk">${LOCK}</span><div class="body"><h2>Ricevi a casa</h2></div></div>
+      <div class="b sm"><img src="${IMG.percorso}"><div class="veil"></div><span class="lk">${LOCK}</span><div class="body"><h2>Lungo il Percorso</h2></div></div>
+    </div>
+  </div>` },
+
+{ t:'Full-bleed immersivo', d:'Una sola foto a tutto schermo con le tre scelte come “pill” glass in basso. Il più cinematografico, garantito senza scroll.',
+  h:`<div class="vp v6">
+    <img src="${IMG.trova}"><div class="grad"></div>
+    <div class="top"><span class="eyebrow2">Benvenuto in Gaia Food</span><h1>Cosa vuoi <em>fare?</em></h1></div>
+    <div class="spacer"></div>
+    <div class="picks">
+      <div class="pick primary"><span class="pi">${PIN}</span><div class="pt"><b>Trova un produttore</b><span>Esplora la mappa vicino a te</span></div><span class="pe">${GO}</span></div>
+      <div class="pick"><span class="pi">${CART}</span><div class="pt"><b>Ricevi a casa</b><span class="soon">In arrivo</span></div><span class="pe">${LOCK}</span></div>
+      <div class="pick"><span class="pi">${ROUTE}</span><div class="pt"><b>Lungo il Percorso</b><span class="soon">In arrivo</span></div><span class="pe">${LOCK}</span></div>
+    </div>
+  </div>` },
+
+{ t:'Percorso / timeline', d:'Le tre scelte come tappe di un cammino verticale: racconta la progressione del prodotto. La prima è “sbloccata”.',
+  h:`<div class="vp v7">
+    <div class="intro">${INTRO}</div>
+    <div class="tl">
+      <div class="step on"><div class="rail"><span class="dot">1</span></div><div class="cont"><b>Trova un produttore</b><p>Esplora la mappa e scopri chi produce vero, vicino a te.</p><span class="cta">Inizia da qui ${GO}</span></div></div>
+      <div class="step off"><div class="rail"><span class="dot">2</span></div><div class="cont"><b>Ricevi a casa <span class="soon">Presto</span></b><p>Ordina dai produttori: un mezzo ritira e porta a casa.</p></div></div>
+      <div class="step off"><div class="rail"><span class="dot">3</span></div><div class="cont"><b>Lungo il Percorso <span class="soon">Presto</span></b><p>Scegli le tappe e viaggia tra i produttori.</p></div></div>
+    </div>
+  </div>` },
+
+{ t:'Minimal centrato', d:'Tanta aria, tutto centrato verticalmente: un bottone pieno (attivo) e due leggeri. Stile onboarding Apple.',
+  h:`<div class="vp v8">
+    <div class="top"><span class="mark">${PIN}</span><h1 class="h-title">Cosa vuoi <em>fare?</em></h1><p class="sub">Tre modi per vivere il cibo vero. Per ora si parte dal primo.</p></div>
+    <div class="btns">
+      <div class="bt primary"><span class="bi">${PIN}</span><div class="btx"><b>Trova un produttore</b><span>Esplora la mappa vicino a te</span></div><span>${GO}</span></div>
+      <div class="bt ghost"><span class="bi">${CART}</span><div class="btx"><b>Ricevi a casa</b><span>Ordina e te lo portano</span></div><span class="soon">Presto</span></div>
+      <div class="bt ghost"><span class="bi">${ROUTE}</span><div class="btx"><b>Lungo il Percorso</b><span>Viaggia tra i produttori</span></div><span class="soon">Presto</span></div>
+    </div>
+  </div>` },
+
+{ t:'Carosello swipe', d:'Una scelta alla volta a tutta altezza; si scorre di lato (non in giù) per le altre. Verticalmente sempre fermo.',
+  h:`<div class="vp v9">
+    <img src="${IMG.trova}"><div class="grad"></div>
+    <div class="hd"><span class="eyebrow2">Cosa vuoi fare?</span><h1>Il cibo vero, come lo vuoi tu</h1></div>
+    <div class="spacer"></div>
+    <div class="cardz">
+      <span class="tag">① Attiva</span>
+      <h2>Trova un produttore</h2>
+      <p>Esplora la mappa e scopri chi produce vero, vicino a te.</p>
+      <span class="cta">Inizia ${GO}</span>
+      <div class="dots"><i class="on"></i><i></i><i></i></div>
+    </div>
+  </div>` },
+
+{ t:'Dashboard “Buongiorno”', d:'Personale: saluto + zona verificata dell’utente, poi le tre tessere. Contestualizza subito (chi sei, dove sei).',
+  h:`<div class="vp v10">
+    <div class="greet"><div><div class="g">Buongiorno 👋</div><h1 class="h-title">Cosa vuoi fare?</h1></div><span class="av">D</span></div>
+    <span class="zone">${PIN} Villetta Barrea · zona verificata</span>
+    <div class="tiles">
+      <div class="tile active"><img src="${IMG.trova}"><div class="ov"></div><span class="tag">Attiva</span><div class="body"><h2>Trova un produttore</h2><p>Chi produce vero, vicino a te.</p></div><span class="go">${GO}</span></div>
+      <div class="tile locked"><img src="${IMG.ricevi}"><div class="ov"></div><span class="tag">In arrivo</span><div class="body"><h2>Ricevi a casa</h2></div></div>
+      <div class="tile locked"><img src="${IMG.percorso}"><div class="ov"></div><span class="tag">In arrivo</span><div class="body"><h2>Lungo il Percorso</h2></div></div>
+    </div>
+  </div>` },
+];
+
+const grid = document.getElementById('grid');
+V.forEach((v,i)=>{
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.innerHTML = `
+    <div class="cap"><span class="n">${String(i+1).padStart(2,'0')}</span><span class="t">${v.t}</span></div>
+    <div class="desc">${v.d}</div>
+    <div class="phone"><div class="screen"><div class="notch"></div>${v.h}<span class="fit-badge">✓ una videata</span></div></div>`;
+  grid.appendChild(cell);
+});
+</script>
+</body>
+</html>

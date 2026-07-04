@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gaia Food — Cosa vuoi fare? · V1 velo-scuro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- token condivisi (palette/ombre) -->
+<link rel="stylesheet" href="../../css/app.css">
+<style>
+/* ============================================================
+   V1 — VELO-SCURO
+   Tutte e 3 le scelte sono HERO con foto a piena larghezza.
+   La 1ª vivida + CTA freccia. Le 2 bloccate: stessa hero ma con
+   un VELO SCURO sopra (55–65%) + lucchetto centrale + badge "In arrivo".
+   Web app vera: colonna mobile ~390px, layout largo su desktop ≥1024px
+   con pannello "scarica l'app" (badge store + QR placeholder).
+   ============================================================ */
+
+/* reset locale (auto-contenuto, non dipende dallo shell #app del css) */
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans);
+  color:var(--ink);
+  /* sfondo caldo editoriale, leggero "vetro" */
+  background:
+    radial-gradient(120% 90% at 12% -10%, rgba(22,163,74,.07), transparent 55%),
+    radial-gradient(110% 80% at 100% 0%, rgba(14,165,233,.07), transparent 55%),
+    var(--carta);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+
+/* ---------- LAYOUT GENERALE ---------- */
+.page{
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+}
+
+/* barra brand sottile in alto (mobile) */
+.appbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 22px 6px;
+  max-width:430px; margin:0 auto; width:100%;
+}
+.brand{ display:flex; align-items:center; gap:9px; }
+.brand .mark{
+  width:30px; height:30px; border-radius:9px; flex:none;
+  background:var(--grad-azione);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 6px 14px -6px rgba(22,163,74,.6);
+}
+.brand .wm{ font-family:var(--serif); font-size:17px; font-weight:600; letter-spacing:-.01em; color:var(--ink); }
+.brand .wm span{ color:var(--verde-deep); }
+.appbar .loc{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); font-weight:500; }
+.appbar .loc b{ color:var(--ink-soft); font-weight:600; }
+
+/* contenuto centrale, colonna mobile */
+.shell{
+  flex:1;
+  width:100%;
+  max-width:430px;
+  margin:0 auto;
+  padding:6px 22px 40px;
+  display:flex; flex-direction:column;
+}
+
+/* intestazione "Cosa vuoi fare?" */
+.intro{ padding:14px 2px 18px; }
+.eyebrow2{
+  font-size:10.5px; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--verde-deep);
+  display:inline-flex; align-items:center; gap:7px;
+}
+.eyebrow2::before{ content:''; width:16px; height:1.5px; background:var(--verde); border-radius:2px; }
+.title{
+  font-family:var(--serif); font-weight:600; letter-spacing:-.02em; line-height:1.04;
+  font-size:33px; color:var(--ink); margin-top:12px;
+}
+.title em{ font-style:italic; color:var(--verde); }
+.subtitle{
+  font-size:14.5px; line-height:1.5; color:var(--muted); margin-top:10px; max-width:34ch;
+}
+
+/* ---------- CARDS HERO ---------- */
+.cards{ display:flex; flex-direction:column; gap:15px; }
+
+.hcard{
+  position:relative;
+  border-radius:22px;
+  overflow:hidden;
+  isolation:isolate;
+  min-height:188px;
+  display:flex; flex-direction:column; justify-content:flex-end;
+  box-shadow:var(--sh-card);
+  border:1px solid rgba(31,24,18,.06);
+  -webkit-tap-highlight-color:transparent;
+}
+.hcard .bg{
+  position:absolute; inset:0; z-index:0;
+  width:100%; height:100%; object-fit:cover;
+}
+.hcard .body{
+  position:relative; z-index:3;
+  padding:18px 18px 18px;
+  color:#fff;
+}
+.hcard .row{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
+.hcard h2{
+  font-family:var(--serif); font-weight:600; letter-spacing:-.015em; line-height:1.12;
+  font-size:23px; color:#fff;
+  text-shadow:0 1px 18px rgba(0,0,0,.45);
+}
+.hcard p{
+  font-size:13.5px; line-height:1.45; color:rgba(255,255,255,.94);
+  margin-top:6px; max-width:30ch;
+  text-shadow:0 1px 14px rgba(0,0,0,.4);
+}
+
+/* icona pill in alto a sinistra */
+.hcard .tag{
+  position:absolute; z-index:3; top:14px; left:14px;
+  display:inline-flex; align-items:center; gap:7px;
+  padding:7px 12px 7px 9px; border-radius:100px;
+  background:rgba(255,255,255,.18);
+  -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px);
+  border:1px solid rgba(255,255,255,.28);
+  font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+  color:#fff;
+}
+.hcard .tag svg{ flex:none; }
+
+/* ===== CARD ATTIVA (1ª) ===== */
+.hcard.active{ min-height:228px; }
+/* overlay-gradiente leggibile, lascia la foto VIVIDA in alto */
+.hcard.active .scrim{
+  position:absolute; inset:0; z-index:1;
+  background:
+    linear-gradient(180deg, rgba(20,30,18,0) 30%, rgba(18,26,16,.32) 60%, rgba(14,20,12,.82) 100%),
+    linear-gradient(105deg, rgba(22,163,74,.16), rgba(14,165,233,.05) 60%, transparent);
+}
+.hcard.active .tag{
+  background:rgba(22,163,74,.34);
+  border-color:rgba(255,255,255,.36);
+}
+/* freccia CTA */
+.go{
+  flex:none;
+  width:52px; height:52px; border-radius:50%;
+  background:#fff; color:var(--verde-deep);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 10px 24px -10px rgba(0,0,0,.6);
+  transition:transform .25s ease, box-shadow .25s ease;
+}
+.hcard.active:hover .go{ transform:translateX(3px) scale(1.04); box-shadow:0 14px 30px -12px rgba(0,0,0,.7); }
+.go svg{ display:block; }
+/* nastro "scelta consigliata" sotto al titolo attivo */
+.pickline{
+  display:inline-flex; align-items:center; gap:7px;
+  margin-top:11px;
+  font-size:11.5px; font-weight:700; letter-spacing:.02em;
+  color:#fff;
+}
+.pickline .dot{ width:6px; height:6px; border-radius:50%; background:var(--verde-light); box-shadow:0 0 0 4px rgba(34,197,94,.3); }
+
+/* ===== CARD BLOCCATE (2ª, 3ª) — VELO SCURO ===== */
+.hcard.locked .bg{
+  /* la foto resta bella, solo leggermente desaturata sotto al velo */
+  filter:saturate(.82) brightness(.96);
+}
+.hcard.locked .veil{
+  position:absolute; inset:0; z-index:1;
+  /* VELO SCURO 55–65% + vignettatura per dare profondità */
+  background:
+    radial-gradient(120% 90% at 50% 30%, rgba(10,14,9,.42), rgba(8,12,7,.66) 100%),
+    linear-gradient(180deg, rgba(10,14,9,.5), rgba(8,11,7,.66));
+}
+.hcard.locked h2{ color:rgba(255,255,255,.94); }
+.hcard.locked p{ color:rgba(255,255,255,.78); }
+/* lucchetto centrale */
+.lockwrap{
+  position:absolute; z-index:3; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  pointer-events:none;
+}
+.lockwrap .lock{
+  width:58px; height:58px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  color:#fff;
+  background:rgba(255,255,255,.12);
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.28);
+  box-shadow:0 14px 34px -16px rgba(0,0,0,.8);
+}
+/* badge "In arrivo" (in alto a destra) */
+.hcard.locked .tag{
+  left:auto; right:14px;
+  background:rgba(255,255,255,.16);
+  border-color:rgba(255,255,255,.3);
+  color:rgba(255,255,255,.96);
+}
+.hcard.locked .tag .spark{ color:var(--celeste); }
+/* etichetta "presto disponibile" sotto al testo */
+.soonline{
+  display:inline-flex; align-items:center; gap:7px;
+  margin-top:11px;
+  font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+  color:rgba(255,255,255,.8);
+}
+.soonline svg{ flex:none; opacity:.85; }
+
+/* ---------- "salta" in fondo ---------- */
+.skip{
+  margin-top:22px;
+  text-align:center;
+}
+.skip a{
+  display:inline-flex; align-items:center; gap:9px;
+  font-size:13.5px; font-weight:600; color:var(--ink-soft);
+  padding:11px 18px; border-radius:100px;
+  border:1px solid var(--bd2); background:var(--bianco);
+  box-shadow:var(--sh-card);
+  transition:border-color .2s ease, color .2s ease;
+}
+.skip a:hover{ color:var(--verde-deep); border-color:rgba(22,163,74,.35); }
+.skip a .sep{ color:var(--faint); font-weight:400; }
+.skip a svg{ flex:none; }
+
+/* pannello "scarica l'app": NASCOSTO su mobile, appare su desktop */
+.getapp{ display:none; }
+
+/* ============================================================
+   DESKTOP ≥1024px — WEB APP VERA (largo, niente colonna-telefono)
+   Due colonne: contenuto hub (sinistra/larga) + pannello scarica app.
+   ============================================================ */
+@media(min-width:1024px){
+  body{
+    background:
+      radial-gradient(80% 70% at 0% -10%, rgba(22,163,74,.10), transparent 55%),
+      radial-gradient(70% 60% at 100% 0%, rgba(14,165,233,.10), transparent 55%),
+      var(--carta);
+  }
+  .page{ }
+
+  /* topbar full-width */
+  .appbar{
+    max-width:1240px; padding:26px 40px 10px;
+  }
+  .brand .mark{ width:34px; height:34px; }
+  .brand .wm{ font-size:19px; }
+  .appbar .loc{ font-size:13.5px; }
+  .appbar .nav{ display:flex; align-items:center; gap:22px; }
+  .appbar .nav a{ font-size:13.5px; font-weight:600; color:var(--muted); }
+  .appbar .nav a:hover{ color:var(--ink); }
+  .appbar .nav .btn-mini{
+    padding:9px 16px; border-radius:100px; background:var(--ink); color:#fff; font-size:13px;
+  }
+
+  .shell{
+    max-width:1240px;
+    padding:14px 40px 64px;
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    grid-template-areas:
+      "intro"
+      "cards"
+      "skip";
+    column-gap:0;
+    row-gap:0;
+    align-content:start;
+  }
+  .intro{ grid-area:intro; padding:24px 0 26px; max-width:560px; }
+  .title{ font-size:46px; }
+  .subtitle{ font-size:16px; max-width:42ch; }
+
+  /* le card diventano una griglia: 1ª grande a sinistra, le 2 bloccate impilate a destra */
+  .cards{
+    grid-area:cards;
+    display:grid;
+    grid-template-columns:1.35fr 1fr;
+    grid-template-rows:auto auto;
+    gap:18px;
+  }
+  .hcard.active{
+    grid-row:1 / span 2;
+    min-height:420px;
+  }
+  .hcard.active h2{ font-size:30px; }
+  .hcard.active p{ font-size:15px; max-width:34ch; }
+  .hcard.active .body{ padding:24px; }
+  .hcard.locked{ min-height:201px; }
+  .hcard.locked h2{ font-size:21px; }
+
+  /* la riga "salta" sotto le card, allineata a sinistra */
+  .skip{ grid-area:skip; text-align:left; margin-top:22px; }
+
+  /* ---- pannello SCARICA L'APP ---- */
+  .getapp{
+    grid-area:getapp;
+    display:block;
+    align-self:start;
+    position:sticky; top:28px;
+    background:var(--bianco);
+    border:1px solid var(--bd);
+    border-radius:24px;
+    padding:26px 22px;
+    box-shadow:var(--sh-card);
+    margin-top:24px;
+  }
+  .getapp .ga-eyebrow{
+    font-size:10.5px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--muted2);
+  }
+  .getapp h3{
+    font-family:var(--serif); font-size:21px; font-weight:600; letter-spacing:-.01em;
+    color:var(--ink); margin-top:8px; line-height:1.18;
+  }
+  .getapp h3 em{ font-style:italic; color:var(--verde-deep); }
+  .getapp .ga-sub{ font-size:13px; line-height:1.5; color:var(--muted); margin-top:8px; }
+
+  .qr{
+    margin:18px auto 4px;
+    width:128px; height:128px; border-radius:18px;
+    background:#fff; border:1px solid var(--bd2);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:inset 0 0 0 6px #fff, 0 8px 18px -12px rgba(31,24,18,.4);
+  }
+  .qr svg{ width:96px; height:96px; }
+  .qr-cap{ text-align:center; font-size:11.5px; color:var(--faint); margin-top:8px; letter-spacing:.02em; }
+
+  .stores{ display:flex; flex-direction:column; gap:10px; margin-top:16px; }
+  .store{
+    display:flex; align-items:center; gap:11px;
+    padding:10px 14px; border-radius:14px;
+    background:var(--ink); color:#fff;
+    border:1px solid rgba(255,255,255,.06);
+    transition:transform .18s ease, opacity .18s ease;
+  }
+  .store:hover{ transform:translateY(-1px); opacity:.94; }
+  .store .st-ic{ flex:none; }
+  .store .st-txt{ line-height:1.05; }
+  .store .st-txt small{ display:block; font-size:9.5px; letter-spacing:.06em; opacity:.72; text-transform:uppercase; }
+  .store .st-txt b{ font-family:var(--serif); font-size:16px; font-weight:600; letter-spacing:.01em; }
+
+  .ga-note{ font-size:11px; color:var(--faint); text-align:center; margin-top:14px; line-height:1.5; }
+}
+
+/* larghissimi: respiro extra, le bloccate guadagnano altezza */
+@media(min-width:1360px){
+  .hcard.locked{ min-height:222px; }
+  .hcard.active{ min-height:462px; }
+}
+
+/* ---------- accessibilità movimento ---------- */
+@media(prefers-reduced-motion:reduce){
+  *{ transition:none !important; animation:none !important; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- TOP BAR / BRAND -->
+  <header class="appbar">
+    <a class="brand" href="#" aria-label="Gaia Food — home">
+      <span class="mark" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path d="M12 21c5-3 8-6.5 8-11A8 8 0 0 0 4 10c0 4.5 3 8 8 11Z" fill="#fff" opacity=".9"/>
+          <path d="M12 13c0-2.5 1.6-4.6 4-5.2-.3 2.6-2 4.6-4 5.2Zm0 0c0-2.5-1.6-4.6-4-5.2.3 2.6 2 4.6 4 5.2Z" fill="#16A34A"/>
+        </svg>
+      </span>
+      <span class="wm">Gaia<span>Food</span></span>
+    </a>
+    <div class="loc" aria-label="posizione">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 21c4-3.5 7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 3 7.5 7 11Z"/><circle cx="12" cy="10" r="2.5"/>
+      </svg>
+      <span><b>Teramo</b> · Abruzzo</span>
+      <!-- nav extra visibile solo su desktop -->
+      <span class="nav" style="display:none"></span>
+    </div>
+  </header>
+
+  <!-- CONTENUTO -->
+  <main class="shell">
+
+    <!-- INTRO -->
+    <section class="intro">
+      <span class="eyebrow2">Benvenuto in Gaia Food</span>
+      <h1 class="title">Cosa vuoi <em>fare?</em></h1>
+      <p class="subtitle">Tre modi per vivere il cibo vero. Per ora si parte dal primo.</p>
+    </section>
+
+    <!-- CARDS -->
+    <section class="cards">
+
+      <!-- 1 · ATTIVA -->
+      <a class="hcard active" href="#trova" aria-label="Trova un produttore — esplora la mappa">
+        <img class="bg" src="./assets/trova.jpg" loading="lazy"
+             alt="Pascolo all'alba con mucche al pascolo e un casolare di pietra ai piedi della montagna">
+        <div class="scrim" aria-hidden="true"></div>
+        <span class="tag">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 21c4-3.5 7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 3 7.5 7 11Z"/><circle cx="12" cy="10" r="2.4"/>
+          </svg>
+          Attiva
+        </span>
+        <div class="body">
+          <div class="row">
+            <div>
+              <h2>Trova un produttore</h2>
+              <p>Esplora la mappa e scopri chi produce vero, vicino a te.</p>
+              <span class="pickline"><span class="dot" aria-hidden="true"></span>Inizia da qui</span>
+            </div>
+            <span class="go" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>
+              </svg>
+            </span>
+          </div>
+        </div>
+      </a>
+
+      <!-- 2 · BLOCCATA -->
+      <div class="hcard locked" role="group" aria-label="Ricevi a casa — in arrivo, non ancora disponibile" aria-disabled="true">
+        <img class="bg" src="./assets/ricevi.jpg" loading="lazy"
+             alt="Ape carico di casse di frutta, verdura e pane: la consegna a casa dai produttori">
+        <div class="veil" aria-hidden="true"></div>
+        <div class="lockwrap" aria-hidden="true">
+          <span class="lock">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>
+            </svg>
+          </span>
+        </div>
+        <span class="tag">
+          <svg class="spark" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 2l1.6 4.8L18.5 8l-4.9 1.2L12 14l-1.6-4.8L5.5 8l4.9-1.2L12 2Z"/>
+          </svg>
+          In arrivo
+        </span>
+        <div class="body">
+          <h2>Ricevi a casa</h2>
+          <p>Ordina dai produttori: un mezzo ritira e porta tutto a casa tua.</p>
+          <span class="soonline">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>
+            </svg>
+            Presto disponibile
+          </span>
+        </div>
+      </div>
+
+      <!-- 3 · BLOCCATA -->
+      <div class="hcard locked" role="group" aria-label="Lungo il Percorso — in arrivo, non ancora disponibile" aria-disabled="true">
+        <img class="bg" src="./assets/percorso.jpg" loading="lazy"
+             alt="Strada di campagna che si snoda tra le colline verso la montagna al tramonto: il viaggio tra i produttori">
+        <div class="veil" aria-hidden="true"></div>
+        <div class="lockwrap" aria-hidden="true">
+          <span class="lock">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>
+            </svg>
+          </span>
+        </div>
+        <span class="tag">
+          <svg class="spark" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 2l1.6 4.8L18.5 8l-4.9 1.2L12 14l-1.6-4.8L5.5 8l4.9-1.2L12 2Z"/>
+          </svg>
+          In arrivo
+        </span>
+        <div class="body">
+          <h2>Lungo il Percorso</h2>
+          <p>Scegli le tappe e viaggia tra i produttori del territorio.</p>
+          <span class="soonline">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>
+            </svg>
+            Presto disponibile
+          </span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- SALTA -->
+    <div class="skip">
+      <a href="#produttori">
+        Salta <span class="sep">·</span> guarda subito i produttori
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>
+        </svg>
+      </a>
+    </div>
+
+
+  </main>
+</div>
+
+<script>
+/* mostra la mini-nav del brand solo su desktop, dove c'è spazio */
+(function(){
+  var loc = document.querySelector('.appbar .loc');
+  if(!loc) return;
+  var nav = loc.querySelector('.nav');
+  function sync(){
+    var wide = window.matchMedia('(min-width:1024px)').matches;
+    if(wide && nav && !nav.dataset.filled){
+      nav.dataset.filled = '1';
+      nav.innerHTML = '<a href="#produttori">Produttori</a><a href="#territorio">Territorio</a><a href="#" class="btn-mini">Scarica l\'app</a>';
+      nav.style.display = 'flex';
+    } else if(nav){
+      nav.style.display = wide ? 'flex' : 'none';
+    }
+  }
+  sync();
+  window.addEventListener('resize', sync);
+})();
+</script>
+</body>
+</html>

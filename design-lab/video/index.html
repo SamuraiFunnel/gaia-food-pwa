@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaia Food · Sezione video scheda produttore — 7 varianti</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --carta:#F4F1EB; --carta-scura:#EDE6DA; --bianco:#FBF9F5; --canvas:#E7DECF;
+  --ink:#1F1812; --ink-soft:#564B41; --muted:#75695B; --muted2:#8A7D6C; --faint:#A89A87;
+  --verde:#16A34A; --verde-deep:#15803D; --verde-pale:#E7F5EC;
+  --celeste:#0EA5E9; --celeste-deep:#0C7FB0; --celeste-pale:#E2F2F9;
+  --terra:#C2A07A; --terra-deep:#8C6838; --terra-pale:#F3E9D9;
+  --bd:#ECE4D7; --bd2:#E5DCCF; --bd3:#E0D7C8;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+  --sh-card:0 1px 2px rgba(31,24,18,.05),0 14px 30px -18px rgba(31,24,18,.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{ font-family:var(--sans); background:#211d18; color:#efe7db; padding:34px 22px 80px; }
+.page-h{ max-width:1200px; margin:0 auto 30px; }
+.page-h .kick{ font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:#c8a86f; font-weight:700; }
+.page-h h1{ font-family:var(--serif); font-size:33px; font-weight:600; letter-spacing:-.02em; margin-top:8px; color:#fff; }
+.page-h p{ font-size:14px; line-height:1.6; color:#c3b7a6; margin-top:12px; max-width:76ch; }
+.page-h .rule{ margin-top:14px; padding:12px 16px; background:#2c261f; border:1px solid #3a332a; border-radius:12px; font-size:13px; color:#d8ccbb; max-width:76ch; }
+.page-h .rule b{ color:#7fd39a; }
+.grid{ max-width:1240px; margin:0 auto; display:flex; flex-wrap:wrap; gap:34px 30px; justify-content:center; }
+.cell{ width:340px; }
+.cell .cap{ display:flex; align-items:baseline; gap:9px; margin:0 4px 6px; }
+.cell .cap .n{ font-family:var(--serif); font-size:20px; font-weight:600; color:#fff; }
+.cell .cap .t{ font-size:13px; font-weight:600; color:#eadfce; }
+.cell .desc{ font-size:12px; color:#9c8f7d; margin:0 4px 12px; line-height:1.45; }
+.phone{ width:340px; height:720px; border-radius:44px; padding:11px; background:linear-gradient(160deg,#3a332a,#191510); box-shadow:0 40px 80px -30px rgba(0,0,0,.8); }
+.screen{ position:relative; width:100%; height:100%; border-radius:34px; overflow:hidden; background:var(--carta); }
+.vp{ position:absolute; inset:0; overflow:hidden; display:flex; flex-direction:column; font-family:var(--sans); }
+
+/* contesto scheda (comune) */
+.ctx{ padding:16px 18px 4px; }
+.ctx .pn{ font-family:var(--serif); font-size:19px; font-weight:600; color:var(--ink); }
+.ctx .pl{ font-size:12px; color:var(--muted); margin-top:1px; }
+.sect{ display:flex; align-items:baseline; justify-content:space-between; padding:14px 18px 8px; }
+.sect .st{ font-family:var(--serif); font-size:17px; font-weight:600; color:var(--ink); }
+.sect .cnt{ font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted2); }
+.body{ flex:1; overflow:hidden; }
+.story-teaser{ padding:14px 18px; margin-top:auto; }
+.story-teaser p{ font-size:12.5px; line-height:1.6; color:var(--faint); }
+.story-teaser .l{ height:9px; background:var(--carta-scura); border-radius:4px; margin-bottom:7px; }
+
+/* elementi player comuni */
+.play{ display:flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(255,255,255,.92); color:var(--ink); box-shadow:0 6px 18px -6px rgba(0,0,0,.5); }
+.play svg{ display:block; margin-left:2px; }
+.dur{ font-size:10.5px; font-weight:700; color:#fff; background:rgba(0,0,0,.6); padding:2px 7px; border-radius:6px; }
+.chipcat{ font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:3px 8px; border-radius:100px; }
+.cat-pre{ background:var(--verde); color:#fff; } .cat-sto{ background:var(--terra-deep); color:#fff; } .cat-met{ background:var(--celeste-deep); color:#fff; }
+.cat-pre-s{ color:var(--verde-deep); background:var(--verde-pale); } .cat-sto-s{ color:var(--terra-deep); background:var(--terra-pale); } .cat-met-s{ color:var(--celeste-deep); background:var(--celeste-pale); }
+
+/* ===== V1 — player + carosello thumb (swipe) ===== */
+.v1 .player{ position:relative; margin:0 18px; border-radius:18px; overflow:hidden; aspect-ratio:16/10; }
+.v1 .player img{ width:100%; height:100%; object-fit:cover; }
+.v1 .player .scr{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.55)); }
+.v1 .player .play{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:56px; height:56px; }
+.v1 .player .ov{ position:absolute; left:14px; right:14px; bottom:12px; z-index:2; display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
+.v1 .player .ov .tt{ color:#fff; font-family:var(--serif); font-size:16px; font-weight:600; text-shadow:0 1px 8px rgba(0,0,0,.6); }
+.v1 .player .tag{ position:absolute; top:12px; left:14px; z-index:2; }
+.v1 .swipe-h{ display:flex; align-items:center; gap:6px; padding:12px 18px 6px; font-size:11px; color:var(--faint); }
+.v1 .rail{ display:flex; gap:10px; overflow-x:auto; padding:2px 18px 14px; scrollbar-width:none; }
+.v1 .rail::-webkit-scrollbar{ display:none; }
+.v1 .th{ position:relative; flex:none; width:116px; aspect-ratio:16/11; border-radius:12px; overflow:hidden; }
+.v1 .th img{ width:100%; height:100%; object-fit:cover; }
+.v1 .th.active{ outline:2.5px solid var(--verde); outline-offset:2px; }
+.v1 .th .d{ position:absolute; right:5px; bottom:5px; }
+.v1 .th .dot{ position:absolute; left:6px; top:6px; width:16px;height:16px;border-radius:50%; display:flex;align-items:center;justify-content:center; }
+
+/* ===== V2 — tabs categoria + player ===== */
+.v2 .tabs{ display:flex; gap:6px; padding:4px 18px 10px; }
+.v2 .tab{ flex:1; text-align:center; font-size:12px; font-weight:600; padding:9px 4px; border-radius:11px; background:var(--carta-scura); color:var(--muted); }
+.v2 .tab .n{ display:block; font-size:9.5px; color:var(--faint); font-weight:700; }
+.v2 .tab.active{ background:#fff; color:var(--verde-deep); box-shadow:var(--sh-card); }
+.v2 .player{ position:relative; margin:0 18px; border-radius:18px; overflow:hidden; aspect-ratio:16/10; }
+.v2 .player img{ width:100%;height:100%;object-fit:cover } .v2 .player .scr{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.5)); }
+.v2 .player .play{ position:absolute; top:50%;left:50%; transform:translate(-50%,-50%); width:54px;height:54px; }
+.v2 .player .tt{ position:absolute; left:14px; bottom:12px; color:#fff; font-family:var(--serif); font-size:16px; font-weight:600; text-shadow:0 1px 8px rgba(0,0,0,.6); }
+.v2 .subrail{ display:flex; gap:10px; overflow-x:auto; padding:12px 18px 14px; scrollbar-width:none; } .v2 .subrail::-webkit-scrollbar{display:none}
+.v2 .th{ position:relative; flex:none; width:120px; aspect-ratio:16/11; border-radius:12px; overflow:hidden; }
+.v2 .th img{ width:100%;height:100%;object-fit:cover } .v2 .th.active{ outline:2.5px solid var(--terra-deep); outline-offset:2px }
+.v2 .th .d{ position:absolute; right:5px; bottom:5px }
+
+/* ===== V3 — full-swipe stories ===== */
+.v3 .stage{ position:relative; margin:6px 16px 0; border-radius:20px; overflow:hidden; aspect-ratio:9/13; }
+.v3 .stage img{ width:100%;height:100%;object-fit:cover }
+.v3 .stage .scr{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.28),rgba(0,0,0,.05) 40%,rgba(0,0,0,.72)); }
+.v3 .stage .play{ position:absolute; top:50%;left:50%; transform:translate(-50%,-50%); width:60px;height:60px; }
+.v3 .stage .count{ position:absolute; top:14px; right:14px; z-index:2; font-size:11px; font-weight:700; color:#fff; background:rgba(0,0,0,.5); padding:4px 10px; border-radius:100px; }
+.v3 .stage .tag{ position:absolute; top:14px; left:14px; z-index:2; }
+.v3 .stage .cap{ position:absolute; left:16px; right:16px; bottom:40px; z-index:2; color:#fff; }
+.v3 .stage .cap h3{ font-family:var(--serif); font-size:22px; font-weight:600; text-shadow:0 1px 10px rgba(0,0,0,.6); }
+.v3 .stage .cap .d{ font-size:12px; opacity:.85; margin-top:3px; }
+.v3 .stage .arrow{ position:absolute; top:50%; transform:translateY(-50%); z-index:2; width:34px;height:34px;border-radius:50%; background:rgba(255,255,255,.25); backdrop-filter:blur(6px); display:flex;align-items:center;justify-content:center; color:#fff; }
+.v3 .stage .arrow.r{ right:12px } .v3 .stage .arrow.l{ left:12px; opacity:.5 }
+.v3 .dots{ position:absolute; left:0; right:0; bottom:16px; z-index:2; display:flex; gap:6px; justify-content:center; }
+.v3 .dots i{ width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.5) } .v3 .dots i.on{ width:20px;border-radius:100px;background:#fff }
+.v3 .hint{ text-align:center; font-size:11px; color:var(--faint); padding:12px; }
+
+/* ===== V4 — netflix rows ===== */
+.v4 .player{ position:relative; margin:0 18px; border-radius:18px; overflow:hidden; aspect-ratio:16/10; }
+.v4 .player img{width:100%;height:100%;object-fit:cover} .v4 .player .scr{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.55))}
+.v4 .player .play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:54px;height:54px}
+.v4 .player .tag{position:absolute;top:12px;left:14px;z-index:2} .v4 .player .tt{position:absolute;left:14px;bottom:12px;color:#fff;font-family:var(--serif);font-size:16px;font-weight:600;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.v4 .row-h{ font-family:var(--serif); font-size:14px; font-weight:600; color:var(--ink); padding:14px 18px 8px; }
+.v4 .rail{ display:flex; gap:10px; overflow-x:auto; padding:0 18px 6px; scrollbar-width:none } .v4 .rail::-webkit-scrollbar{display:none}
+.v4 .th{ position:relative; flex:none; width:130px; aspect-ratio:16/11; border-radius:11px; overflow:hidden }
+.v4 .th img{width:100%;height:100%;object-fit:cover} .v4 .th .d{position:absolute;right:5px;bottom:5px} .v4 .th .pp{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:30px;height:30px}
+
+/* ===== V5 — player + lista capitoli ===== */
+.v5 .player{ position:relative; margin:0 18px 4px; border-radius:18px; overflow:hidden; aspect-ratio:16/10; }
+.v5 .player img{width:100%;height:100%;object-fit:cover} .v5 .player .scr{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.5))}
+.v5 .player .play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:52px;height:52px} .v5 .player .tt{position:absolute;left:14px;bottom:12px;color:#fff;font-family:var(--serif);font-size:15px;font-weight:600;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.v5 .list{ padding:8px 18px 10px; overflow:auto; }
+.v5 .gh{ font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted2); margin:12px 2px 6px; display:flex; align-items:center; gap:7px; }
+.v5 .gh .bar{ width:14px;height:2px;border-radius:2px; }
+.v5 .r{ display:flex; align-items:center; gap:11px; padding:7px 2px; }
+.v5 .r .th{ position:relative; width:62px; aspect-ratio:16/11; border-radius:9px; overflow:hidden; flex:none }
+.v5 .r .th img{width:100%;height:100%;object-fit:cover} .v5 .r .th .pp{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:22px;height:22px}
+.v5 .r .tx{ flex:1 } .v5 .r .tx b{ font-size:13.5px; font-weight:600; color:var(--ink); display:block } .v5 .r .tx span{ font-size:11px; color:var(--muted) }
+.v5 .r.on{ background:var(--verde-pale); border-radius:12px; margin:0 -6px; padding:7px 6px; }
+
+/* ===== V6 — bento mosaic ===== */
+.v6 .bento{ display:grid; grid-template-columns:1fr 1fr; gap:9px; padding:4px 18px 14px; }
+.v6 .t{ position:relative; border-radius:14px; overflow:hidden; aspect-ratio:16/11; }
+.v6 .t.big{ grid-column:1/3; aspect-ratio:16/9; }
+.v6 .t img{width:100%;height:100%;object-fit:cover} .v6 .t .scr{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.5))}
+.v6 .t .pp{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+.v6 .t.big .pp{width:50px;height:50px} .v6 .t .pp{width:32px;height:32px}
+.v6 .t .tt{ position:absolute; left:10px; right:10px; bottom:9px; color:#fff; font-size:12px; font-weight:600; text-shadow:0 1px 6px rgba(0,0,0,.6); }
+.v6 .t.big .tt{ font-family:var(--serif); font-size:16px; }
+.v6 .t .tag{ position:absolute; top:8px; left:8px; }
+.v6 .t .d{ position:absolute; right:7px; top:7px }
+
+/* ===== V7 — chip filter + thumbs ===== */
+.v7 .player{ position:relative; margin:0 18px; border-radius:18px; overflow:hidden; aspect-ratio:16/10; }
+.v7 .player img{width:100%;height:100%;object-fit:cover} .v7 .player .scr{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.5))}
+.v7 .player .play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:54px;height:54px} .v7 .player .tt{position:absolute;left:14px;bottom:12px;color:#fff;font-family:var(--serif);font-size:16px;font-weight:600;text-shadow:0 1px 8px rgba(0,0,0,.6)}
+.v7 .chips{ display:flex; gap:8px; overflow-x:auto; padding:12px 18px 10px; scrollbar-width:none } .v7 .chips::-webkit-scrollbar{display:none}
+.v7 .chip{ flex:none; font-size:12px; font-weight:600; padding:7px 13px; border-radius:100px; background:#fff; border:1px solid var(--bd2); color:var(--ink-soft); }
+.v7 .chip.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+.v7 .rail{ display:flex; gap:10px; overflow-x:auto; padding:0 18px 14px; scrollbar-width:none } .v7 .rail::-webkit-scrollbar{display:none}
+.v7 .th{ position:relative; flex:none; width:124px; aspect-ratio:16/11; border-radius:12px; overflow:hidden }
+.v7 .th img{width:100%;height:100%;object-fit:cover} .v7 .th .d{position:absolute;right:5px;bottom:5px} .v7 .th .tag{position:absolute;top:6px;left:6px}
+.v7 .th .tt{ position:absolute; left:8px; right:8px; bottom:8px; color:#fff; font-size:11px; font-weight:600; text-shadow:0 1px 6px rgba(0,0,0,.6) }
+</style>
+</head>
+<body>
+<div class="page-h">
+  <div class="kick">Gaia Food · Design Lab</div>
+  <h1>Scheda produttore · sezione video — 7 varianti</h1>
+  <p>Obiettivo: un <b style="color:#fff">video principale</b> (la Presentazione) + un modo per <b style="color:#fff">scegliere/switchare</b> tra più video — anche più d'uno per categoria (Storia, Metodo). Esempio: Frantoio con 6 video (1 presentazione · 2 storia · 3 metodo).</p>
+  <div class="rule">Codice colore categorie: <b style="color:#7fd39a">Presentazione</b> · <b style="color:#d8b48a">Storia</b> · <b style="color:#8ed3f0">Metodo</b>. Dove c'è lo scorrimento orizzontale (swipe col dito) è indicato.</div>
+</div>
+<div class="grid" id="grid"></div>
+
+<script>
+const P = n => `../../assets/photos/${n}.png`;
+const PLAY = c => `<svg width="${c||20}" height="${c||20}" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+const CH = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+const DOTC = { pre:'var(--verde)', sto:'var(--terra-deep)', met:'var(--celeste-deep)' };
+
+const V = {
+  pre: [{t:'Benvenuti al frantoio', d:'2:10', img:'pascolo'}],
+  sto: [{t:'Tre generazioni', d:'3:40', img:'paesaggio'}, {t:"L'uliveto di famiglia", d:'2:05', img:'lavoro'}],
+  met: [{t:'La spremitura a freddo', d:'4:12', img:'olio'}, {t:'La raccolta a mano', d:'1:58', img:'grano'}, {t:"Dall'oliva all'olio", d:'3:20', img:'formaggio'}],
+};
+const ALL = [...V.pre.map(v=>({...v,c:'pre'})), ...V.sto.map(v=>({...v,c:'sto'})), ...V.met.map(v=>({...v,c:'met'}))];
+const CATLBL = { pre:'Presentazione', sto:'Storia', met:'Metodo' };
+const main = ALL[0];
+
+const CTX = `<div class="ctx"><div class="pn">Frantoio di Civitella</div><div class="pl">Civitella Alfedena · Alta Val di Sangro</div></div>`;
+const STORY = `<div class="story-teaser"><div class="l" style="width:92%"></div><div class="l" style="width:80%"></div><div class="l" style="width:60%"></div></div>`;
+const thumb = (v, cls='') => `<div class="th ${cls}"><img src="${P(v.img)}"><span class="d dur">${v.d}</span></div>`;
+
+const VARS = [
+{ t:'Player + carosello (swipe)', d:'Video principale grande; sotto una fila di miniature che scorri col dito. Tap = cambia il principale. La più semplice e chiara.',
+  h:`<div class="vp v1">${CTX}
+    <div class="sect"><span class="st">Guarda la visita</span><span class="cnt">6 video</span></div>
+    <div class="player"><img src="${P(main.img)}"><div class="scr"></div>
+      <span class="tag chipcat cat-pre">Presentazione</span>
+      <div class="play">${PLAY(24)}</div>
+      <div class="ov"><span class="tt">${main.t}</span><span class="dur">${main.d}</span></div></div>
+    <div class="swipe-h">‹ scorri le miniature ›</div>
+    <div class="rail">${ALL.map((v,i)=>`<div class="th ${i===0?'active':''}"><img src="${P(v.img)}"><span class="dot" style="background:${DOTC[v.c]}"></span><span class="d dur">${v.d}</span></div>`).join('')}</div>
+    ${STORY}</div>` },
+
+{ t:'Tab categoria + player', d:'In alto le 3 categorie (Presentazione/Storia/Metodo) con il numero di video. Scegli la categoria → parte il suo video; se la categoria ne ha più di uno, miniature sotto.',
+  h:`<div class="vp v2">${CTX}
+    <div class="sect"><span class="st">Guarda la visita</span><span class="cnt">6 video</span></div>
+    <div class="tabs">
+      <div class="tab active">Presentazione<span class="n">1 video</span></div>
+      <div class="tab">Storia<span class="n">2 video</span></div>
+      <div class="tab">Metodo<span class="n">3 video</span></div></div>
+    <div class="player"><img src="${P(main.img)}"><div class="scr"></div><div class="play">${PLAY(22)}</div><span class="tt">${main.t}</span></div>
+    <div class="subrail">${V.pre.map(v=>thumb(v,'active')).join('')}<div class="th" style="opacity:.35;display:flex;align-items:center;justify-content:center;background:var(--carta-scura)"><span style="font-size:11px;color:var(--muted)">solo 1</span></div></div>
+    ${STORY}</div>` },
+
+{ t:'Full-swipe (stile storie)', d:'Un solo grande riquadro verticale: scorri col dito da un video al successivo come le storie. Contatore 1/6, categoria e titolo in sovrimpressione. Immersivo.',
+  h:`<div class="vp v3">${CTX}
+    <div class="stage"><img src="${P(main.img)}"><div class="scr"></div>
+      <span class="tag chipcat cat-pre">Presentazione</span>
+      <span class="count">1 / 6</span>
+      <div class="play">${PLAY(26)}</div>
+      <span class="arrow l">${CH}</span><span class="arrow r">${CH}</span>
+      <div class="cap"><h3>${main.t}</h3><div class="d">${main.d} · tocca per riprodurre</div></div>
+      <div class="dots"><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div></div>
+    <div class="hint">scorri ← → per cambiare video</div>${STORY}</div>` },
+
+{ t:'Righe per categoria (Netflix)', d:'Presentazione come player principale; sotto una riga per ogni categoria ("La storia", "Il metodo") con le miniature che scorrono in orizzontale.',
+  h:`<div class="vp v4" style="overflow:auto">${CTX}
+    <div class="player"><img src="${P(main.img)}"><div class="scr"></div><span class="tag chipcat cat-pre">Presentazione</span><div class="play">${PLAY(22)}</div><span class="tt">${main.t}</span></div>
+    <div class="row-h">La storia</div>
+    <div class="rail">${V.sto.map(v=>`<div class="th"><img src="${P(v.img)}"><span class="pp play">${PLAY(14)}</span><span class="d dur">${v.d}</span></div>`).join('')}</div>
+    <div class="row-h">Il metodo</div>
+    <div class="rail">${V.met.map(v=>`<div class="th"><img src="${P(v.img)}"><span class="pp play">${PLAY(14)}</span><span class="d dur">${v.d}</span></div>`).join('')}</div>
+    <div style="height:14px"></div></div>` },
+
+{ t:'Player + lista capitoli', d:'Video principale in cima; sotto la lista di tutti i video raggruppati per categoria (con intestazioni). Ordinata, chiarissima, buona con tanti video.',
+  h:`<div class="vp v5">${CTX}
+    <div class="player"><img src="${P(main.img)}"><div class="scr"></div><div class="play">${PLAY(20)}</div><span class="tt">${main.t}</span></div>
+    <div class="list">
+      ${['pre','sto','met'].map(c=>`<div class="gh"><span class="bar" style="background:${DOTC[c]}"></span>${CATLBL[c]}</div>${V[c].map((v,i)=>`<div class="r ${c==='pre'&&i===0?'on':''}"><div class="th"><img src="${P(v.img)}"><span class="pp play">${PLAY(12)}</span></div><div class="tx"><b>${v.t}</b><span>${v.d}</span></div>${c==='pre'&&i===0?`<span class="chipcat cat-pre-s">In riproduzione</span>`:PLAY(16)}</div>`).join('')}`).join('')}
+    </div></div>` },
+
+{ t:'Mosaico bento', d:'La presentazione grande in alto, gli altri video come tessere più piccole in griglia. Tutto a vista, tap per aprire.',
+  h:`<div class="vp v6">${CTX}
+    <div class="sect"><span class="st">Guarda la visita</span><span class="cnt">6 video</span></div>
+    <div class="bento">
+      <div class="t big"><img src="${P(main.img)}"><div class="scr"></div><span class="tag chipcat cat-pre">Presentazione</span><span class="pp play">${PLAY(20)}</span><span class="tt">${main.t}</span></div>
+      ${ALL.slice(1).map(v=>`<div class="t"><img src="${P(v.img)}"><div class="scr"></div><span class="tag chipcat ${v.c==='sto'?'cat-sto':'cat-met'}">${CATLBL[v.c]}</span><span class="pp play">${PLAY(14)}</span><span class="d dur">${v.d}</span><span class="tt">${v.t}</span></div>`).join('')}
+    </div>${STORY}</div>` },
+
+{ t:'Filtro a chip + miniature', d:'Player principale; sotto i filtri (Tutti / Presentazione / Storia / Metodo) e le miniature filtrate che scorri in orizzontale. Flessibile.',
+  h:`<div class="vp v7">${CTX}
+    <div class="sect"><span class="st">Guarda la visita</span><span class="cnt">6 video</span></div>
+    <div class="player"><img src="${P(main.img)}"><div class="scr"></div><span class="tag chipcat cat-pre" style="position:absolute;top:12px;left:14px;z-index:2">Presentazione</span><div class="play">${PLAY(22)}</div><span class="tt">${main.t}</span></div>
+    <div class="chips"><span class="chip active">Tutti · 6</span><span class="chip">Presentazione</span><span class="chip">Storia</span><span class="chip">Metodo</span></div>
+    <div class="rail">${ALL.map(v=>`<div class="th"><img src="${P(v.img)}"><span class="tag chipcat ${v.c==='pre'?'cat-pre':v.c==='sto'?'cat-sto':'cat-met'}">${CATLBL[v.c][0]}</span><span class="d dur">${v.d}</span><span class="tt">${v.t}</span></div>`).join('')}</div>
+    ${STORY}</div>` },
+];
+
+const grid = document.getElementById('grid');
+VARS.forEach((v,i)=>{
+  const cell=document.createElement('div'); cell.className='cell';
+  cell.innerHTML=`<div class="cap"><span class="n">${String(i+1).padStart(2,'0')}</span><span class="t">${v.t}</span></div>
+    <div class="desc">${v.d}</div>
+    <div class="phone"><div class="screen">${v.h}</div></div>`;
+  grid.appendChild(cell);
+});
+</script>
+</body>
+</html>

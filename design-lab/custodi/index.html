@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaia Food · Tab "I Custodi di Gaia" — 6 varianti</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --carta:#F4F1EB; --carta-scura:#EDE6DA; --bianco:#FBF9F5; --canvas:#E7DECF;
+  --ink:#1F1812; --ink-soft:#564B41; --muted:#75695B; --muted2:#8A7D6C; --faint:#A89A87; --faint2:#BCAE9B;
+  --verde:#16A34A; --verde-deep:#15803D; --verde-pale:#E7F5EC; --verde-light:#22C55E;
+  --celeste:#0EA5E9; --celeste-deep:#0C7FB0; --celeste-pale:#E2F2F9;
+  --terra:#C2A07A; --terra-deep:#8C6838; --terra-pale:#F3E9D9;
+  --bd:#ECE4D7; --bd2:#E5DCCF; --bd3:#E0D7C8;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+  --sh-card:0 1px 2px rgba(31,24,18,.05),0 14px 30px -18px rgba(31,24,18,.4);
+  --grad:linear-gradient(135deg,#16A34A,#0EA5E9);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{ font-family:var(--sans); background:#211d18; color:#efe7db; padding:34px 22px 80px; }
+.page-h{ max-width:1200px; margin:0 auto 30px; }
+.page-h .kick{ font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:#c8a86f; font-weight:700; }
+.page-h h1{ font-family:var(--serif); font-size:33px; font-weight:600; letter-spacing:-.02em; margin-top:8px; color:#fff; }
+.page-h p{ font-size:14px; line-height:1.6; color:#c3b7a6; margin-top:12px; max-width:78ch; }
+.page-h .rule{ margin-top:14px; padding:12px 16px; background:#2c261f; border:1px solid #3a332a; border-radius:12px; font-size:13px; color:#d8ccbb; max-width:78ch; }
+.page-h .rule b{ color:#7fd39a; }
+.grid{ max-width:1240px; margin:0 auto; display:flex; flex-wrap:wrap; gap:34px 30px; justify-content:center; }
+.cell{ width:340px; }
+.cell .cap{ display:flex; align-items:baseline; gap:9px; margin:0 4px 6px; }
+.cell .cap .n{ font-family:var(--serif); font-size:20px; font-weight:600; color:#fff; }
+.cell .cap .t{ font-size:13px; font-weight:600; color:#eadfce; }
+.cell .desc{ font-size:12px; color:#9c8f7d; margin:0 4px 12px; line-height:1.45; }
+.phone{ width:340px; height:740px; border-radius:44px; padding:11px; background:linear-gradient(160deg,#3a332a,#191510); box-shadow:0 40px 80px -30px rgba(0,0,0,.8); }
+.screen{ position:relative; width:100%; height:100%; border-radius:34px; overflow:hidden; background:var(--carta); }
+.vp{ position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden; font-family:var(--sans); }
+.body{ flex:1; overflow:hidden; position:relative; }
+.scroll{ position:absolute; inset:0; overflow:auto; padding:14px 16px 10px; }
+
+/* bottom nav con la NUOVA tab */
+.nav{ flex:none; display:flex; border-top:1px solid var(--bd); background:var(--bianco); padding:9px 6px calc(9px + 6px); }
+.nav a{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:10px; font-weight:600; color:var(--muted2); }
+.nav a.on{ color:var(--verde-deep); }
+.nav a svg{ display:block; }
+.nav a .nb{ position:relative; }
+.nav a .seeddot{ position:absolute; top:-3px; right:-6px; width:7px; height:7px; border-radius:50%; background:var(--verde); }
+
+/* elementi comuni */
+.eyebrow{ font-size:10.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--verde-deep); }
+.h1{ font-family:var(--serif); font-size:27px; font-weight:600; letter-spacing:-.02em; color:var(--ink); line-height:1.08; }
+.h1 em{ font-style:italic; color:var(--verde); }
+.card{ background:var(--bianco); border:1px solid var(--bd); border-radius:18px; padding:15px; box-shadow:var(--sh-card); }
+.sect-t{ font-family:var(--serif); font-size:16px; font-weight:600; color:var(--ink); }
+.share{ display:flex; align-items:center; gap:9px; width:100%; justify-content:center; padding:14px; border-radius:14px; background:var(--grad); color:#fff; font-weight:600; font-size:14.5px; box-shadow:0 12px 26px -12px rgba(22,163,74,.6); }
+.linkrow{ display:flex; align-items:center; gap:8px; background:var(--carta); border:1px dashed var(--bd3); border-radius:12px; padding:10px 12px; font-size:13px; color:var(--ink-soft); }
+.linkrow .lk{ flex:1; font-weight:600; color:var(--verde-deep); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.linkrow .cp{ font-size:11px; font-weight:700; color:var(--muted); }
+svg{display:block}
+.state{ font-size:10px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; padding:3px 8px; border-radius:100px; }
+.st-seme{ color:var(--muted2); background:var(--carta-scura); }
+.st-germ{ color:var(--terra-deep); background:var(--terra-pale); }
+.st-rad{ color:var(--verde-deep); background:var(--verde-pale); }
+.person{ display:flex; align-items:center; gap:11px; padding:9px 0; border-bottom:1px solid var(--bd2); }
+.person:last-child{ border-bottom:none; }
+.person .av{ width:36px; height:36px; border-radius:50%; background:var(--verde-pale); color:var(--verde-deep); display:flex; align-items:center; justify-content:center; font-weight:700; font-family:var(--serif); flex:none; }
+.person .pn{ flex:1; } .person .pn b{ font-size:14px; font-weight:600; color:var(--ink); display:block; } .person .pn span{ font-size:11.5px; color:var(--muted); }
+.levelbar{ height:9px; border-radius:100px; background:var(--carta-scura); overflow:hidden; }
+.levelbar i{ display:block; height:100%; border-radius:100px; background:var(--grad); }
+
+/* ===== V1 — giardino ===== */
+.v1 .hero{ background:linear-gradient(160deg,#eaf6ee,#e3f0f6); border-radius:18px; padding:18px 16px; text-align:center; }
+.v1 .hero .big{ font-size:40px; } .v1 .hero h1{ font-family:var(--serif); font-size:23px; font-weight:600; color:var(--ink); margin-top:4px; } .v1 .hero p{ font-size:12.5px; color:var(--muted); margin-top:5px; }
+.v1 .garden{ display:flex; justify-content:space-around; margin:14px 0 4px; }
+.v1 .plant{ text-align:center; } .v1 .plant .e{ font-size:30px; } .v1 .plant b{ display:block; font-size:15px; font-weight:700; color:var(--ink); margin-top:2px; } .v1 .plant span{ font-size:10px; color:var(--muted2); }
+.v1 .creditbox{ display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+.v1 .creditbox .c{ font-family:var(--serif); font-size:26px; font-weight:600; color:var(--verde-deep); }
+
+/* ===== V2 — card essenziale ===== */
+.v2 .sub{ font-size:13px; color:var(--muted); margin-top:5px; line-height:1.5; }
+.v2 .metro{ display:flex; gap:10px; margin-top:2px; }
+.v2 .metro .m{ flex:1; text-align:center; padding:12px 6px; } .v2 .metro .m b{ font-family:var(--serif); font-size:21px; color:var(--ink); display:block; } .v2 .metro .m span{ font-size:10.5px; color:var(--muted); }
+.v2 .metro .m+.m{ border-left:1px solid var(--bd2); }
+
+/* ===== V3 — wallet/finance ===== */
+.v3 .wallet{ background:var(--ink); color:#fff; border-radius:20px; padding:18px; }
+.v3 .wallet .lab{ font-size:11px; letter-spacing:.1em; text-transform:uppercase; opacity:.7; }
+.v3 .wallet .amt{ font-family:var(--serif); font-size:38px; font-weight:600; margin-top:4px; }
+.v3 .wallet .amt small{ font-size:18px; opacity:.7; }
+.v3 .wallet .goal{ margin-top:12px; font-size:12px; opacity:.9; }
+.v3 .wallet .lb{ height:7px; border-radius:100px; background:rgba(255,255,255,.2); margin-top:7px; overflow:hidden; } .v3 .wallet .lb i{ display:block; height:100%; background:var(--verde-light); border-radius:100px; }
+.v3 .kpis{ display:flex; gap:10px; margin-top:12px; }
+.v3 .kpi{ flex:1; background:var(--bianco); border:1px solid var(--bd); border-radius:14px; padding:12px; text-align:center; } .v3 .kpi b{ font-family:var(--serif); font-size:20px; color:var(--ink); display:block; } .v3 .kpi span{ font-size:10.5px; color:var(--muted); }
+
+/* ===== V4 — onboarding (0 semi) ===== */
+.v4 .scroll{ text-align:center; }
+.v4 .ill{ font-size:56px; margin:14px 0 4px; }
+.v4 h1{ font-family:var(--serif); font-size:26px; font-weight:600; color:var(--ink); } .v4 h1 em{ font-style:italic; color:var(--verde); }
+.v4 .lead{ font-size:13.5px; color:var(--muted); margin:9px auto 0; max-width:30ch; line-height:1.55; }
+.v4 .steps{ text-align:left; margin-top:16px; display:flex; flex-direction:column; gap:11px; }
+.v4 .step{ display:flex; gap:12px; align-items:flex-start; }
+.v4 .step .no{ width:26px;height:26px;border-radius:50%;background:var(--verde-pale);color:var(--verde-deep);font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex:none; }
+.v4 .step b{ font-size:13.5px; color:var(--ink); } .v4 .step p{ font-size:12px; color:var(--muted); margin-top:1px; }
+
+/* ===== V5 — livelli/gamification ===== */
+.v5 .lvhead{ text-align:center; padding:6px 0 10px; }
+.v5 .lvhead .badge{ font-size:34px; } .v5 .lvhead .cur{ font-family:var(--serif); font-size:22px; font-weight:600; color:var(--ink); margin-top:2px; } .v5 .lvhead .nx{ font-size:12px; color:var(--muted); margin-top:3px; }
+.v5 .path{ display:flex; flex-direction:column; gap:0; margin:8px 0; }
+.v5 .node{ display:flex; align-items:center; gap:12px; position:relative; padding:8px 0; }
+.v5 .node .dot{ width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none;z-index:2; }
+.v5 .node .rail{ position:absolute; left:15px; top:0; bottom:-8px; width:2px; background:var(--bd2); z-index:1; } .v5 .node:last-child .rail{ display:none; }
+.v5 .node.done .dot{ background:var(--verde); color:#fff; } .v5 .node.cur .dot{ background:#fff; border:2px solid var(--verde); color:var(--verde-deep); box-shadow:0 0 0 4px var(--verde-pale); } .v5 .node.todo .dot{ background:var(--carta-scura); color:var(--faint); }
+.v5 .node .tx b{ font-size:14px; font-weight:600; color:var(--ink); } .v5 .node .tx span{ font-size:11px; color:var(--muted); display:block; }
+.v5 .node.todo .tx b{ color:var(--muted2); }
+
+/* ===== V6 — toggle cliente/produttore ===== */
+.v6 .seg{ display:flex; background:var(--carta-scura); border-radius:100px; padding:4px; gap:4px; }
+.v6 .seg b{ flex:1; text-align:center; font-size:12.5px; font-weight:600; padding:9px; border-radius:100px; color:var(--muted); }
+.v6 .seg b.on{ background:#fff; color:var(--verde-deep); box-shadow:var(--sh-card); }
+.v6 .rewardcard{ background:linear-gradient(135deg,var(--verde-pale),var(--celeste-pale)); border:1px solid var(--verde-pale); border-radius:18px; padding:16px; }
+.v6 .rewardcard .lab{ font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--verde-deep); }
+.v6 .rewardcard .big{ font-family:var(--serif); font-size:20px; font-weight:600; color:var(--ink); margin-top:5px; line-height:1.2; }
+.v6 .rewardcard.prod{ background:linear-gradient(135deg,#eef7f0,#f3ece2); }
+</style>
+</head>
+<body>
+<div class="page-h">
+  <div class="kick">Gaia Food · Design Lab</div>
+  <h1>Nuova tab "I Custodi di Gaia" — 6 varianti</h1>
+  <p>Il sistema referral "a semi": inviti persone (semi) → maturano (germoglio → radicato) → sblocchi ricompensa. Vista mostrata = <b style="color:#fff">Custode-Cliente</b> (credito · "5 radicati = rinnovo gratis"); la stessa tab si adatta al <b style="color:#fff">Custode-Produttore</b> (commissione ~20%).</p>
+  <div class="rule">Dati d'esempio: Marco, livello <b>Custode</b> (2 radicati), <b>€16</b> di credito, 4 persone portate. In fondo a ogni telefono vedi la tab <b>Custodi</b> nella barra di navigazione.</div>
+</div>
+<div class="grid" id="grid"></div>
+
+<script>
+const S = {
+  seed: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c0-6 3-9 9-9-1 6-4 9-9 9Z"/><path d="M12 22C6 22 3 19 3 13c6 0 9 3 9 9Z"/><path d="M12 22V9"/></svg>',
+  share: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>',
+  compass: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5 5-2Z"/></svg>',
+  bookmark: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/></svg>',
+  user: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>',
+};
+const NAV = `<nav class="nav">
+  <a>${S.compass}Scopri</a>
+  <a class="on"><span class="nb">${S.seed}<span class="seeddot"></span></span>Custodi</a>
+  <a>${S.bookmark}Salvati</a>
+  <a>${S.user}Tu</a></nav>`;
+const LINK = `<div class="linkrow">${S.seed}<span class="lk">gaia.food/semina/marco</span><span class="cp">COPIA</span></div>`;
+const PEOPLE = [
+  { n:'Giulia', s:'rad', t:'Radicato · +€8/anno' },
+  { n:'Luca', s:'rad', t:'Radicato · +€8/anno' },
+  { n:'Anna', s:'germ', t:'Germoglio · in maturazione' },
+  { n:'Sara', s:'seme', t:'Seme · appena iscritta' },
+];
+const SLAB = { seme:'Seme', germ:'Germoglio', rad:'Radicato' };
+const person = p => `<div class="person"><span class="av">${p.n[0]}</span><div class="pn"><b>${p.n}</b><span>${p.t}</span></div><span class="state st-${p.s}">${SLAB[p.s]}</span></div>`;
+
+const V = [
+{ t:'Giardino', d:'Metafora "a semi" in primo piano: le tue persone come piante che crescono (seme→germoglio→radicato). Caldo, on-brand, molto Gaia.',
+  h:`<div class="vp v1"><div class="body"><div class="scroll">
+    <div class="hero"><div class="big">🌱</div><h1>Il tuo giardino</h1><p>Non porti clienti: pianti semi. Ogni persona che entra è un seme che curi.</p></div>
+    <div class="garden">
+      <div class="plant"><div class="e">🌳</div><b>2</b><span>Radicati</span></div>
+      <div class="plant"><div class="e">🌿</div><b>1</b><span>Germogli</span></div>
+      <div class="plant"><div class="e">🌱</div><b>1</b><span>Semi</span></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <div class="creditbox"><div><div class="eyebrow">Credito maturato</div><div class="c">€16</div></div><div style="text-align:right"><div style="font-size:11px;color:var(--muted)">al traguardo</div><b style="font-family:var(--serif);color:var(--ink)">2/5</b></div></div>
+      <div class="levelbar" style="margin-top:8px"><i style="width:40%"></i></div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:7px">Ancora <b style="color:var(--verde-deep)">3 radicati</b> e il tuo anno è gratis.</div>
+    </div>
+    <div style="margin:14px 0 6px" class="share">${S.share} Pianta un seme · invita</div>
+    ${LINK}
+  </div></div>${NAV}</div>` },
+
+{ t:'Card essenziale', d:'Pulita e diretta: titolo, "il tuo seme" (link+condividi), 3 numeri chiave, lista persone con stato. La più leggibile e veloce da capire.',
+  h:`<div class="vp v2"><div class="body"><div class="scroll">
+    <div class="eyebrow">I Custodi di Gaia</div>
+    <div class="h1" style="margin-top:5px">Porta chi ami <em>nel cerchio.</em></div>
+    <div class="sub">Inviti una persona, lei mette radici, tu ricevi. Una fetta torna al territorio.</div>
+    <div class="card" style="margin-top:14px"><div class="sect-t" style="margin-bottom:9px">Il tuo seme</div>${LINK}<div class="share" style="margin-top:10px">${S.share} Condividi il tuo link</div></div>
+    <div class="card metro" style="margin-top:11px;padding:4px 4px">
+      <div class="m"><b>€16</b><span>Credito</span></div><div class="m"><b>2</b><span>Radicati</span></div><div class="m"><b>4</b><span>Portate</span></div>
+    </div>
+    <div class="card" style="margin-top:11px"><div class="sect-t" style="margin-bottom:6px">Le tue persone</div>${PEOPLE.map(person).join('')}</div>
+  </div></div>${NAV}</div>` },
+
+{ t:'Wallet / finanziaria', d:'Stile portafoglio: grande saldo credito su carta scura, traguardo "5 = gratis", KPI. Fa sentire concreta la ricompensa. Ottima anche per il produttore (commissione).',
+  h:`<div class="vp v3"><div class="body"><div class="scroll">
+    <div class="eyebrow" style="margin-bottom:10px">I Custodi di Gaia</div>
+    <div class="wallet"><div class="lab">Credito maturato</div><div class="amt">€16<small>/anno</small></div>
+      <div class="goal">A <b>5 radicati</b> il rinnovo è gratis — sei a 2.</div><div class="lb"><i style="width:40%"></i></div></div>
+    <div class="kpis"><div class="kpi"><b>4</b><span>Persone portate</span></div><div class="kpi"><b>2</b><span>Radicate</span></div><div class="kpi"><b>Custode</b><span>Livello</span></div></div>
+    <div class="share" style="margin:13px 0 10px">${S.share} Invita e fai crescere il credito</div>
+    ${LINK}
+    <div class="card" style="margin-top:12px"><div class="sect-t" style="margin-bottom:6px">Movimenti</div>${PEOPLE.map(person).join('')}</div>
+  </div></div>${NAV}</div>` },
+
+{ t:'Onboarding (0 semi)', d:'Come appare a un nuovo Custode: illustrazione + promessa + i 5 passi + grande CTA condividi. Serve ad ATTIVARE chi non ha ancora invitato nessuno.',
+  h:`<div class="vp v4"><div class="body"><div class="scroll">
+    <div class="ill">🌱</div>
+    <h1>Non porti clienti.<br><em>Pianti semi.</em></h1>
+    <p class="lead">Invita chi ami: quando mette radici in Gaia, tu ricevi una ricompensa. E una fetta torna al territorio.</p>
+    <div class="steps">
+      <div class="step"><span class="no">1</span><div><b>Condividi il tuo seme</b><p>Un link personale, dal tuo profilo.</p></div></div>
+      <div class="step"><span class="no">2</span><div><b>La persona entra</b><p>Si iscrive col tuo seme e riceve un benvenuto riservato.</p></div></div>
+      <div class="step"><span class="no">3</span><div><b>Mette radici</b><p>Dopo il primo acquisto o ~2 mesi di attività.</p></div></div>
+      <div class="step"><span class="no">4</span><div><b>Tu ricevi</b><p>Credito ricorrente finché resta attiva. 5 radicati = anno gratis.</p></div></div>
+    </div>
+    <div class="share" style="margin:16px 0 8px">${S.share} Pianta il tuo primo seme</div>
+  </div></div>${NAV}</div>` },
+
+{ t:'Livelli / percorso', d:'La progressione come un cammino: Seme → Custode → del Borgo → del Territorio, con la tua posizione. Gamification, spinge a salire.',
+  h:`<div class="vp v5"><div class="body"><div class="scroll">
+    <div class="lvhead"><div class="badge">🌿</div><div class="cur">Custode</div><div class="nx">2 radicati · a <b>5</b> diventi Custode del Borgo</div>
+      <div class="levelbar" style="margin:10px 12px 0"><i style="width:40%"></i></div></div>
+    <div class="card"><div class="path">
+      <div class="node done"><span class="rail"></span><span class="dot">🌱</span><div class="tx"><b>Seme</b><span>Il punto di partenza</span></div></div>
+      <div class="node cur"><span class="rail"></span><span class="dot">🌿</span><div class="tx"><b>Custode · sei qui</b><span>Offerte riservate + credito</span></div></div>
+      <div class="node todo"><span class="rail"></span><span class="dot">🌳</span><div class="tx"><b>Custode del Borgo · 5</b><span>Rinnovo gratis + eventi</span></div></div>
+      <div class="node todo"><span class="dot">🏆</span><div class="tx"><b>Custode del Territorio · 15</b><span>Tasso maggiorato + ruolo</span></div></div>
+    </div></div>
+    <div class="share" style="margin:13px 0 10px">${S.share} Invita per salire di livello</div>
+    ${LINK}
+  </div></div>${NAV}</div>` },
+
+{ t:'Toggle cliente/produttore', d:'Un interruttore in alto: "Sono cliente / Sono produttore" cambia la ricompensa mostrata (credito vs commissione). Rende esplicita la doppia natura che dicevi.',
+  h:`<div class="vp v6"><div class="body"><div class="scroll">
+    <div class="eyebrow" style="margin-bottom:9px">I Custodi di Gaia</div>
+    <div class="seg"><b class="on">Sono cliente</b><b>Sono produttore</b></div>
+    <div class="rewardcard" style="margin-top:12px"><div class="lab">La tua ricompensa</div><div class="big">€8 di credito all'anno per ogni persona attiva · a 5, il rinnovo è gratis.</div></div>
+    <div class="card metro" style="margin-top:11px;padding:4px 4px">
+      <div class="m"><b>€16</b><span>Credito</span></div><div class="m"><b>2</b><span>Radicati</span></div><div class="m"><b>Custode</b><span>Livello</span></div>
+    </div>
+    <div class="share" style="margin:12px 0 10px">${S.share} Condividi il tuo seme</div>
+    ${LINK}
+    <div class="card" style="margin-top:12px"><div class="sect-t" style="margin-bottom:6px">Le tue persone</div>${PEOPLE.slice(0,3).map(person).join('')}</div>
+  </div></div>${NAV}</div>` },
+];
+
+const grid=document.getElementById('grid');
+V.forEach((v,i)=>{
+  const cell=document.createElement('div'); cell.className='cell';
+  cell.innerHTML=`<div class="cap"><span class="n">${String(i+1).padStart(2,'0')}</span><span class="t">${v.t}</span></div>
+    <div class="desc">${v.d}</div><div class="phone"><div class="screen">${v.h}</div></div>`;
+  grid.appendChild(cell);
+});
+</script>
+</body>
+</html>

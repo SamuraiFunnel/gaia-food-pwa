@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hub · Cosa vuoi fare? — scegli la variante · Gaia Food</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --carta:#F4F1EB; --quasi-bianco:#FBF9F5; --inchiostro:#1F1812;
+    --verde:#16A34A; --verde-deep:#15803D; --celeste:#0EA5E9;
+    --terra:#C2A07A; --terra-deep:#8C6838;
+    --azione:linear-gradient(135deg,#16A34A,#0EA5E9);
+    --linea:rgba(31,24,18,.10);
+    --ombra:0 1px 2px rgba(31,24,18,.04),0 12px 32px -12px rgba(31,24,18,.16);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    color:var(--inchiostro);
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(14,165,233,.06), transparent 60%),
+      radial-gradient(900px 500px at -5% 10%, rgba(22,163,74,.07), transparent 55%),
+      var(--carta);
+    min-height:100vh;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    max-width:1280px;margin:0 auto;
+    padding:48px 32px 8px;
+  }
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--verde-deep);
+    padding:6px 12px;border-radius:999px;
+    background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.16);
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--azione)}
+  h1{
+    font-family:'Fraunces',Georgia,serif;
+    font-weight:500;
+    font-size:clamp(30px,4.4vw,52px);
+    line-height:1.06;letter-spacing:-.01em;
+    margin:18px 0 12px;max-width:18ch;
+  }
+  h1 em{font-style:italic;color:var(--verde-deep)}
+  .lede{
+    font-size:clamp(15px,1.5vw,18px);color:rgba(31,24,18,.66);
+    max-width:62ch;
+  }
+  .meta-row{
+    display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;
+    margin-top:22px;
+    font-size:13px;color:rgba(31,24,18,.55);
+  }
+  .pill{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:6px 12px;border-radius:999px;
+    background:var(--quasi-bianco);border:1px solid var(--linea);
+    font-weight:500;color:rgba(31,24,18,.7);
+  }
+  .pill b{color:var(--inchiostro);font-weight:600}
+  .pill svg{flex:0 0 auto}
+
+  /* ---------- GALLERY GRID ---------- */
+  main{
+    max-width:1280px;margin:0 auto;
+    padding:28px 32px 80px;
+  }
+  .grid{
+    display:grid;gap:28px;
+    grid-template-columns:repeat(auto-fill,minmax(380px,1fr));
+  }
+  .card{
+    background:var(--quasi-bianco);
+    border:1px solid var(--linea);
+    border-radius:20px;
+    overflow:hidden;
+    box-shadow:var(--ombra);
+    display:flex;flex-direction:column;
+    transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+  }
+  .card:hover{
+    transform:translateY(-3px);
+    box-shadow:0 1px 2px rgba(31,24,18,.05),0 26px 50px -18px rgba(31,24,18,.26);
+    border-color:rgba(22,163,74,.28);
+  }
+  .card-head{
+    padding:20px 22px 14px;
+    border-bottom:1px solid var(--linea);
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .card-tag-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .vbadge{
+    font-family:'Inter',sans-serif;
+    font-size:12px;font-weight:700;letter-spacing:.06em;
+    color:#fff;background:var(--azione);
+    padding:5px 10px;border-radius:8px;
+    box-shadow:0 4px 12px -4px rgba(14,165,233,.5);
+  }
+  .card-title{
+    font-family:'Fraunces',Georgia,serif;
+    font-weight:500;font-size:21px;line-height:1.15;letter-spacing:-.005em;
+  }
+  .card-desc{
+    font-size:14px;color:rgba(31,24,18,.66);
+    padding:0 22px;margin-top:14px;
+    min-height:62px;
+  }
+  .card-desc b{color:var(--inchiostro);font-weight:600}
+
+  /* ---------- PREVIEW (iframe) ---------- */
+  .preview-shell{
+    margin:16px 14px 0;
+    border-radius:14px;
+    border:1px solid var(--linea);
+    background:
+      linear-gradient(180deg, rgba(31,24,18,.025), rgba(31,24,18,.05));
+    overflow:hidden;
+    position:relative;
+  }
+  .preview-bar{
+    display:flex;align-items:center;gap:8px;
+    padding:9px 12px;
+    background:var(--quasi-bianco);
+    border-bottom:1px solid var(--linea);
+  }
+  .dots{display:flex;gap:6px}
+  .dots span{width:9px;height:9px;border-radius:50%;background:rgba(31,24,18,.16)}
+  .dots span:nth-child(1){background:#E8896B}
+  .dots span:nth-child(2){background:#E8C36B}
+  .dots span:nth-child(3){background:#7FC08A}
+  .preview-url{
+    font-size:11px;color:rgba(31,24,18,.45);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .frame-wrap{
+    position:relative;
+    height:560px;
+    background:repeating-conic-gradient(rgba(31,24,18,.03) 0% 25%, transparent 0% 50%) 50%/22px 22px;
+  }
+  iframe{
+    width:100%;height:100%;border:0;display:block;background:var(--carta);
+  }
+  .frame-note{
+    position:absolute;left:12px;bottom:12px;z-index:2;
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:11px;font-weight:600;color:rgba(31,24,18,.6);
+    background:rgba(251,249,245,.92);
+    border:1px solid var(--linea);
+    padding:5px 9px;border-radius:999px;
+    backdrop-filter:blur(4px);
+    pointer-events:none;
+  }
+  .frame-note .ico{width:13px;height:13px}
+
+  /* ---------- CARD FOOT ---------- */
+  .card-foot{
+    margin-top:auto;
+    padding:16px 18px 18px;
+    display:flex;gap:10px;align-items:center;
+  }
+  .btn{
+    flex:1;
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    font-family:'Inter',sans-serif;
+    font-size:14px;font-weight:600;
+    text-decoration:none;cursor:pointer;
+    padding:11px 16px;border-radius:11px;border:1px solid transparent;
+    transition:transform .15s ease, box-shadow .2s ease, background .2s ease;
+  }
+  .btn-primary{
+    color:#fff;background:var(--azione);
+    box-shadow:0 8px 20px -8px rgba(14,165,233,.55);
+  }
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 12px 26px -8px rgba(14,165,233,.6)}
+  .btn-ghost{
+    flex:0 0 auto;
+    color:var(--inchiostro);background:var(--quasi-bianco);
+    border:1px solid var(--linea);
+    width:46px;padding:11px 0;
+  }
+  .btn-ghost:hover{border-color:rgba(22,163,74,.3);color:var(--verde-deep)}
+
+  footer.foot{
+    max-width:1280px;margin:0 auto;
+    padding:0 32px 64px;
+    font-size:13px;color:rgba(31,24,18,.5);
+  }
+  footer.foot hr{border:0;border-top:1px solid var(--linea);margin:0 0 22px}
+  footer.foot code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:12px;background:var(--quasi-bianco);
+    border:1px solid var(--linea);border-radius:6px;padding:2px 6px;
+    color:rgba(31,24,18,.7);
+  }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width:760px){
+    header{padding:32px 18px 4px}
+    main{padding:20px 18px 56px}
+    .grid{grid-template-columns:1fr;gap:22px}
+    .frame-wrap{height:520px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important}
+    .card:hover,.btn:hover{transform:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="eyebrow"><span class="dot"></span>Gaia Food · Design Lab</span>
+  <h1>Hub · Cosa vuoi <em>fare?</em><br>— scegli la variante</h1>
+  <p class="lede">Sei trattamenti dello stesso Hub d'ingresso: la <b>prima azione protagonista</b> (Trova un produttore) e le altre due nello stesso stile hero ma <b>bloccate</b> (velo, desaturazione, blur, trasparenza, lucchetto + badge In arrivo). Tutte responsive su mobile e desktop, con sezione "scarica l'app".</p>
+
+  <div class="meta-row">
+    <span class="pill">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg>
+      <b>6</b> varianti
+    </span>
+    <span class="pill">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" stroke-width="2.2"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>
+      Mobile ~390px
+    </span>
+    <span class="pill">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8C6838" stroke-width="2.2"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Desktop ≥1024px
+    </span>
+    <span class="pill">3 immagini hero · <b>assets ✓</b></span>
+  </div>
+</header>
+
+<main>
+  <div class="grid" id="grid"></div>
+</main>
+
+<footer class="foot">
+  <hr>
+  <p>Anteprime live in <code>iframe</code> — ognuna apribile a schermo intero. File in <code>app/design-lab/hub/</code>, immagini in <code>./assets/</code> (trova.jpg · ricevi.jpg · percorso.jpg). Token brand da <code>../../css/app.css</code>.</p>
+</footer>
+
+<script>
+  const VARIANTS = [
+    {
+      n:'V1', file:'V1-velo-scuro.html', title:'Velo scuro',
+      desc:'Le card bloccate restano hero a tutta foto ma sotto un <b>velo scuro caldo</b> (overlay inchiostro). Lucchetto e badge “In arrivo” in alto, testo ancora leggibile. Effetto sobrio, premium, notturno.'
+    },
+    {
+      n:'V2', file:'V2-desaturate.html', title:'Desaturate',
+      desc:'Foto delle bloccate <b>desaturate in grayscale</b> con leggera tinta terra: la prima resta a colori pieni e “salta fuori”. Contrasto cromatico = gerarchia immediata, molto editoriale.'
+    },
+    {
+      n:'V3', file:'V3-blur-glass.html', title:'Blur · Glass',
+      desc:'Le hero bloccate hanno la foto <b>sfocata dietro un pannello glass</b> (frosted). Lucchetto al centro, badge “In arrivo”. Si intuisce l’immagine ma resta chiaramente non ancora attiva.'
+    },
+    {
+      n:'V4', file:'V4-trasparenza.html', title:'Trasparenza',
+      desc:'Foto a colori ma <b>in trasparenza / fade</b> verso la carta: le bloccate sembrano “in dissolvenza”, presenti ma non ancora qui. Trattamento leggero e arioso, niente scurimento.'
+    },
+    {
+      n:'V5', file:'V5-desktop-store.html', title:'Desktop · Store',
+      desc:'Focus sulla <b>web app vera su desktop</b> (largo, non finto-telefono) con pannello <b>“scarica l’app”</b> in evidenza: badge App Store / Google Play + QR placeholder. Bloccate in stile hero attenuato.'
+    },
+    {
+      n:'V6', file:'V6-editoriale.html', title:'Editoriale',
+      desc:'Impaginato da <b>rivista</b>: tipografia Fraunces grande, hero protagonista a piena larghezza e bloccate come “coming soon” editoriali (velo + lucchetto + In arrivo) in colonna affiancata.'
+    }
+  ];
+
+  const grid = document.getElementById('grid');
+  const lockIco = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+  const phoneIco = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg>';
+
+  VARIANTS.forEach(v=>{
+    const el = document.createElement('article');
+    el.className = 'card';
+    el.innerHTML = `
+      <div class="card-head">
+        <div class="card-tag-row">
+          <span class="vbadge">${v.n}</span>
+          <span class="card-title">${v.title}</span>
+        </div>
+      </div>
+      <p class="card-desc">${v.desc}</p>
+      <div class="preview-shell">
+        <div class="preview-bar">
+          <span class="dots"><span></span><span></span><span></span></span>
+          <span class="preview-url">hub/${v.file}</span>
+        </div>
+        <div class="frame-wrap">
+          <iframe loading="lazy" title="Anteprima ${v.n} — ${v.title}" src="${v.file}"></iframe>
+          <span class="frame-note">${phoneIco} anteprima — apri full per il desktop</span>
+        </div>
+      </div>
+      <div class="card-foot">
+        <a class="btn btn-primary" href="${v.file}" target="_blank" rel="noopener">
+          Apri a schermo intero
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M7 17L17 7M17 7H8M17 7v9"/></svg>
+        </a>
+        <a class="btn btn-ghost" href="${v.file}" title="Apri in questa scheda" aria-label="Apri in questa scheda">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+        </a>
+      </div>
+    `;
+    grid.appendChild(el);
+  });
+</script>
+
+</body>
+</html>

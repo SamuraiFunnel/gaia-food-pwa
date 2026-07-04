@@ -1,0 +1,106 @@
+/* ===========================================================
+   GAIA FOOD APP — Layer "polish" (caricato DOPO desktop.css)
+   Micro-rifiniture UX che NON appartengono ad app.css / desktop.css:
+   - focus ring accessibile sugli interattivi (tastiera)
+   - hover states su desktop (la app è mobile-first, mancavano)
+   - larghezze massime di lettura dove il testo è troppo lungo
+   - allineamento Hub/cards
+   Usa SOLO i token gia' definiti in app.css (var(--...)). Niente !important
+   se non per vincere specificita' inline gia' presente nell'HTML.
+   =========================================================== */
+
+/* ---- 1. Focus visibile (accessibilita' tastiera) -------------------
+   Anelli morbidi nei colori brand, solo su :focus-visible (mouse non
+   mostra l'anello). Copre link, bottoni, input, card-link e chip. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--verde);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* elementi gia' arrotondati: anello che segue il raggio, senza tagli */
+.btn:focus-visible,
+.chip:focus-visible,
+.pcard:focus-visible,
+.hubcard:focus-visible,
+.iconbtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bianco), 0 0 0 4px var(--verde);
+}
+.iconbtn:focus-visible { border-radius: 50%; }
+
+/* ---- 2. Hover states (desktop, dispositivi con puntatore fine) ------
+   Solo dove c'e' un puntatore: niente sticky-hover su touch. */
+@media (hover: hover) and (pointer: fine) {
+  .btn { transition: transform .12s ease, box-shadow .12s ease, filter .12s ease; }
+  .btn:hover { filter: brightness(1.03); }
+  .btn-grad:hover { box-shadow: 0 10px 24px -8px rgba(22, 163, 74, .7); }
+  .btn-outline:hover { border-color: var(--verde); color: var(--verde-deep); }
+  .btn:active { transform: translateY(1px); }
+
+  .pcard { transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease; }
+  a.pcard:hover,
+  button.pcard:hover { border-color: var(--bd3); box-shadow: var(--sh-card); transform: translateY(-1px); }
+
+  .hubcard { transition: transform .16s ease, box-shadow .16s ease; }
+  .hubcard.active:hover { transform: translateY(-2px); box-shadow: var(--sh-hero); }
+  .hubcard.soon:hover { transform: translateY(-1px); box-shadow: var(--sh-card); }
+
+  .chip { transition: background .12s ease, border-color .12s ease; }
+  .chip:not(.active):hover { border-color: var(--terra); }
+
+  .iconbtn { transition: background .12s ease, border-color .12s ease; }
+  .iconbtn:hover { background: var(--carta-scura); }
+}
+
+/* ---- 3. Cursore corretto sui card-bottone (Profilo "Cosa vuoi fare?") */
+button.pcard { cursor: pointer; font-family: var(--sans); }
+
+/* ---- 4. Allineamento Hub / cards -----------------------------------
+   L'icona "ghost" delle card teaser deve allinearsi in alto col titolo
+   anche quando il testo va su 2 righe (non centrata verticalmente). */
+.hubcard.soon { align-items: flex-start; }
+.hubcard.soon .hub-go { align-self: center; }
+/* la card teaser deve restare cliccabile come affordance ma "spenta" */
+.hubcard.soon { opacity: .96; }
+
+/* ---- 5. Larghezze massime di lettura su desktop --------------------
+   Su schermi larghi il body-text dell'Hub e degli stub diventa una riga
+   troppo lunga: limitiamo la misura per leggibilita' (~65ch). */
+@media (min-width: 1024px) {
+  .hub-head p,
+  .hub-head .muted { max-width: 52ch; }
+  .hub-cards { max-width: 560px; }
+  .hub-s { max-width: 46ch; }
+
+  /* stub "in arrivo" (Soon) e schermate testuali: misura comoda */
+  .screen.no-nav .center p { max-width: 46ch; margin-left: auto; margin-right: auto; }
+
+  /* profilo: la colonna delle card non deve diventare ipertesa */
+  .screen .pcard { max-width: 720px; }
+}
+
+/* ---- 6. Hub: tocco piu' generoso sul link "Salta" ------------------ */
+.hub-cards + .pad a[data-link] { display: inline-block; padding: 6px 4px; }
+
+/* ---- 7. Safe-area (notch) in standalone / install PWA ---------------
+   In browser la StatusBar finta "9:41 / 100%" fa da segnaposto. Installata
+   (display-mode: standalone) c'e' gia' la status bar REALE del sistema:
+   - nascondiamo la StatusBar finta (evita il doppione e la sovrapposizione)
+   - spingiamo il contenuto sotto al notch con env(safe-area-inset-top)
+   Fuori standalone tutto resta identico ai mock. */
+@media (display-mode: standalone) {
+  .statusbar { display: none; }
+  /* la StatusBar finta resta in cima al DOM ma e' nascosta: la riga utile
+     subito dopo (toprow su Home, pad su Salvati/Profilo) scende sotto il notch */
+  .statusbar + .toprow,
+  .statusbar + .pad,
+  .screen.home .toprow { padding-top: calc(8px + env(safe-area-inset-top)); }
+  /* schermate full-bleed (hero/splash): il contenuto in alto rispetta il notch */
+  .screen.prod .hero-top { top: env(safe-area-inset-top); }
+  .splash .splash-inner { padding-top: env(safe-area-inset-top); }
+}

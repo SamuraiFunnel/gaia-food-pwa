@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Gaia Food — il cibo vero, vicino a te</title>
+  <meta name="description" content="Trova produttori veri di cibo, verificati di persona sul campo, vicino a casa.">
+  <meta name="theme-color" content="#F4F1EB">
+  <!-- iOS / standalone PWA: barra di stato chiara coerente con la "Carta" (#F4F1EB) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Gaia Food">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <link rel="stylesheet" href="./css/app.css">
+  <link rel="stylesheet" href="./css/desktop.css">
+  <link rel="stylesheet" href="./css/polish.css">
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script type="module" src="./js/main.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+          // "Aggiornamento disponibile": quando un nuovo SW è in waiting, offri il refresh.
+          function notifyUpdate(worker) {
+            if (!worker) return;
+            const bar = document.createElement('div');
+            bar.setAttribute('role', 'status');
+            bar.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;display:flex;gap:12px;align-items:center;background:#1F1812;color:#fff;padding:11px 14px 11px 16px;border-radius:14px;box-shadow:0 12px 26px -10px rgba(0,0,0,.5);font:500 14px/1.2 Inter,system-ui,sans-serif;max-width:calc(100% - 32px)';
+            bar.innerHTML = '<span>Nuova versione disponibile</span>';
+            const btn = document.createElement('button');
+            btn.textContent = 'Aggiorna';
+            btn.style.cssText = 'border:none;background:#16A34A;color:#fff;font:600 14px Inter,sans-serif;padding:7px 14px;border-radius:100px;cursor:pointer';
+            btn.onclick = () => { worker.postMessage({ type: 'SKIP_WAITING' }); btn.disabled = true; btn.textContent = '...'; };
+            bar.appendChild(btn);
+            document.body.appendChild(bar);
+          }
+          if (reg.waiting && navigator.serviceWorker.controller) notifyUpdate(reg.waiting);
+          reg.addEventListener('updatefound', () => {
+            const nw = reg.installing;
+            if (!nw) return;
+            nw.addEventListener('statechange', () => {
+              if (nw.state === 'installed' && navigator.serviceWorker.controller) notifyUpdate(nw);
+            });
+          });
+        }).catch(() => {});
+        let reloaded = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (reloaded) return; reloaded = true; window.location.reload();
+        });
+      });
+    }
+  </script>
+</body>
+</html>

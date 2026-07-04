@@ -1,0 +1,33 @@
+# Render Blueprint — app Gaia Food (server.js serve UI + API sulla STESSA origine → niente CORS/cookie cross-site).
+# Il codice ora salva TUTTO ciò che è scrivibile (produttori, utenti, waitlist, candidature, foto/video caricati)
+# sotto GF_DATA_DIR = /var/data, che è il disco persistente montato qui sotto. producers.json viene "seedato"
+# dal repo al primo avvio. Così i dati NON si azzerano ai riavvii/redeploy.
+#
+# Nota: "plan: starter" (~7$/mese) è necessario per il disco persistente. Con "plan: free" l'app parte a costo 0
+# ma SENZA disco (i dati si perdono ai riavvii) e si addormenta dopo 15' di inattività: va bene solo per una demo.
+#
+# rootDir: se il repo contiene più cartelle, imposta la Root Directory del servizio su "Gaia Food App/app"
+# (nel dashboard Render, in fase di creazione del Web Service). Vedi _GO-LIVE.md.
+services:
+  - type: web
+    name: gaia-food
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: ""          # zero dipendenze: nessun build
+    startCommand: node server.js
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: GF_DATA_DIR
+        value: /var/data
+      - key: GF_ADMIN_PASSWORD
+        sync: false            # impostala nel dashboard Render (password area Gestione)
+      - key: GF_VERIFIER_PASSWORD
+        sync: false            # password area verificatore
+      - key: GF_GOOGLE_CLIENT_ID
+        sync: false            # il client id OAuth di Google (vedi _GO-LIVE.md §2)
+    disk:
+      name: gaia-data
+      mountPath: /var/data
+      sizeGB: 1

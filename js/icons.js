@@ -1,0 +1,52 @@
+// Set icone (stile Lucide, griglia 24, stroke). Icon(name,{size,color,stroke,fill})
+const P = {
+  search:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  mic:'<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/>',
+  'map-pin':'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  'check-circle':'<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  heart:'<path d="M20.8 5.6a5.5 5.5 0 0 0-7.8 0L12 6.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 22l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',
+  'chevron-right':'<path d="m9 18 6-6-6-6"/>',
+  'chevron-down':'<path d="m6 9 6 6 6-6"/>',
+  'arrow-left':'<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  navigation:'<path d="M3 11 22 2l-9 19-2-8-8-2Z"/>',
+  crosshair:'<circle cx="12" cy="12" r="8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  star:'<path d="m12 3 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.3 6.8 19l1-5.8-4.2-4.1 5.8-.8Z"/>',
+  x:'<path d="M18 6 6 18M6 6l12 12"/>',
+  play:'<path d="M7 4v16l13-8-13-8Z" fill="currentColor" stroke="none"/>',
+  phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8.1 9.6a16 16 0 0 0 6 6l1.2-1.1a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2Z"/>',
+  'message-circle':'<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-5.2A8.4 8.4 0 1 1 21 11.5Z"/>',
+  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  bookmark:'<path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/>',
+  sliders:'<path d="M4 6h11M19 6h1M4 12h6M14 12h6M4 18h9M17 18h3"/><circle cx="16" cy="6" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="15" cy="18" r="2"/>',
+  home:'<path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 21v-7h6v7"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/>',
+  share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5 8.6 10.5"/>',
+  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18Z"/>',
+  truck:'<path d="M3 6h11v9H3z"/><path d="M14 9h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/>',
+  bell:'<path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z"/><path d="M10 19a2 2 0 0 0 4 0"/>',
+  list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  'arrow-right':'<path d="M5 12h14M12 5l7 7-7 7"/>',
+  lock:'<rect x="4.5" y="11" width="15" height="9.5" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  compass:'<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/>',
+  // glifi categoria
+  droplet:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11Z"/>',
+  egg:'<path d="M12 3c3.5 0 6 5 6 9a6 6 0 0 1-12 0c0-4 2.5-9 6-9Z"/>',
+  wheat:'<path d="M12 21V9M12 9c0-2 1.5-3 3-3 0 2-1 3-3 3Zm0 0c0-2-1.5-3-3-3 0 2 1 3 3 3Zm0 4c0-2 1.5-3 3-3 0 2-1 3-3 3Zm0 0c0-2-1.5-3-3-3 0 2 1 3 3 3Z"/>',
+  cheese:'<path d="M3 17 14 6l7 4v7H3z"/><path d="M3 17l11-7"/>',
+  leaf:'<path d="M4 20s1-9 8-12 8-4 8-4 0 9-6 13-10 3-10 3Z"/><path d="M4 20 14 10"/>',
+  sprout:'<path d="M7 20h10"/><path d="M12 20v-9"/><path d="M12 13C12 9 9 6 4 6c0 4 3 7 8 7Z"/><path d="M12 11c0-3 2.5-5.5 7-5.5 0 3.5-3 5.5-7 5.5Z"/>',
+  honey:'<path d="m12 2 8 5v8l-8 5-8-5V7Z"/><path d="m12 7 4 2.5v5L12 17l-4-2.5v-5Z"/>',
+  carne:'<path d="M7.5 16.5a5 5 0 1 1 0-9 5 5 0 0 1 9 1.5l4 4-2.5 2.5-4-4a5 5 0 0 1-6.5 5Z"/><circle cx="7.5" cy="12" r="1.3"/>',
+  'frutta-verdura':'<path d="M12 8c2 0 4 1.5 4 5s-2 7-4 7-4-3.5-4-7 2-5 4-5Z"/><path d="M12 8c0-2 1.5-4 4-4-.3 2.2-1.8 3.6-4 4Z"/>',
+};
+export function Icon(name, o = {}) {
+  const { size = 22, color = 'currentColor', stroke = 1.75, fill = 'none' } = o;
+  const inner = P[name] || P['check-circle'];
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" stroke="${color}"
+    stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+}

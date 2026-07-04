@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Gaia Food — Cosa vuoi fare? · V3 Blur-Glass</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ===========================================================
+   GAIA FOOD — HUB d'ingresso · VARIANTE V3 "blur-glass"
+   Bloccate = foto sfocata dietro pannello glass + lucchetto + "In arrivo".
+   Auto-contenuta · responsive mobile (~390) + desktop (web app vera).
+   =========================================================== */
+:root{
+  --carta:#F4F1EB; --carta-scura:#EDE6DA; --bianco:#FBF9F5; --canvas:#E7DECF;
+  --ink:#1F1812; --ink-soft:#564B41; --muted:#75695B; --muted2:#8A7D6C; --faint:#A89A87; --faint2:#BCAE9B;
+  --verde:#16A34A; --verde-deep:#15803D; --verde-pale:#E7F5EC;
+  --celeste:#0EA5E9; --celeste-deep:#0C7FB0; --celeste-pale:#E2F2F9;
+  --terra:#C2A07A; --terra-deep:#8C6838; --terra-pale:#F3E9D9;
+  --bd:#ECE4D7; --bd2:#E5DCCF; --bd3:#E0D7C8;
+  --grad-azione:linear-gradient(135deg,#16A34A,#0EA5E9);
+  --serif:'Fraunces',Georgia,serif;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --r-card:24px; --r-pill:100px;
+  --sh-card:0 1px 2px rgba(31,24,18,.04),0 14px 30px -18px rgba(31,24,18,.3);
+  --sh-hero:0 2px 8px rgba(31,24,18,.07),0 36px 70px -32px rgba(31,24,18,.5);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans); color:var(--ink); line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(14,165,233,.08), transparent 55%),
+    radial-gradient(120% 80% at 0% 100%, rgba(22,163,74,.08), transparent 55%),
+    var(--canvas);
+  min-height:100vh;
+}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+.serif{font-family:var(--serif)}
+
+/* ---------- Layout shell ---------- */
+.wrap{ max-width:480px; margin:0 auto; padding:0 22px; }
+.page{ min-height:100vh; display:flex; flex-direction:column; padding:14px 0 40px; }
+
+/* ---------- Brand row ---------- */
+.brandrow{ display:flex; align-items:center; justify-content:space-between; padding:6px 0 22px; }
+.brand{ display:flex; align-items:center; gap:10px; }
+.brand .pin{ width:30px; height:30px; border-radius:9px; display:grid; place-items:center;
+  background:var(--grad-azione); box-shadow:0 6px 16px -6px rgba(14,165,233,.6); }
+.brand .pin svg{ width:17px; height:17px; }
+.brand .wm{ font-family:var(--serif); font-weight:600; font-size:17px; letter-spacing:.02em; color:var(--ink); }
+.brand .wm span{ color:var(--verde-deep); }
+.help{ width:38px; height:38px; border-radius:50%; display:grid; place-items:center;
+  background:var(--bianco); border:1px solid var(--bd); color:var(--muted); }
+
+/* ---------- Header ---------- */
+.eyebrow{ font-size:11px; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--verde-deep); margin-bottom:14px; display:inline-flex; align-items:center; gap:8px; }
+.eyebrow::before{ content:""; width:18px; height:1.5px; background:var(--verde); border-radius:2px; }
+.h1{ font-family:var(--serif); font-size:clamp(33px,9vw,40px); font-weight:600; letter-spacing:-.025em;
+  line-height:1.06; color:var(--ink); }
+.h1 em{ font-style:italic; color:var(--verde); }
+.sub{ margin-top:13px; font-size:15.5px; color:var(--muted); max-width:34ch; line-height:1.5; }
+
+/* ---------- Cards stack ---------- */
+.cards{ margin-top:28px; display:flex; flex-direction:column; gap:18px; }
+
+/* ===== CARD base ===== */
+.card{ position:relative; border-radius:var(--r-card); overflow:hidden; isolation:isolate;
+  background:#0d0a07; }
+.card .ph{ position:absolute; inset:0; }
+.card .ph img{ width:100%; height:100%; object-fit:cover; }
+
+/* ===== ACTIVE (la protagonista) ===== */
+.card.active{ box-shadow:var(--sh-hero); border:1px solid rgba(255,255,255,.5);
+  transition:transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s; }
+.card.active{ min-height:330px; }
+.card.active .scrim{ position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(15,30,18,.05) 0%, rgba(15,30,18,.12) 40%, rgba(12,22,14,.78) 100%); }
+.card.active .accent{ position:absolute; left:0; top:0; right:0; height:4px; background:var(--grad-azione); z-index:3; }
+.card.active .body{ position:relative; z-index:2; margin-top:auto; padding:22px 22px 22px; color:#fff;
+  display:flex; flex-direction:column; min-height:330px; justify-content:flex-end; }
+.card.active .tag{ align-self:flex-start; display:inline-flex; align-items:center; gap:7px;
+  background:rgba(255,255,255,.16); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.3); color:#fff; font-size:11px; font-weight:700;
+  letter-spacing:.12em; text-transform:uppercase; padding:7px 13px; border-radius:var(--r-pill); margin-bottom:14px; }
+.card.active .tag .dot{ width:7px; height:7px; border-radius:50%; background:#5DE89A;
+  box-shadow:0 0 0 3px rgba(93,232,154,.3); animation:pulse 2.4s ease-in-out infinite; }
+.card.active .ctitle{ font-family:var(--serif); font-size:27px; font-weight:600; letter-spacing:-.02em;
+  line-height:1.08; }
+.card.active .cdesc{ margin-top:8px; font-size:15px; color:rgba(255,255,255,.86); max-width:30ch; line-height:1.45; }
+.card.active .go{ margin-top:18px; align-self:flex-start; display:inline-flex; align-items:center; gap:10px;
+  background:#fff; color:var(--verde-deep); font-weight:700; font-size:15px;
+  padding:13px 22px 13px 24px; border-radius:var(--r-pill); box-shadow:0 12px 26px -12px rgba(0,0,0,.5);
+  transition:gap .25s, transform .25s; }
+.card.active .go svg{ width:18px; height:18px; transition:transform .25s; }
+@media(hover:hover){
+  .card.active:hover{ transform:translateY(-4px); box-shadow:0 4px 12px rgba(31,24,18,.1),0 46px 80px -34px rgba(31,24,18,.55); }
+  .card.active:hover .go{ gap:14px; }
+  .card.active:hover .go svg{ transform:translateX(3px); }
+}
+
+/* ===== LOCKED (blur-glass) ===== */
+.card.locked{ min-height:184px; box-shadow:var(--sh-card); border:1px solid rgba(255,255,255,.35);
+  cursor:default; }
+.card.locked .ph img{ filter:blur(7px) saturate(.62) brightness(.86); transform:scale(1.14); }
+/* velo colorato sopra la foto sfocata */
+.card.locked .scrim{ position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(31,24,18,.28), rgba(31,24,18,.46)); }
+/* pannello glass centrale che fa da "vetro" */
+.card.locked .glass{ position:absolute; inset:0; z-index:2; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; text-align:center; padding:20px;
+  background:rgba(244,241,235,.20);
+  backdrop-filter:blur(3px) saturate(1.05); -webkit-backdrop-filter:blur(3px) saturate(1.05); }
+.card.locked .glass::after{ content:""; position:absolute; inset:0; pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(0,0,0,.06); }
+.card.locked .lockwrap{ width:50px; height:50px; border-radius:50%; display:grid; place-items:center;
+  background:rgba(255,255,255,.85); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.9); box-shadow:0 10px 24px -10px rgba(0,0,0,.45); margin-bottom:13px; }
+.card.locked .lockwrap svg{ width:21px; height:21px; color:var(--ink-soft); }
+.card.locked .ctitle{ font-family:var(--serif); font-size:21px; font-weight:600; color:#fff;
+  letter-spacing:-.01em; text-shadow:0 1px 14px rgba(0,0,0,.5); }
+.card.locked .cdesc{ margin-top:6px; font-size:13.5px; color:rgba(255,255,255,.92); max-width:32ch;
+  line-height:1.45; text-shadow:0 1px 10px rgba(0,0,0,.45); }
+.card.locked .badge{ position:absolute; top:14px; right:14px; z-index:3; display:inline-flex; align-items:center;
+  gap:6px; background:rgba(255,255,255,.92); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.7); color:var(--terra-deep); font-size:10.5px; font-weight:700;
+  letter-spacing:.13em; text-transform:uppercase; padding:7px 12px; border-radius:var(--r-pill);
+  box-shadow:0 8px 20px -10px rgba(0,0,0,.4); }
+.card.locked .badge svg{ width:12px; height:12px; }
+
+/* ---------- Skip ---------- */
+.skip{ margin-top:30px; text-align:center; }
+.skip a{ display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:500; color:var(--muted);
+  padding:11px 18px; border-radius:var(--r-pill); transition:background .2s, color .2s; }
+.skip a b{ color:var(--ink); font-weight:600; }
+.skip a svg{ width:15px; height:15px; opacity:.7; }
+@media(hover:hover){ .skip a:hover{ background:var(--bianco); color:var(--ink); } }
+
+/* ---------- Download app (mostrato solo desktop) ---------- */
+.download{ display:none; }
+
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.45} }
+
+/* ======================================================
+   DESKTOP — web app vera (largo, niente colonna-telefono)
+   ====================================================== */
+@media (min-width:1024px){
+  body{
+    background:
+      radial-gradient(70% 90% at 100% -10%, rgba(14,165,233,.1), transparent 60%),
+      radial-gradient(70% 90% at -10% 110%, rgba(22,163,74,.1), transparent 60%),
+      var(--carta);
+  }
+  .wrap{ max-width:1240px; padding:0 56px; }
+  .page{ padding:26px 0 56px; }
+  .brandrow{ padding:8px 0 0; }
+  .brand .pin{ width:34px; height:34px; }
+  .brand .wm{ font-size:19px; }
+
+  /* due colonne: a sinistra il claim, a destra la griglia delle scelte */
+  .stage{ display:grid; grid-template-columns:minmax(330px,0.85fr) 1.55fr; gap:64px; align-items:center;
+    flex:1; padding:30px 0; }
+  .intro{ position:sticky; top:40px; align-self:start; }
+  .h1{ font-size:clamp(44px,4vw,58px); }
+  .sub{ font-size:18px; margin-top:18px; max-width:36ch; }
+
+  /* download app box */
+  .download{ display:block; margin-top:34px; padding:22px; border-radius:20px;
+    background:var(--bianco); border:1px solid var(--bd); box-shadow:var(--sh-card); }
+  .download .dl-t{ font-family:var(--serif); font-size:16px; font-weight:600; color:var(--ink); }
+  .download .dl-s{ font-size:13px; color:var(--muted); margin-top:3px; }
+  .download .dl-row{ margin-top:16px; display:flex; gap:18px; align-items:center; }
+  .download .stores{ display:flex; flex-direction:column; gap:9px; }
+  .badge-store{ display:inline-flex; align-items:center; gap:10px; background:var(--ink); color:#fff;
+    border-radius:12px; padding:9px 15px; min-width:168px; transition:transform .2s, opacity .2s; }
+  @media(hover:hover){ .badge-store:hover{ transform:translateY(-2px); opacity:.92; } }
+  .badge-store svg{ width:22px; height:22px; flex:none; }
+  .badge-store .bs-txt{ line-height:1.05; }
+  .badge-store .bs-txt small{ display:block; font-size:9px; font-weight:500; opacity:.8; letter-spacing:.04em; }
+  .badge-store .bs-txt b{ display:block; font-size:15px; font-weight:600; letter-spacing:.01em; }
+  .qr{ width:96px; height:96px; border-radius:14px; flex:none; background:#fff; border:1px solid var(--bd);
+    padding:9px; display:grid; place-items:center; }
+  .qr svg{ width:100%; height:100%; }
+  .qr-cap{ font-size:10.5px; color:var(--faint); text-align:center; margin-top:6px; letter-spacing:.04em; }
+
+  /* griglia scelte: hero a tutta larghezza sopra, due locked sotto */
+  .cards{ margin-top:0; display:grid; gap:20px; grid-template-columns:1fr 1fr; grid-template-areas:"a a" "b c"; }
+  .card.active{ grid-area:a; min-height:340px; }
+  .card.active .body{ min-height:340px; padding:32px 36px; }
+  .card.active .ctitle{ font-size:34px; }
+  .card.active .cdesc{ font-size:16.5px; max-width:46ch; }
+  .card.active .body{ max-width:560px; }
+  .card.locked{ min-height:300px; }
+  .card.locked.b{ grid-area:b; }
+  .card.locked.c{ grid-area:c; }
+  .card.locked .ctitle{ font-size:23px; }
+  .card.locked .cdesc{ font-size:14.5px; }
+
+  .skip{ margin-top:30px; }
+}
+
+@media (min-width:1480px){
+  .wrap{ max-width:1340px; }
+  .stage{ gap:80px; }
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion:reduce){
+  *{ animation:none !important; transition:none !important; }
+  .card.active:hover{ transform:none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="page">
+
+  <!-- Brand row -->
+  <header class="brandrow">
+    <div class="brand">
+      <span class="pin" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11Z" fill="#fff" opacity=".22"/><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11Z" stroke="#fff" stroke-width="1.6"/><path d="M12 13c0-2 1.4-3.4 3.2-3.6C15 11.4 13.6 13 12 13Zm0 0c0-2-1.4-3.4-3.2-3.6C9 11.4 10.4 13 12 13Z" fill="#fff"/></svg>
+      </span>
+      <span class="wm">Gaia<span>Food</span></span>
+    </div>
+    <button class="help" aria-label="Aiuto">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.8.4-.9 1-.9 1.7" stroke-linecap="round"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/></svg>
+    </button>
+  </header>
+
+  <!-- Stage (su desktop diventa due colonne) -->
+  <main class="stage">
+
+    <!-- Intro / claim -->
+    <section class="intro">
+      <span class="eyebrow">Il cibo vero, vicino a te</span>
+      <h1 class="h1">Cosa vuoi <em>fare?</em></h1>
+      <p class="sub">Tre modi per vivere il cibo vero. Per ora si parte dal primo.</p>
+
+      <!-- Download app — solo desktop -->
+      <div class="download" aria-label="Scarica l'app">
+        <div class="dl-t">Preferisci il telefono?</div>
+        <div class="dl-s">Porta Gaia Food in tasca. Scarica l'app.</div>
+        <div class="dl-row">
+          <div class="stores">
+            <a class="badge-store" href="#" aria-label="Scarica su App Store">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2 1.6-3 1.7-3.1-.9-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 .7-.6 0-1.6-.7-2.6-.7-1.3 0-2.6.8-3.3 2-1.4 2.4-.4 6 1 7.9.7.9 1.4 2 2.5 2 1 0 1.4-.6 2.6-.6s1.5.6 2.6.6 1.7-.9 2.4-1.8c.7-1 1-2 1-2-.1 0-1.9-.7-1.9-2.9ZM14.6 5.4c.6-.7 1-1.6.9-2.6-.9 0-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.5 1 .1 2-.5 2.5-1.2Z"/></svg>
+              <span class="bs-txt"><small>Scarica su</small><b>App Store</b></span>
+            </a>
+            <a class="badge-store" href="#" aria-label="Scarica su Google Play">
+              <svg viewBox="0 0 24 24"><path d="M3.6 2.3 13.4 12 3.6 21.7c-.3-.2-.5-.6-.5-1.1V3.4c0-.5.2-.9.5-1.1Z" fill="#fff"/><path d="m16.2 8.8 2.9 1.7c1 .6 1 1.8 0 2.4l-2.9 1.7L13.9 12l2.3-3.2Z" fill="#fff"/><path d="M4.6 1.9c.4-.2.9-.1 1.3.1l9.4 5.5-2.2 2.3-8.5-7.9Z" fill="#fff" opacity=".75"/><path d="m13.1 13.6 2.2 2.3-9.4 5.5c-.4.2-.9.3-1.3.1l8.5-7.9Z" fill="#fff" opacity=".55"/></svg>
+              <span class="bs-txt"><small>Disponibile su</small><b>Google Play</b></span>
+            </a>
+          </div>
+          <div>
+            <div class="qr" aria-hidden="true">
+              <!-- QR placeholder -->
+              <svg viewBox="0 0 100 100" fill="var(--ink)">
+                <rect x="6" y="6" width="26" height="26" fill="none" stroke="var(--ink)" stroke-width="6"/>
+                <rect x="15" y="15" width="8" height="8"/>
+                <rect x="68" y="6" width="26" height="26" fill="none" stroke="var(--ink)" stroke-width="6"/>
+                <rect x="77" y="15" width="8" height="8"/>
+                <rect x="6" y="68" width="26" height="26" fill="none" stroke="var(--ink)" stroke-width="6"/>
+                <rect x="15" y="77" width="8" height="8"/>
+                <rect x="42" y="6" width="6" height="6"/><rect x="54" y="6" width="6" height="6"/>
+                <rect x="42" y="18" width="6" height="6"/><rect x="42" y="30" width="6" height="6"/>
+                <rect x="54" y="30" width="6" height="6"/><rect x="6" y="42" width="6" height="6"/>
+                <rect x="18" y="42" width="6" height="6"/><rect x="30" y="42" width="6" height="6"/>
+                <rect x="42" y="42" width="6" height="6"/><rect x="54" y="42" width="6" height="6"/>
+                <rect x="66" y="42" width="6" height="6"/><rect x="78" y="42" width="6" height="6"/>
+                <rect x="90" y="42" width="4" height="6"/><rect x="42" y="54" width="6" height="6"/>
+                <rect x="66" y="54" width="6" height="6"/><rect x="88" y="54" width="6" height="6"/>
+                <rect x="42" y="66" width="6" height="6"/><rect x="54" y="66" width="6" height="6"/>
+                <rect x="66" y="66" width="6" height="6"/><rect x="78" y="66" width="6" height="6"/>
+                <rect x="54" y="78" width="6" height="6"/><rect x="78" y="78" width="6" height="6"/>
+                <rect x="42" y="90" width="6" height="4"/><rect x="66" y="90" width="6" height="4"/>
+                <rect x="90" y="78" width="4" height="6"/>
+              </svg>
+            </div>
+            <div class="qr-cap">Inquadra · ottieni l'app</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scelte -->
+    <section class="cards">
+
+      <!-- 1. ATTIVA — protagonista -->
+      <a class="card active" href="#mappa" aria-label="Trova un produttore — esplora la mappa">
+        <span class="accent" aria-hidden="true"></span>
+        <div class="ph"><img src="./assets/trova.jpg" loading="lazy" alt="Pascolo verde con mucche al pascolo e un casolare di campagna"></div>
+        <div class="scrim" aria-hidden="true"></div>
+        <div class="body">
+          <span class="tag"><span class="dot" aria-hidden="true"></span>Disponibile ora</span>
+          <h2 class="ctitle">Trova un produttore</h2>
+          <p class="cdesc">Esplora la mappa e scopri chi produce vero, vicino a te.</p>
+          <span class="go">Esplora la mappa
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </span>
+        </div>
+      </a>
+
+      <!-- 2. BLOCCATA — Ricevi a casa -->
+      <div class="card locked b" role="group" aria-label="Ricevi a casa — in arrivo" aria-disabled="true">
+        <div class="ph"><img src="./assets/ricevi.jpg" loading="lazy" alt="Ape carica di casse di cibo fresco, pronta per la consegna"></div>
+        <div class="scrim" aria-hidden="true"></div>
+        <span class="badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          In arrivo
+        </span>
+        <div class="glass">
+          <span class="lockwrap" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.1" fill="currentColor" stroke="none"/></svg>
+          </span>
+          <h3 class="ctitle">Ricevi a casa</h3>
+          <p class="cdesc">Ordina dai produttori: un mezzo ritira e porta tutto a casa tua.</p>
+        </div>
+      </div>
+
+      <!-- 3. BLOCCATA — Lungo il Percorso -->
+      <div class="card locked c" role="group" aria-label="Lungo il Percorso — in arrivo" aria-disabled="true">
+        <div class="ph"><img src="./assets/percorso.jpg" loading="lazy" alt="Strada di campagna che si snoda tra le colline del territorio"></div>
+        <div class="scrim" aria-hidden="true"></div>
+        <span class="badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          In arrivo
+        </span>
+        <div class="glass">
+          <span class="lockwrap" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.1" fill="currentColor" stroke="none"/></svg>
+          </span>
+          <h3 class="ctitle">Lungo il Percorso</h3>
+          <p class="cdesc">Scegli le tappe e viaggia tra i produttori del territorio.</p>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Skip -->
+  <div class="skip">
+    <a href="#mappa">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+      Salta · <b>guarda subito i produttori</b>
+    </a>
+  </div>
+
+</div>
+</div>
+</body>
+</html>

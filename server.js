@@ -1,0 +1,443 @@
+// Gaia Food App — server statico + API backend (file-based, zero dipendenze).
+// Uso: node server.js   (porta 4324). Archivio: data/producers.json (live). Auth: data/config.json.
+const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto');
+const ROOT = __dirname, PORT = process.env.PORT || 4324;
+const CONFIG = path.join(ROOT, 'data', 'config.json');
+// Tutti i dati SCRIVIBILI (produttori, utenti, waitlist, candidature, media) → GF_DATA_DIR
+// (disco persistente Render: /var/data) se impostato, altrimenti ./data in locale.
+const DATA_RW = process.env.GF_DATA_DIR || path.join(ROOT, 'data');
+// producers.json è EDITABILE (admin): vive sul disco persistente, con SEED dal repo al primo avvio.
+const SEED_STORE = path.join(ROOT, 'data', 'producers.json');
+const STORE = path.join(DATA_RW, 'producers.json');
+const WAITLIST = path.join(DATA_RW, 'waitlist.json');
+const CANDIDATURE = path.join(DATA_RW, 'candidature.json');
+const USERS = path.join(DATA_RW, 'users.json'); // utenti finali (login Google/email)
+// Media caricati (foto/video) → disco persistente. I seed del repo restano sotto ROOT/assets e sono serviti da lì;
+// i nuovi upload vanno su DATA_RW/assets e sono serviti dal fallback statico (vedi createServer).
+const PHOTODIR = path.join(DATA_RW, 'assets', 'photos', 'producers');
+const VIDEODIR = path.join(DATA_RW, 'assets', 'videos', 'producers');
+const CANDPHOTODIR = path.join(DATA_RW, 'assets', 'photos', 'candidature');
+fs.mkdirSync(DATA_RW, { recursive: true });
+fs.mkdirSync(PHOTODIR, { recursive: true });
+fs.mkdirSync(VIDEODIR, { recursive: true });
+fs.mkdirSync(CANDPHOTODIR, { recursive: true });
+// SEED una-tantum: se sul disco non c'è ancora producers.json, copialo dal repo (così l'app parte con i dati).
+try { if (!fs.existsSync(STORE) && fs.existsSync(SEED_STORE)) fs.copyFileSync(SEED_STORE, STORE); } catch (e) { console.error('seed producers.json:', e.message); }
+
+// Limiti payload: JSON normale 12MB, upload media (foto/video base64) fino a 80MB.
+const BODY_MAX_JSON = 12e6, BODY_MAX_MEDIA = 80e6;
+
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2',
+  '.mp4': 'video/mp4', '.webm': 'video/webm' };
+
+const sessions = new Map(); // token -> role (staff: admin/verificatore)
+const userSessions = new Map(); // token -> userId (utenti finali, separati dallo staff)
+// Google Sign-In: client id da env. Se assente, l'endpoint /api/auth/google risponde 503.
+const GOOGLE_CLIENT_ID = process.env.GF_GOOGLE_CLIENT_ID || '';
+const readUsers = () => { try { return JSON.parse(fs.readFileSync(USERS, 'utf8')); } catch { return { users: [] }; } };
+const writeUsers = (d) => fs.writeFileSync(USERS, JSON.stringify(d, null, 2));
+const readStore = () => JSON.parse(fs.readFileSync(STORE, 'utf8'));
+const writeStore = (d) => fs.writeFileSync(STORE, JSON.stringify(d, null, 2));
+const readWait = () => { try { return JSON.parse(fs.readFileSync(WAITLIST, 'utf8')); } catch { return { leads: [] }; } };
+const writeWait = (d) => fs.writeFileSync(WAITLIST, JSON.stringify(d, null, 2));
+const readCand = () => { try { return JSON.parse(fs.readFileSync(CANDIDATURE, 'utf8')); } catch { return { candidature: [] }; } };
+const writeCand = (d) => fs.writeFileSync(CANDIDATURE, JSON.stringify(d, null, 2));
+const config = () => { try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch { return {}; } };
+// Password: prima le env (produzione), poi fallback a config.json (locale). Retro-compatibile.
+const adminPass = (cfg) => process.env.GF_ADMIN_PASSWORD || cfg.adminPassword;
+const verifierPass = (cfg) => process.env.GF_VERIFIER_PASSWORD || cfg.verifierPassword;
+
+// Rate-limiting in-memory per IP (finestra scorrevole a conteggio). Bucket separati per tipo di endpoint.
+const LOGIN_WINDOW_MS = 60 * 1000;
+const loginHits = new Map();   // login staff
+const authHits = new Map();    // login utente finale (email/google)
+const publicHits = new Map();  // POST pubblici (waitlist, candidature)
+function clientIp(req) {
+  const xff = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return xff || (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+function throttle(bucket, req, max, windowMs = LOGIN_WINDOW_MS) {
+  const ip = clientIp(req), now = Date.now();
+  let e = bucket.get(ip);
+  if (!e || now >= e.resetAt) { e = { count: 0, resetAt: now + windowMs }; bucket.set(ip, e); }
+  e.count++;
+  if (e.count > max) return { limited: true, retryAfter: Math.max(1, Math.ceil((e.resetAt - now) / 1000)) };
+  return { limited: false };
+}
+const loginThrottle = (req) => throttle(loginHits, req, 5);
+// Pulizia periodica delle voci scadute (evita crescita illimitata della mappa).
+setInterval(() => { const now = Date.now(); for (const [ip, e] of loginHits) if (now >= e.resetAt) loginHits.delete(ip); }, LOGIN_WINDOW_MS).unref();
+const slugify = s => (s || 'produttore').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+
+function send(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); }
+function body(req, max = BODY_MAX_JSON) { return new Promise((ok) => { let b = ''; req.on('data', c => { b += c; if (b.length > max) req.destroy(); }); req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch { ok({}); } }); }); }
+function roleOf(req) { const c = req.headers.cookie || ''; const m = c.match(/gf_sess=([^;]+)/); return m ? sessions.get(m[1]) || null : null; }
+const canEdit = r => r === 'admin' || r === 'verificatore';
+
+// --- auth utente finale (Google / email / ospite), separata dallo staff ---
+const userTokenOf = (req) => { const m = (req.headers.cookie || '').match(/gf_user=([^;]+)/); return m ? m[1] : null; };
+function userOf(req) { const t = userTokenOf(req); const id = t && userSessions.get(t); return id ? readUsers().users.find(u => u.id === id) || null : null; }
+// Crea sessione utente + cookie httpOnly; ritorna l'header Set-Cookie.
+function startUserSession(res, userId) {
+  const tok = crypto.randomBytes(18).toString('hex'); userSessions.set(tok, userId);
+  return `gf_user=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`; // 30 giorni
+}
+// Upsert utente in users.json: aggiorna i campi noti, preserva createdAt.
+function upsertUser(fields) {
+  const db = readUsers();
+  let u = db.users.find(x => x.id === fields.id);
+  if (u) { Object.assign(u, fields, { createdAt: u.createdAt }); }
+  else { u = { ...fields, createdAt: new Date().toISOString() }; db.users.push(u); }
+  writeUsers(db); return u;
+}
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+// --- Referral "I Custodi di Gaia": ogni utente ha un "seme" (codice personale);
+//     chi si iscrive con un seme resta collegato all'invitante (referredBy). ---
+function ensureSeed(u) {
+  const db = readUsers();
+  const target = db.users.find(x => x.id === u.id);
+  if (!target) return u.seed || null;
+  if (target.seed) { u.seed = target.seed; return target.seed; }
+  const base = slugify((u.email || u.id || 'custode').split('@')[0]) || 'custode';
+  let code = base, i = 2;
+  while (db.users.some(x => x.seed === code)) code = base + '-' + (i++);
+  target.seed = code; u.seed = code; writeUsers(db);
+  return code;
+}
+function linkReferral(user, seme) {
+  const code = slugify(String(seme || '').slice(0, 60));
+  if (!code) return;
+  const db = readUsers();
+  const target = db.users.find(x => x.id === user.id);
+  if (!target || target.referredBy) return;               // già collegato o inesistente
+  const referrer = db.users.find(x => x.seed === code);
+  if (!referrer || referrer.id === user.id) return;        // niente auto-invito / seme inesistente
+  target.referredBy = code; target.referredAt = new Date().toISOString();
+  writeUsers(db);
+}
+
+// --- normalizzazione campi produttore (difende lo store da payload malformati) ---
+const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null; };
+const str = (v, max = 4000) => (v == null ? '' : String(v)).slice(0, max);
+// Un video: 3 tipi, titolo/durata/stato/tono + sorgente (src/url) e poster opzionali.
+function cleanVideo(v) {
+  if (!v || typeof v !== 'object') return null;
+  const type = ['presentazione', 'storia', 'metodo'].includes(v.type) ? v.type : str(v.type, 40);
+  const state = v.state === 'ready' ? 'ready' : 'coming';
+  const o = { type, title: str(v.title, 160), duration: str(v.duration, 16), state, tone: str(v.tone, 40) };
+  if (v.src) o.src = str(v.src, 1200);       // URL o path della sorgente video (mp4/embed)
+  if (v.poster) o.poster = str(v.poster, 1200); // URL o path del poster
+  return o;
+}
+// Una voce di inventario "di stagione": etichetta + tono colore + nota.
+function cleanSeasonal(s) {
+  if (!s || typeof s !== 'object') return null;
+  return { label: str(s.label, 120), tone: str(s.tone, 40), note: str(s.note, 240) };
+}
+// Normalizza solo i campi presenti nel patch (PATCH parziale-safe); lascia intatto il resto.
+function normalizePatch(patch) {
+  const out = { ...patch };
+  if ('km' in out) out.km = num(out.km) || 0;
+  if ('lat' in out) out.lat = num(out.lat);
+  if ('lng' in out) out.lng = num(out.lng);
+  if ('categories' in out) out.categories = Array.isArray(out.categories) ? out.categories.map(c => str(c, 60)) : [];
+  if ('videos' in out) out.videos = (Array.isArray(out.videos) ? out.videos : []).map(cleanVideo).filter(Boolean);
+  if ('seasonal' in out) out.seasonal = (Array.isArray(out.seasonal) ? out.seasonal : []).map(cleanSeasonal).filter(Boolean);
+  if ('verify' in out && out.verify && typeof out.verify === 'object') {
+    out.verify = { state: str(out.verify.state, 40) || 'valid', date: str(out.verify.date, 60), next: str(out.verify.next, 60) };
+  }
+  if ('contact' in out && out.contact && typeof out.contact === 'object') out.contact = { ...out.contact };
+  return out;
+}
+
+async function api(req, res, url) {
+  const seg = url.split('/').filter(Boolean); // ['api','producers',':id', ...]
+  const method = req.method;
+
+  // --- auth ---
+  if (url === '/api/login' && method === 'POST') {
+    const t = loginThrottle(req);
+    if (t.limited) {
+      res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8', 'Retry-After': String(t.retryAfter) });
+      return res.end(JSON.stringify({ error: `Troppi tentativi. Riprova tra ${t.retryAfter}s.`, retryAfter: t.retryAfter }));
+    }
+    const { password } = await body(req); const cfg = config();
+    let role = null;
+    if (password && password === adminPass(cfg)) role = 'admin';
+    else if (password && password === verifierPass(cfg)) role = 'verificatore';
+    if (!role) return send(res, 401, { error: 'Password errata' });
+    const tok = crypto.randomBytes(18).toString('hex'); sessions.set(tok, role);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `gf_sess=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400` });
+    return res.end(JSON.stringify({ role }));
+  }
+  if (url === '/api/logout' && method === 'POST') {
+    const c = req.headers.cookie || ''; const m = c.match(/gf_sess=([^;]+)/); if (m) sessions.delete(m[1]);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'gf_sess=; Path=/; Max-Age=0' }); return res.end('{}');
+  }
+  if (url === '/api/me') return send(res, 200, { role: roleOf(req) });
+
+  // --- auth utente finale (Google reale / email / ospite), namespace /api/auth/* ---
+  // Google: il client invia l'idToken (Google Identity Services); lo verifichiamo lato server.
+  if (url === '/api/auth/google' && method === 'POST') {
+    { const t = throttle(authHits, req, 10); if (t.limited) return send(res, 429, { error: 'Troppi tentativi, riprova tra poco', retryAfter: t.retryAfter }); }
+    if (!GOOGLE_CLIENT_ID) return send(res, 503, { error: 'google_client_id_non_configurato' });
+    const gbody = await body(req);
+    const idToken = gbody.idToken;
+    if (!idToken) return send(res, 400, { error: 'idToken mancante' });
+    // Verifica il token via endpoint tokeninfo di Google (Node 18+ ha fetch globale).
+    let info;
+    try {
+      const r = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken));
+      info = await r.json();
+      if (!r.ok) return send(res, 401, { error: 'token Google non valido' });
+    } catch (e) { return send(res, 502, { error: 'verifica Google fallita' }); }
+    if (info.aud !== GOOGLE_CLIENT_ID) return send(res, 401, { error: 'aud non corrispondente' });
+    if (info.email_verified !== 'true' && info.email_verified !== true) return send(res, 401, { error: 'email non verificata' });
+    const email = String(info.email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) return send(res, 401, { error: 'email non valida' });
+    const isNew = !readUsers().users.some(x => x.id === email);
+    const user = upsertUser({ id: email, email, name: str(info.name, 160), picture: str(info.picture, 1200), provider: 'google' });
+    if (isNew) linkReferral(user, gbody.seme);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(res, user.id) });
+    return res.end(JSON.stringify({ user }));
+  }
+  // Email: per il pilota è un accesso diretto (nessuna verifica del possesso).
+  // TODO: magic-link reale (invio token via email + endpoint di conferma) prima del go-live.
+  if (url === '/api/auth/email' && method === 'POST') {
+    { const t = throttle(authHits, req, 10); if (t.limited) return send(res, 429, { error: 'Troppi tentativi, riprova tra poco', retryAfter: t.retryAfter }); }
+    const d = await body(req);
+    const email = String(d.email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) return send(res, 400, { error: 'Email non valida' });
+    const isNew = !readUsers().users.some(x => x.id === email);
+    const user = upsertUser({ id: email, email, provider: 'email' });
+    if (isNew) linkReferral(user, d.seme);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(res, user.id) });
+    return res.end(JSON.stringify({ user }));
+  }
+  // Config pubblica per il client: espone SOLO il Google client id (non è un segreto)
+  // così il bottone GSI può renderizzarsi senza hard-coding nel JS. Vuoto = login Google "da configurare".
+  if (url === '/api/auth/config' && method === 'GET') return send(res, 200, { googleClientId: GOOGLE_CLIENT_ID });
+  if (url === '/api/auth/me' && method === 'GET') return send(res, 200, { user: userOf(req) || null });
+  if (url === '/api/auth/logout' && method === 'POST') {
+    const t = userTokenOf(req); if (t) userSessions.delete(t);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'gf_user=; Path=/; Max-Age=0' });
+    return res.end('{}');
+  }
+  // Profilo: imposta/aggiorna la ZONA (regione) dell'utente loggato → vista personalizzata per territorio.
+  if (url === '/api/auth/profile' && method === 'PUT') {
+    const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
+    const d = await body(req);
+    const z = d.zone;
+    const zone = (z && typeof z === 'object')
+      ? { id: str(z.id, 80), label: str(z.label, 160), region: str(z.region, 80), comuni: Array.isArray(z.comuni) ? z.comuni.slice(0, 60).map(c => str(c, 80)) : [] }
+      : null;
+    const user = upsertUser({ id: me.id, zone });
+    return send(res, 200, { user });
+  }
+
+  // --- Custodi (referral): il "seme" dell'utente + persone portate + credito + livello ---
+  if (url === '/api/custodi/me' && method === 'GET') {
+    const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
+    const seed = ensureSeed(me);
+    const db = readUsers();
+    const now = Date.now(), DAY = 86400000;
+    // Stato del seme (proxy temporale, in attesa del segnale reale acquisto/attività — "da definire"):
+    // <2 giorni = Seme · 2–60 giorni = Germoglio · >60 giorni = Radicato.
+    const stateOf = (u) => {
+      const age = (now - new Date(u.referredAt || u.createdAt || now).getTime()) / DAY;
+      if (age >= 60) return 'radicato';
+      if (age >= 2) return 'germoglio';
+      return 'seme';
+    };
+    const people = db.users
+      .filter(u => u.referredBy === seed && u.id !== me.id)
+      .map(u => ({ name: (u.name && u.name.trim()) || (u.email ? u.email.split('@')[0] : 'Nuovo seme'), state: stateOf(u) }));
+    const counts = { seme: 0, germoglio: 0, radicato: 0, total: people.length };
+    people.forEach(p => counts[p.state]++);
+    const PER = 8;            // €8/anno di credito per radicato (Custode-Cliente) — da validare sul Business Plan
+    const FREE_AT = 5;        // 5 radicati = rinnovo annuale gratis
+    const credit = counts.radicato * PER;
+    const LV = [
+      { key: 'seme', label: 'Seme', min: 0 },
+      { key: 'custode', label: 'Custode', min: 1 },
+      { key: 'borgo', label: 'Custode del Borgo', min: 5 },
+      { key: 'territorio', label: 'Custode del Territorio', min: 15 },
+    ];
+    let level = LV[0];
+    for (const L of LV) if (counts.radicato >= L.min) level = L;
+    const next = LV.find(L => L.min > counts.radicato) || null;
+    // Custode-Produttore: commissione reale ~20% di €39 = €7,80/anno per abbonato attivo — da validare sul BP.
+    const COMM = 7.8;
+    const commission = Math.round(counts.radicato * COMM * 100) / 100;
+    return send(res, 200, { seed, credit, perActive: PER, commission, perCommission: COMM, freeAt: FREE_AT, counts, people, level, next });
+  }
+
+  // --- waitlist (lista d'attesa zone non coperte) — POST pubblico, GET solo admin ---
+  if (seg[1] === 'waitlist') {
+    if (method === 'POST') {
+      { const t = throttle(publicHits, req, 8); if (t.limited) return send(res, 429, { error: 'Troppe richieste, riprova tra poco', retryAfter: t.retryAfter }); }
+      const d = await body(req);
+      const email = String(d.email || '').trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return send(res, 400, { error: 'Email non valida' });
+      const wl = readWait();
+      const zona = String(d.zona || '').slice(0, 120);
+      if (!wl.leads.some(l => l.email === email && l.zona === zona)) {
+        wl.leads.push({ email, zona, source: String(d.source || 'sito').slice(0, 40), ts: new Date().toISOString(), ip: clientIp(req) });
+        writeWait(wl);
+      }
+      return send(res, 200, { ok: true });
+    }
+    if (method === 'GET') {
+      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      return send(res, 200, readWait());
+    }
+  }
+
+  // --- candidature (produttori che si candidano) — POST pubblico, GET solo staff ---
+  if (seg[1] === 'candidature') {
+    const id = seg[2];
+    if (method === 'POST' && !id) { // invio candidatura dal form pubblico
+      { const t = throttle(publicHits, req, 8); if (t.limited) return send(res, 429, { error: 'Troppe richieste, riprova tra poco', retryAfter: t.retryAfter }); }
+      const d = await body(req);
+      const name = str(d.name, 160).trim();
+      if (!name) return send(res, 400, { error: 'Il nome azienda è obbligatorio' });
+      const cand = readCand();
+      const cid = crypto.randomBytes(8).toString('hex');
+      const contact = (d.contact && typeof d.contact === 'object') ? d.contact : {};
+      const entry = {
+        id: cid,
+        name,
+        place: str(d.place, 160).trim(),
+        categories: Array.isArray(d.categories) ? d.categories.map(c => str(c, 60)) : [],
+        contact: {
+          whatsapp: str(contact.whatsapp, 80).trim(),
+          phone: str(contact.phone, 80).trim(),
+          email: str(contact.email, 160).trim(),
+        },
+        note: str(d.note, 2000).trim(),
+        photos: Array.isArray(d.photos) ? d.photos.slice(0, 6).map(s => str(s, 1200)) : [],
+        state: 'todo', // todo -> visita -> done
+        ts: new Date().toISOString(),
+      };
+      cand.candidature.push(entry);
+      writeCand(cand);
+      return send(res, 200, { ok: true, id: cid, candidatura: entry });
+    }
+    if (method === 'GET' && id) { // dettaglio singola candidatura (staff)
+      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      const c = readCand().candidature.find(x => x.id === id);
+      return c ? send(res, 200, c) : send(res, 404, { error: 'not found' });
+    }
+    if (method === 'GET' && !id) { // lista candidature (staff)
+      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      return send(res, 200, readCand());
+    }
+    if (id && (method === 'PUT' || method === 'PATCH')) { // aggiorna stato (staff)
+      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      const d = await body(req); const cand = readCand();
+      const c = cand.candidature.find(x => x.id === id);
+      if (!c) return send(res, 404, { error: 'not found' });
+      if ('state' in d) c.state = ['todo', 'visita', 'done'].includes(d.state) ? d.state : c.state;
+      writeCand(cand); return send(res, 200, c);
+    }
+    if (id && method === 'DELETE') { // rimuovi (staff)
+      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      const cand = readCand(); const i = cand.candidature.findIndex(x => x.id === id);
+      if (i < 0) return send(res, 404, { error: 'not found' });
+      cand.candidature.splice(i, 1); writeCand(cand); return send(res, 200, { ok: true });
+    }
+  }
+
+  // --- producers ---
+  if (seg[1] === 'producers') {
+    const store = readStore();
+    const id = seg[2];
+    // GET list / one (pubblico)
+    if (method === 'GET' && !id) return send(res, 200, store);
+    if (method === 'GET' && id) { const p = store.producers.find(x => x.id === id); return p ? send(res, 200, p) : send(res, 404, { error: 'not found' }); }
+
+    // mutazioni: serve ruolo
+    const role = roleOf(req);
+    if (!canEdit(role)) return send(res, 403, { error: 'Accesso riservato' });
+
+    if (method === 'POST' && !id) { // crea
+      const data = normalizePatch(await body(req));
+      let nid = slugify(data.name || data.id || 'produttore'); let n = nid, i = 2;
+      while (store.producers.some(p => p.id === n)) n = nid + '-' + (i++);
+      const p = Object.assign({ categories: [], primary: 'latte', tone: 'pascolo', verify: { state: 'valid', date: '' }, seasonal: [], videos: [], contact: {} }, data, { id: n });
+      store.producers.push(p); writeStore(store); return send(res, 200, p);
+    }
+    if (id && (method === 'PUT' || method === 'PATCH')) { // aggiorna
+      const patch = normalizePatch(await body(req)); const p = store.producers.find(x => x.id === id);
+      if (!p) return send(res, 404, { error: 'not found' });
+      Object.assign(p, patch, { id }); writeStore(store); return send(res, 200, p);
+    }
+    if (id && seg[3] === 'photo' && method === 'POST') { // upload foto
+      const { dataUrl } = await body(req, BODY_MAX_MEDIA); const p = store.producers.find(x => x.id === id);
+      if (!p) return send(res, 404, { error: 'not found' });
+      const m = /^data:image\/(png|jpe?g|webp);base64,(.+)$/.exec(dataUrl || '');
+      if (!m) return send(res, 400, { error: 'immagine non valida' });
+      const ext = m[1] === 'jpeg' ? 'jpg' : m[1]; const file = `${id}.${ext}`;
+      fs.writeFileSync(path.join(PHOTODIR, file), Buffer.from(m[2], 'base64'));
+      p.photo = `assets/photos/producers/${file}`; writeStore(store); return send(res, 200, p);
+    }
+    if (id && seg[3] === 'video' && method === 'POST') { // upload file video → salva in assets, ritorna l'URL
+      const d = await body(req, BODY_MAX_MEDIA); const p = store.producers.find(x => x.id === id);
+      if (!p) return send(res, 404, { error: 'not found' });
+      const m = /^data:video\/(mp4|webm|quicktime);base64,(.+)$/.exec(d.dataUrl || '');
+      if (!m) return send(res, 400, { error: 'video non valido (mp4/webm)' });
+      const buf = Buffer.from(m[2], 'base64');
+      if (buf.length > BODY_MAX_MEDIA) return send(res, 413, { error: 'video troppo grande (max ~60MB)' });
+      const ext = m[1] === 'quicktime' ? 'mp4' : m[1];
+      const slot = ['presentazione', 'storia', 'metodo'].includes(d.type) ? d.type : 'extra';
+      const file = `${id}-${slot}.${ext}`;
+      fs.writeFileSync(path.join(VIDEODIR, file), buf);
+      const url = `assets/videos/producers/${file}`;
+      return send(res, 200, { url, type: slot }); // l'editor scrive poi src nel video corrispondente via PUT
+    }
+    if (id && method === 'DELETE') { // elimina
+      const i = store.producers.findIndex(x => x.id === id);
+      if (i < 0) return send(res, 404, { error: 'not found' });
+      store.producers.splice(i, 1); writeStore(store); return send(res, 200, { ok: true });
+    }
+  }
+  return send(res, 404, { error: 'route api inesistente' });
+}
+
+http.createServer((req, res) => {
+  const url = decodeURIComponent(req.url.split('?')[0]);
+  if (url.startsWith('/api/')) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+    return api(req, res, url).catch(e => send(res, 500, { error: String(e) }));
+  }
+  // statico
+  let p = url === '/' ? '/index.html' : url;
+  let f = path.join(ROOT, p);
+  if (!f.startsWith(ROOT)) { res.writeHead(403); return res.end('forbidden'); }
+  if (f === CONFIG) { res.writeHead(403); return res.end('forbidden'); } // mai servire i segreti
+  fs.readFile(f, (err, data) => {
+    if (err) {
+      // I media CARICATI vivono sul disco persistente (DATA_RW/assets/...): provali lì.
+      if (url.startsWith('/assets/')) {
+        const alt = path.join(DATA_RW, url);
+        if (!alt.startsWith(DATA_RW)) { res.writeHead(403); return res.end('forbidden'); }
+        return fs.readFile(alt, (e3, d3) => {
+          if (e3) { res.writeHead(404); return res.end('not found'); }
+          res.writeHead(200, { 'Content-Type': MIME[path.extname(alt)] || 'application/octet-stream' }); res.end(d3);
+        });
+      }
+      // Altre rotte non-file → SPA fallback su index.html.
+      return fs.readFile(path.join(ROOT, 'index.html'), (e2, d2) => {
+        if (e2) { res.writeHead(404); return res.end('not found'); }
+        res.writeHead(200, { 'Content-Type': MIME['.html'] }); res.end(d2);
+      });
+    }
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' }); res.end(data);
+  });
+}).listen(PORT, () => console.log(`Gaia Food App + API → http://localhost:${PORT}`));

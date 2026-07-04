@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gaia Food — Hub · V4 Trasparenza</title>
+
+<!-- Token condivisi dell'app (ok se assente quando il file è aperto da solo: i fallback sono nel :root qui sotto) -->
+<link rel="stylesheet" href="../../css/app.css">
+
+<!-- Font -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   V4 — TRASPARENZA
+   Le due scelte bloccate hanno l'immagine a OPACITÀ RIDOTTA,
+   integrate nella carta come "fantasma" di ciò che verrà:
+   bordo tratteggiato + lucchetto + badge "In arrivo".
+   La prima è piena, solida, protagonista.
+   Eleganza minimal. Responsive mobile (~390) + desktop (>=1024).
+   ============================================================ */
+
+/* Fallback dei token: rendono il file apribile da solo anche senza app.css */
+:root{
+  --carta:#F4F1EB; --carta-scura:#EDE6DA; --bianco:#FBF9F5; --canvas:#E7DECF;
+  --ink:#1F1812; --ink-soft:#564B41; --muted:#75695B; --muted2:#8A7D6C; --faint:#A89A87; --faint2:#BCAE9B;
+  --verde:#16A34A; --verde-deep:#15803D; --verde-pale:#E7F5EC;
+  --celeste:#0EA5E9; --celeste-deep:#0C7FB0; --celeste-pale:#E2F2F9;
+  --terra:#C2A07A; --terra-deep:#8C6838; --terra-pale:#F3E9D9;
+  --bd:#ECE4D7; --bd2:#E5DCCF; --bd3:#E0D7C8;
+  --grad-azione:linear-gradient(135deg,#16A34A,#0EA5E9);
+  --serif:'Fraunces',Georgia,serif;
+  --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:var(--sans);
+  color:var(--ink);
+  background:
+    radial-gradient(120% 90% at 50% -10%, #EFE8DB 0%, var(--canvas) 55%, #DED3C0 100%);
+  background-attachment:fixed;
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+/* ---------- Shell: largo su desktop, telefono su mobile ---------- */
+.shell{
+  width:100%;
+  max-width:1200px;
+  margin:0 auto;
+  padding:clamp(20px,5vw,52px) clamp(18px,4vw,48px) 56px;
+}
+
+/* ---------- Topbar ---------- */
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:16px; margin-bottom:clamp(26px,5vw,46px);
+}
+.brand{ display:flex; align-items:center; gap:11px; }
+.brand .mark{
+  width:34px;height:34px;border-radius:11px;
+  background:var(--grad-azione);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 18px -8px rgba(22,163,74,.55);
+  flex:none;
+}
+.brand .mark svg{width:18px;height:18px}
+.brand .wordmark{
+  font-family:var(--sans); font-weight:600; font-size:15px;
+  letter-spacing:.03em; color:var(--ink);
+}
+.brand .wordmark span{ color:var(--verde-deep); }
+.loc{
+  display:inline-flex; align-items:center; gap:7px;
+  font-size:13px; color:var(--ink-soft); font-weight:500;
+  background:rgba(251,249,245,.7); border:1px solid var(--bd);
+  padding:8px 14px; border-radius:100px;
+  backdrop-filter:blur(6px);
+}
+.loc b{ color:var(--ink); font-weight:600; }
+
+/* ---------- Intro ---------- */
+.intro{ max-width:640px; margin:0 0 clamp(26px,4vw,40px); }
+.eyebrow{
+  font-size:11px; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--verde-deep); display:inline-flex; align-items:center; gap:8px; margin-bottom:14px;
+}
+.eyebrow::before{
+  content:""; width:18px; height:1.5px; background:var(--verde); border-radius:2px; display:inline-block;
+}
+.intro h1{
+  font-family:var(--serif); font-weight:600;
+  font-size:clamp(32px,5.4vw,52px); line-height:1.04; letter-spacing:-.025em;
+  color:var(--ink);
+}
+.intro h1 em{ font-style:italic; color:var(--verde); }
+.intro p{
+  margin-top:14px; font-size:clamp(15px,1.6vw,18px); line-height:1.55;
+  color:var(--muted); max-width:48ch; font-weight:400;
+}
+
+/* ============================================================
+   GRID DELLE SCELTE
+   mobile  : 1 colonna, hero in alto poi le due bloccate
+   desktop : hero a sinistra (grande) + colonna con le due bloccate
+   ============================================================ */
+.choices{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:clamp(14px,2vw,20px);
+}
+@media (min-width:1024px){
+  .choices{
+    grid-template-columns:1.32fr 1fr;
+    grid-template-rows:auto auto;
+    align-items:stretch;
+  }
+  .card--primary{ grid-row:1 / span 2; }
+}
+
+/* ---------- Card base ---------- */
+.card{
+  position:relative;
+  border-radius:24px;
+  overflow:hidden;
+  display:flex; flex-direction:column;
+  isolation:isolate;
+}
+
+/* ===== Card PRIMARIA — piena, solida, protagonista ===== */
+.card--primary{
+  min-height:clamp(360px,46vw,560px);
+  color:#fff;
+  text-decoration:none;
+  border:1px solid rgba(31,24,18,.06);
+  box-shadow:
+    0 2px 8px rgba(31,24,18,.08),
+    0 36px 70px -34px rgba(31,24,18,.6);
+  background:#22321f;
+  transition:transform .45s cubic-bezier(.22,1,.36,1), box-shadow .45s cubic-bezier(.22,1,.36,1);
+}
+.card--primary .bg{
+  position:absolute; inset:0; z-index:0;
+}
+.card--primary .bg img{
+  width:100%; height:100%; object-fit:cover; display:block;
+  transition:transform .9s cubic-bezier(.22,1,.36,1);
+}
+.card--primary .bg::after{
+  /* velo per leggibilità testo + calore */
+  content:""; position:absolute; inset:0;
+  background:
+    linear-gradient(180deg, rgba(20,30,16,0) 28%, rgba(20,30,16,.28) 56%, rgba(15,22,12,.86) 100%),
+    linear-gradient(110deg, rgba(20,40,18,.34), rgba(10,22,12,0) 60%);
+}
+.card--primary:hover{ transform:translateY(-4px); box-shadow:0 4px 12px rgba(31,24,18,.1),0 46px 84px -34px rgba(31,24,18,.66); }
+.card--primary:hover .bg img{ transform:scale(1.045); }
+
+.card--primary .body{
+  position:relative; z-index:2; margin-top:auto;
+  padding:clamp(24px,3vw,40px);
+  display:flex; flex-direction:column; gap:14px;
+}
+.tag-live{
+  align-self:flex-start;
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  color:#0b3a1e; background:rgba(255,255,255,.92);
+  padding:7px 13px; border-radius:100px;
+  backdrop-filter:blur(4px);
+}
+.tag-live .dot{
+  width:7px;height:7px;border-radius:50%;background:var(--verde);
+  box-shadow:0 0 0 0 rgba(34,197,94,.6); animation:pulse 2.4s infinite;
+}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}
+  70%{box-shadow:0 0 0 9px rgba(34,197,94,0)}
+  100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}
+}
+.card--primary h2{
+  font-family:var(--serif); font-weight:600;
+  font-size:clamp(27px,3.4vw,40px); line-height:1.04; letter-spacing:-.02em;
+  text-shadow:0 2px 18px rgba(0,0,0,.35);
+}
+.card--primary p{
+  font-size:clamp(15px,1.5vw,17px); line-height:1.5; color:rgba(255,255,255,.9);
+  max-width:42ch; text-shadow:0 1px 10px rgba(0,0,0,.3);
+}
+.go{
+  margin-top:6px; align-self:flex-start;
+  display:inline-flex; align-items:center; gap:11px;
+  font-size:15px; font-weight:600; color:#0b3a1e;
+  background:#fff; padding:13px 22px; border-radius:100px;
+  box-shadow:0 12px 28px -12px rgba(0,0,0,.5);
+  transition:gap .3s ease, transform .3s ease;
+}
+.card--primary:hover .go{ gap:16px; }
+.go svg{width:17px;height:17px}
+
+/* ===== Card BLOCCATE — "fantasma" trasparente sulla carta ===== */
+.card--locked{
+  min-height:clamp(170px,20vw,258px);
+  background:
+    linear-gradient(180deg, rgba(251,249,245,.55), rgba(244,241,235,.78));
+  border:1.5px dashed var(--bd3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+  transition:border-color .4s ease, background .4s ease, transform .4s ease;
+}
+.card--locked:hover{
+  border-color:var(--faint2);
+  background:linear-gradient(180deg, rgba(251,249,245,.62), rgba(244,241,235,.84));
+}
+/* immagine fantasma in trasparenza, integrata nella carta */
+.card--locked .ghost{
+  position:absolute; inset:0; z-index:0; overflow:hidden;
+}
+.card--locked .ghost img{
+  width:100%; height:100%; object-fit:cover; display:block;
+  opacity:.16;
+  filter:saturate(.7) contrast(.96);
+  mix-blend-mode:multiply;
+  transition:opacity .5s ease;
+  -webkit-mask-image:linear-gradient(105deg, #000 0%, rgba(0,0,0,.55) 52%, rgba(0,0,0,.05) 100%);
+          mask-image:linear-gradient(105deg, #000 0%, rgba(0,0,0,.55) 52%, rgba(0,0,0,.05) 100%);
+}
+.card--locked:hover .ghost img{ opacity:.22; }
+/* schiaritura verso il testo per tenere il contrasto */
+.card--locked .ghost::after{
+  content:""; position:absolute; inset:0;
+  background:linear-gradient(105deg, rgba(244,241,235,.1) 0%, rgba(244,241,235,.55) 55%, rgba(244,241,235,.9) 100%);
+}
+
+.card--locked .body{
+  position:relative; z-index:2;
+  padding:clamp(18px,2.4vw,26px);
+  display:flex; flex-direction:column; gap:8px;
+  height:100%; justify-content:center;
+}
+.lock-row{ display:flex; align-items:center; gap:10px; margin-bottom:2px; }
+.lockchip{
+  width:30px;height:30px;border-radius:9px; flex:none;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(251,249,245,.85);
+  border:1px solid var(--bd2);
+  color:var(--muted2);
+  box-shadow:0 2px 6px rgba(31,24,18,.05);
+}
+.lockchip svg{width:15px;height:15px}
+.badge-soon{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--terra-deep); background:var(--terra-pale);
+  padding:5px 11px; border-radius:100px;
+  border:1px solid rgba(140,104,56,.16);
+}
+.card--locked h3{
+  font-family:var(--serif); font-weight:600;
+  font-size:clamp(19px,2vw,24px); line-height:1.08; letter-spacing:-.015em;
+  color:var(--ink-soft);
+}
+.card--locked p{
+  font-size:clamp(13px,1.4vw,15px); line-height:1.48; color:var(--muted);
+  max-width:38ch; font-weight:400;
+}
+
+/* ---------- Skip ---------- */
+.skip{
+  text-align:center; margin-top:clamp(26px,4vw,40px);
+}
+.skip a{
+  display:inline-flex; align-items:center; gap:9px;
+  font-size:14px; font-weight:500; color:var(--muted);
+  text-decoration:none; padding:11px 20px; border-radius:100px;
+  border:1px solid transparent;
+  transition:color .3s ease, border-color .3s ease, background .3s ease;
+}
+.skip a:hover{ color:var(--verde-deep); border-color:var(--bd2); background:rgba(251,249,245,.6); }
+.skip a b{ font-weight:600; color:var(--ink-soft); }
+.skip a:hover b{ color:var(--verde-deep); }
+.skip a svg{width:15px;height:15px}
+
+/* ============================================================
+   DESKTOP — pannello "scarica l'app" (badge + QR)
+   visibile solo su schermi larghi (mouse), nascosto su mobile
+   ============================================================ */
+.getapp{
+  display:none;
+}
+@media (min-width:1024px){
+  .getapp{
+    display:flex; align-items:center; gap:clamp(20px,2.6vw,36px);
+    margin-top:clamp(34px,5vw,56px);
+    padding:clamp(22px,2.4vw,30px) clamp(24px,3vw,38px);
+    background:rgba(251,249,245,.72);
+    border:1px solid var(--bd);
+    border-radius:22px;
+    box-shadow:0 1px 2px rgba(31,24,18,.04), 0 24px 50px -34px rgba(31,24,18,.4);
+    backdrop-filter:blur(8px);
+  }
+  .getapp .qr{
+    width:108px;height:108px;border-radius:16px;flex:none;
+    background:#fff; border:1px solid var(--bd2);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 16px -8px rgba(31,24,18,.3);
+    position:relative;
+  }
+  .getapp .qr svg{width:84px;height:84px}
+  .getapp .qr::after{
+    content:"placeholder"; position:absolute; bottom:-19px; left:0; right:0;
+    text-align:center; font-size:9px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--faint); font-weight:600;
+  }
+  .getapp .copy{ flex:1; min-width:0; }
+  .getapp .copy .gx{
+    font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--celeste-deep);
+  }
+  .getapp .copy h4{
+    font-family:var(--serif); font-weight:600; font-size:clamp(19px,1.9vw,23px);
+    letter-spacing:-.01em; color:var(--ink); margin:5px 0 5px;
+  }
+  .getapp .copy p{ font-size:14px; color:var(--muted); line-height:1.5; max-width:46ch; }
+  .getapp .stores{ display:flex; gap:12px; flex:none; }
+  .storebadge{
+    display:inline-flex; align-items:center; gap:10px;
+    background:var(--ink); color:#fff;
+    padding:11px 17px; border-radius:14px;
+    text-decoration:none; cursor:pointer;
+    transition:transform .3s ease, box-shadow .3s ease;
+    box-shadow:0 10px 24px -14px rgba(31,24,18,.7);
+  }
+  .storebadge:hover{ transform:translateY(-2px); box-shadow:0 16px 30px -14px rgba(31,24,18,.7); }
+  .storebadge svg{ width:24px; height:24px; flex:none; }
+  .storebadge .lab{ display:flex; flex-direction:column; line-height:1.12; }
+  .storebadge .lab .s{ font-size:9.5px; letter-spacing:.04em; opacity:.78; font-weight:500; }
+  .storebadge .lab .b{ font-size:15px; font-weight:600; letter-spacing:-.01em; }
+}
+@media (min-width:1024px) and (max-width:1180px){
+  .getapp{ flex-wrap:wrap; }
+  .getapp .stores{ width:100%; }
+}
+
+/* ---------- footer hint solo mobile ---------- */
+.mobile-hint{
+  display:block; text-align:center; margin-top:30px;
+  font-size:12px; color:var(--faint); letter-spacing:.02em;
+}
+@media (min-width:1024px){ .mobile-hint{ display:none; } }
+
+/* ---------- reduced motion ---------- */
+@media (prefers-reduced-motion:reduce){
+  *{ transition:none !important; animation:none !important; }
+  .card--primary:hover{ transform:none; }
+  .card--primary:hover .bg img{ transform:none; }
+}
+</style>
+</head>
+
+<body>
+  <main class="shell">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 21c0-6 0-9-4-12 0 4 1.6 6.6 4 8"/>
+            <path d="M12 21c0-5 .4-8 4-10.5-.2 4-1.8 7-4 9"/>
+          </svg>
+        </span>
+        <span class="wordmark">Gaia <span>Food</span></span>
+      </div>
+      <span class="loc" aria-label="Posizione attuale">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
+        </svg>
+        <b>Teramo</b>, Abruzzo
+      </span>
+    </header>
+
+    <!-- Intro -->
+    <section class="intro">
+      <span class="eyebrow">Gaia Food</span>
+      <h1>Cosa vuoi <em>fare?</em></h1>
+      <p>Tre modi per vivere il cibo vero. Per ora si parte dal primo.</p>
+    </section>
+
+    <!-- Scelte -->
+    <section class="choices">
+
+      <!-- 1 · ATTIVA -->
+      <a class="card card--primary" href="#mappa" aria-label="Trova un produttore — attivo">
+        <div class="bg">
+          <img src="./assets/trova.jpg" alt="Pascolo con mucche al sorgere del sole e un casolare di pietra tra le colline" loading="lazy">
+        </div>
+        <div class="body">
+          <span class="tag-live"><span class="dot"></span> Attivo ora</span>
+          <h2>Trova un produttore</h2>
+          <p>Esplora la mappa e scopri chi produce vero, vicino a te.</p>
+          <span class="go">
+            Apri la mappa
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+          </span>
+        </div>
+      </a>
+
+      <!-- 2 · IN ARRIVO -->
+      <div class="card card--locked" aria-disabled="true" aria-label="Ricevi a casa — in arrivo, non ancora disponibile">
+        <div class="ghost" aria-hidden="true">
+          <img src="./assets/ricevi.jpg" alt="" loading="lazy">
+        </div>
+        <div class="body">
+          <div class="lock-row">
+            <span class="lockchip" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            </span>
+            <span class="badge-soon">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              In arrivo
+            </span>
+          </div>
+          <h3>Ricevi a casa</h3>
+          <p>Ordina dai produttori: un mezzo ritira e porta tutto a casa tua.</p>
+        </div>
+      </div>
+
+      <!-- 3 · IN ARRIVO -->
+      <div class="card card--locked" aria-disabled="true" aria-label="Lungo il Percorso — in arrivo, non ancora disponibile">
+        <div class="ghost" aria-hidden="true">
+          <img src="./assets/percorso.jpg" alt="" loading="lazy">
+        </div>
+        <div class="body">
+          <div class="lock-row">
+            <span class="lockchip" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            </span>
+            <span class="badge-soon">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              In arrivo
+            </span>
+          </div>
+          <h3>Lungo il Percorso</h3>
+          <p>Scegli le tappe e viaggia tra i produttori del territorio.</p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Skip -->
+    <div class="skip">
+      <a href="#mappa">
+        Salta · <b>guarda subito i produttori</b>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+      </a>
+    </div>
+
+    <!-- Desktop: scarica l'app -->
+    <aside class="getapp" aria-label="Scarica l'app per smartphone">
+      <div class="qr" aria-hidden="true">
+        <!-- QR placeholder -->
+        <svg viewBox="0 0 100 100" fill="none">
+          <rect width="100" height="100" fill="#fff"/>
+          <g fill="#1F1812">
+            <rect x="8" y="8" width="24" height="24" rx="2"/><rect x="14" y="14" width="12" height="12" rx="1" fill="#fff"/>
+            <rect x="68" y="8" width="24" height="24" rx="2"/><rect x="74" y="14" width="12" height="12" rx="1" fill="#fff"/>
+            <rect x="8" y="68" width="24" height="24" rx="2"/><rect x="14" y="74" width="12" height="12" rx="1" fill="#fff"/>
+            <rect x="42" y="8" width="6" height="6"/><rect x="52" y="8" width="6" height="6"/><rect x="42" y="18" width="6" height="6"/>
+            <rect x="40" y="40" width="6" height="6"/><rect x="50" y="40" width="6" height="6"/><rect x="60" y="40" width="6" height="6"/>
+            <rect x="40" y="50" width="6" height="6"/><rect x="60" y="50" width="6" height="6"/><rect x="70" y="50" width="6" height="6"/>
+            <rect x="40" y="60" width="6" height="6"/><rect x="50" y="60" width="6" height="6"/>
+            <rect x="44" y="74" width="6" height="6"/><rect x="54" y="74" width="6" height="6"/><rect x="64" y="74" width="6" height="6"/><rect x="74" y="74" width="6" height="6"/>
+            <rect x="44" y="84" width="6" height="6"/><rect x="64" y="84" width="6" height="6"/><rect x="84" y="64" width="6" height="6"/><rect x="84" y="84" width="6" height="6"/>
+          </g>
+        </svg>
+      </div>
+      <div class="copy">
+        <span class="gx">Preferisci il telefono?</span>
+        <h4>Porta Gaia Food in tasca</h4>
+        <p>Inquadra il codice o scarica l'app: la mappa dei produttori sempre con te, anche tra i campi.</p>
+      </div>
+      <div class="stores">
+        <a class="storebadge" href="#" aria-label="Scarica su App Store">
+          <svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M16.36 1.43c.05 1.1-.36 2.18-1.06 2.98-.71.81-1.86 1.43-2.97 1.34-.07-1.05.42-2.16 1.07-2.9.73-.83 1.96-1.43 2.96-1.42ZM20.5 17.2c-.55 1.27-.82 1.84-1.53 2.96-.99 1.56-2.39 3.5-4.12 3.52-1.54.01-1.93-1-4.02-.99-2.08.01-2.51 1.01-4.05.99-1.73-.02-3.05-1.78-4.04-3.34C-.05 16.66-.34 11.5 1.36 8.79c1.2-1.92 3.1-3.05 4.88-3.05 1.82 0 2.96 1 4.46 1 1.46 0 2.35-1 4.45-1 1.59 0 3.27.86 4.47 2.36-3.93 2.15-3.29 7.76.43 9.1Z"/></svg>
+          <span class="lab"><span class="s">Scarica su</span><span class="b">App Store</span></span>
+        </a>
+        <a class="storebadge" href="#" aria-label="Scarica su Google Play">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 1.84c-.3.32-.47.8-.47 1.45v17.42c0 .65.17 1.13.49 1.43l.06.06 9.76-9.76v-.23L3.68 1.78l-.08.06Z" fill="#0EA5E9"/><path d="m17 15.43-3.25-3.25v-.23l3.26-3.26.07.05 3.86 2.19c1.1.62 1.1 1.65 0 2.28l-3.86 2.19-.08.03Z" fill="#16A34A"/><path d="m17.08 15.4-3.33-3.33-10.15 10.15c.36.39.96.43 1.64.05l11.84-6.87Z" fill="#15803D"/><path d="M17.08 8.74 5.24 1.88c-.68-.39-1.28-.34-1.64.05l10.15 10.14 3.33-3.33Z" fill="#0C7FB0"/></svg>
+          <span class="lab"><span class="s">Disponibile su</span><span class="b">Google Play</span></span>
+        </a>
+      </div>
+    </aside>
+
+    <p class="mobile-hint">Gaia Food · il cibo vero, dal produttore a te</p>
+
+  </main>
+</body>
+</html>
