@@ -44,8 +44,8 @@ export function Splash() {
   const hasZone = !!userZone();
   const dest = (logged && hasZone) ? (hubSeen() ? lastFunction() : '#/hub') : null;
   const ctaLabel = logged
-    ? `${Icon('arrow-right', { size: 18, color: '#fff' })} Entra`
-    : `${Icon('user', { size: 18, color: '#fff' })} Accedi o registrati`;
+    ? `${Icon('arrow-right', { size: 18, color: '#fff' })} ${t('splash.ctaEnter')}`
+    : `${Icon('user', { size: 18, color: '#fff' })} ${t('splash.ctaLogin')}`;
   // Non loggato → apri il POP-UP di accesso; loggato senza zona → pop-up allo step zona;
   // loggato con zona → entra direttamente. Niente più pagina intera #/registrati.
   const cta = (logged && hasZone)
@@ -89,9 +89,9 @@ export function Splash() {
           alt="Gaia Food" decoding="async" onerror="this.style.display='none'">
       </div>
       <div class="s02-body">
-        <span class="s02-eyebrow">${logged ? 'Bentornato' : 'Benvenuto in Gaia Food'}</span>
-        <h1 class="s02-title">Il cibo vero,<br><em>vicino a te.</em></h1>
-        <p class="s02-sub">${logged ? 'Ti portiamo ai produttori veri della tua zona.' : 'Registrati o accedi per scoprire i produttori veri vicino a te.'}</p>
+        <span class="s02-eyebrow">${logged ? t('splash.eyebrowBack') : t('splash.eyebrowNew')}</span>
+        <h1 class="s02-title">${t('splash.title1')}<br><em>${t('splash.title2')}</em></h1>
+        <p class="s02-sub">${logged ? t('splash.subLogged') : t('splash.subNew')}</p>
         ${cta}
       </div>
     </div>`,
@@ -107,21 +107,21 @@ export function Home() {
   const list = inZone ? results() : [];        // fuori zona = nessun produttore
   const uz = userZone();
   const regionName = typeof uz === 'string' ? uz : (uz && (uz.region || uz.label || uz.name)) || '';
-  const locLabel = inZone ? (s.zone?.comuni?.[0] || s.zone?.label || 'la tua zona') : (regionName || 'la tua regione');
+  const locLabel = inZone ? (s.zone?.comuni?.[0] || s.zone?.label || t('home.zoneFallback')) : (regionName || t('home.regionFallback'));
   const chips = s.categories.map(c =>
     `<button class="chip ${s.category === c.id ? 'active' : ''}" data-cat="${c.id}">${Icon(c.glyph, { size: 16 })}${c.label}</button>`).join('');
 
   // Empty-state per chi è fuori dalla zona attiva: causa + cosa fare.
+  const emptyRegion = regionName ? `in <b>${regionName}</b>` : t('home.regionYours');
   const emptyZone = `
     <div class="center" style="padding:48px 26px">
       ${Icon('map-pin', { size: 44, color: 'var(--faint)' })}
-      <h2 class="h2 mt16">Presto nella tua zona</h2>
+      <h2 class="h2 mt16">${t('home.emptyTitle')}</h2>
       <p class="muted mt8" style="max-width:32ch;margin-left:auto;margin-right:auto">
-        Non abbiamo ancora produttori verificati ${regionName ? `in <b>${regionName}</b>` : 'nella tua regione'}.
-        Stiamo arrivando una zona alla volta: per ora siamo attivi in <b>Abruzzo · Alta Val di Sangro</b>.
+        ${t('home.emptyBody', { region: emptyRegion, active: '<b>Abruzzo · Alta Val di Sangro</b>' })}
       </p>
       <button class="btn btn-outline mt16" type="button" data-open-auth="zone" style="display:inline-flex">
-        ${Icon('settings', { size: 17, color: 'var(--verde-deep)' })} Cambia zona
+        ${Icon('settings', { size: 17, color: 'var(--verde-deep)' })} ${t('home.changeZone')}
       </button>
     </div>`;
 
@@ -129,24 +129,24 @@ export function Home() {
     html: `<div class="screen home">
       ${StatusBar()}
       <div class="toprow">
-        <button class="loc" type="button" data-open-auth="zone" aria-label="Cambia zona">${Icon('map-pin', { size: 16, color: 'var(--verde)' })}<b>${locLabel}</b>${inZone ? ` · ${s.radius} km` : ''} ${Icon('chevron-down', { size: 14, color: 'var(--faint)' })}</button>
+        <button class="loc" type="button" data-open-auth="zone" aria-label="${t('home.changeZone')}">${Icon('map-pin', { size: 16, color: 'var(--verde)' })}<b>${locLabel}</b>${inZone ? ` · ${s.radius} km` : ''} ${Icon('chevron-down', { size: 14, color: 'var(--faint)' })}</button>
         <a class="iconbtn" href="#/profilo" data-link>${Icon('user', { size: 18 })}</a>
       </div>
       <div class="scroll">
         <div class="pad">
-          <h1 class="h1">Cosa cerchi <em>oggi?</em></h1>
+          <h1 class="h1">${t('home.title1')} <em>${t('home.titleEm')}</em></h1>
           <div class="search mt12">${Icon('search', { size: 20, color: 'var(--terra-deep)' })}
-            <input id="q" aria-label="Cerca un prodotto o un produttore" placeholder="dove prendo il latte?" value="${s.query}">
+            <input id="q" aria-label="${t('home.searchAria')}" placeholder="${t('home.searchPlaceholder')}" value="${s.query}">
             ${Icon('mic', { size: 19, color: 'var(--faint)' })}</div>
           ${inZone ? `<div class="chips mt12">${chips}</div>` : ''}
         </div>
         ${inZone ? `
         <div class="pad mt16">
           <div class="mapwrap"><div id="map" class="map-canvas"></div>
-            <a class="map-fab open" href="#/mappa" data-link>${Icon('map-pin', { size: 16, color: 'var(--verde)' })} Apri mappa</a></div>
+            <a class="map-fab open" href="#/mappa" data-link>${Icon('map-pin', { size: 16, color: 'var(--verde)' })} ${t('home.openMap')}</a></div>
         </div>
         <div class="pad mt22">
-          <div class="block-h"><div class="section-t">Vicino a te</div><span class="eyebrow tnum">${list.length} verificati</span></div>
+          <div class="block-h"><div class="section-t">${t('home.nearYou')}</div><span class="eyebrow tnum">${t('home.verifiedCount', { n: list.length })}</span></div>
           <div class="gap8" id="list">${list.map(ProducerCard).join('')}</div>
         </div>
         <div style="height:24px"></div>
@@ -170,16 +170,16 @@ export function Home() {
 /* ---------------- SCHEDA PRODUTTORE ---------------- */
 export function Producer(id) {
   const p = producerById(id);
-  if (!p) return { html: `<div class="screen no-nav"><div class="pad mt22">Produttore non trovato. <a href="#/home" data-link>Torna alla Home</a></div></div>` };
+  if (!p) return { html: `<div class="screen no-nav"><div class="pad mt22">${t('producer.notFound')} <a href="#/home" data-link>${t('producer.backHome')}</a></div></div>` };
   const cats = p.categories.map(c => `<span class="chip" style="padding:5px 11px">${Icon(catGlyph[c], { size: 14 })}${c}</span>`).join('');
   // Pull-quote: cita le parole vere del produttore (estratte da story tra « »), con attribuzione.
   const quoteMatch = (p.story || '').match(/«([^»]+)»/);
-  const quote = quoteMatch ? quoteMatch[1].trim() : 'Il cibo vero non si spiega: si assaggia.';
+  const quote = quoteMatch ? quoteMatch[1].trim() : t('producer.defaultQuote');
   const quoteWho = `${(p.name || '').replace(/^Az\.\s*Agricola\s+di\s+/i, '')}, ${p.place || ''}`.replace(/,\s*$/, '');
 
   // ---- Sezione video "full-swipe" (stile storie) — un grande stage; si scorre in orizzontale tra i video ----
   const vids = Array.isArray(p.videos) ? p.videos : [];
-  const VCHIP = { presentazione: 'Presentazione', storia: 'Storia', metodo: 'Metodo' };
+  const VCHIP = { presentazione: t('producer.videoPresentazione'), storia: t('producer.videoStoria'), metodo: t('producer.videoMetodo') };
   const VCLS = { presentazione: 'pre', storia: 'sto', metodo: 'met' };
   let mainIdx = vids.findIndex(v => v.type === 'presentazione');
   if (mainIdx < 0) mainIdx = 0;
@@ -189,28 +189,28 @@ export function Producer(id) {
     : [];
   const chev = (d) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M${d === 'l' ? '15 6l-6 6 6 6' : '9 6l6 6-6 6'}"/></svg>`;
   const slide = ({ v, i }) => `
-        <a class="pv3-slide" href="#/video/${p.id}/${i}" data-link aria-label="Guarda: ${v.title || 'video'}">
+        <a class="pv3-slide" href="#/video/${p.id}/${i}" data-link aria-label="${t('producer.watchAria', { title: v.title || 'video' })}">
           ${Photo(v.tone, '', '', i === mainIdx ? p.photo : '')}
           <span class="pv3-scr"></span>
-          <span class="pv-cat ${VCLS[v.type] || 'pre'}">${VCHIP[v.type] || 'Video'}</span>
+          <span class="pv-cat ${VCLS[v.type] || 'pre'}">${VCHIP[v.type] || t('producer.videoGeneric')}</span>
           ${v.state === 'coming'
-            ? `<span class="pv3-soon">${Icon('clock', { size: 15, color: '#fff' })} In arrivo</span>`
+            ? `<span class="pv3-soon">${Icon('clock', { size: 15, color: '#fff' })} ${t('common.comingSoon')}</span>`
             : `<span class="pv3-play">${Icon('play', { size: 26, color: 'var(--ink)' })}</span>`}
-          <div class="pv3-cap"><h3>${v.title || 'Capitolo'}</h3>
-            <div class="pv3-d">${v.duration ? v.duration + ' · ' : ''}${v.state === 'coming' ? 'non ancora disponibile' : 'tocca per riprodurre'}</div></div>
+          <div class="pv3-cap"><h3>${v.title || t('producer.chapter')}</h3>
+            <div class="pv3-d">${v.duration ? v.duration + ' · ' : ''}${v.state === 'coming' ? t('producer.notAvailableYet') : t('producer.tapToPlay')}</div></div>
         </a>`;
   const videoSection = vOrdered.length ? `
         <div class="block">
-          <div class="block-h"><div class="section-t">Guarda la visita</div><span class="eyebrow tnum">${vids.length} video</span></div>
+          <div class="block-h"><div class="section-t">${t('producer.watchVisit')}</div><span class="eyebrow tnum">${t('producer.videoCount', { n: vids.length })}</span></div>
           <div class="pv3">
             <div class="pv3-track" data-pv3-track>${vOrdered.map(slide).join('')}</div>
             ${vOrdered.length > 1 ? `
             <div class="pv3-count" data-pv3-count>1 / ${vOrdered.length}</div>
-            <button class="pv3-arrow pv3-l" type="button" data-pv3-prev aria-label="Video precedente">${chev('l')}</button>
-            <button class="pv3-arrow pv3-r" type="button" data-pv3-next aria-label="Video successivo">${chev('r')}</button>
+            <button class="pv3-arrow pv3-l" type="button" data-pv3-prev aria-label="${t('producer.prevVideo')}">${chev('l')}</button>
+            <button class="pv3-arrow pv3-r" type="button" data-pv3-next aria-label="${t('producer.nextVideo')}">${chev('r')}</button>
             <div class="pv3-dots" data-pv3-dots>${vOrdered.map((_, k) => `<i class="${k === 0 ? 'on' : ''}"></i>`).join('')}</div>` : ''}
           </div>
-          ${vOrdered.length > 1 ? `<div class="pv3-hint">scorri ← → per cambiare video</div>` : ''}
+          ${vOrdered.length > 1 ? `<div class="pv3-hint">${t('producer.swipeHint')}</div>` : ''}
         </div>` : '';
   return {
     html: `<div class="screen no-nav prod">
@@ -218,8 +218,8 @@ export function Producer(id) {
         <div class="hero">
           ${Photo(p.tone, '', '', p.photo)}
           <div class="hero-top">
-            <button class="iconbtn" data-back aria-label="Indietro">${Icon('arrow-left', { size: 18 })}</button>
-            <button class="iconbtn" data-save aria-label="Salva" aria-pressed="${p.saved ? 'true' : 'false'}">${Icon(p.saved ? 'heart' : 'bookmark', { size: 18, color: p.saved ? 'var(--verde)' : 'var(--ink)', fill: p.saved ? 'var(--verde)' : 'none' })}</button>
+            <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 18 })}</button>
+            <button class="iconbtn" data-save aria-label="${t('producer.saveAria')}" aria-pressed="${p.saved ? 'true' : 'false'}">${Icon(p.saved ? 'heart' : 'bookmark', { size: 18, color: p.saved ? 'var(--verde)' : 'var(--ink)', fill: p.saved ? 'var(--verde)' : 'none' })}</button>
           </div>
           <div class="hero-cap"><div class="pn">${p.name}</div><div class="pl">${p.place} · Alta Val di Sangro</div></div>
         </div>
@@ -236,26 +236,26 @@ export function Producer(id) {
         </div>
 
         <div class="block">
-          <div class="block-h"><div class="section-t">Di stagione, adesso</div><span class="eyebrow tnum">${p.seasonal.length} ${p.seasonal.length === 1 ? 'prodotto' : 'prodotti'}</span></div>
+          <div class="block-h"><div class="section-t">${t('producer.seasonNow')}</div><span class="eyebrow tnum">${p.seasonal.length} ${p.seasonal.length === 1 ? t('producer.productOne') : t('producer.productMany')}</span></div>
           <div class="seasonal">${p.seasonal.map(si => `<div class="si">${Photo(si.tone, '')}<div class="sl">${si.label}${si.note ? `<span class="sn">${si.note}</span>` : ''}</div></div>`).join('')}</div>
         </div>
 
         <div class="block">
           <div class="kv"><span class="open">${Icon('clock', { size: 17, color: 'var(--verde-deep)' })}</span> ${p.hours}</div>
           <div class="kv">${Icon('map-pin', { size: 17, color: 'var(--muted)' })} ${p.address}</div>
-          <div class="dlv-sel"><div class="dlv-soon">${Icon('truck', { size: 17, color: 'var(--muted)' })} <b style="color:var(--ink)">Consegna a casa</b> · non disponibile al momento</div>
-            <div class="muted" style="font-size:12.5px;margin-top:6px">Per ora vai a ritirare o contatta il produttore. Ti avviseremo quando parte la consegna nella tua zona.</div></div>
+          <div class="dlv-sel"><div class="dlv-soon">${Icon('truck', { size: 17, color: 'var(--muted)' })} <b style="color:var(--ink)">${t('producer.homeDelivery')}</b> · ${t('producer.deliveryUnavailable')}</div>
+            <div class="muted" style="font-size:12.5px;margin-top:6px">${t('producer.deliveryNote')}</div></div>
         </div>
 
         <div class="block">
-          <div class="block-h"><div class="section-t">Recensioni</div></div>
-          <div class="muted" style="font-size:14px">Nessuna recensione ancora — ma <b style="color:var(--verde-deep)">verificato di persona dal tecnologo alimentare il ${p.verify.date}</b>.</div>
+          <div class="block-h"><div class="section-t">${t('producer.reviews')}</div></div>
+          <div class="muted" style="font-size:14px">${t('producer.noReviews1')} <b style="color:var(--verde-deep)">${t('producer.verifiedByTech', { date: p.verify.date })}</b>.</div>
         </div>
         <div style="height:12px"></div>
       </div>
       <div class="cta-sticky">
-        <button class="btn btn-grad" style="flex:1" data-contact aria-label="Contatta">${Icon('message-circle', { size: 18, color: '#fff' })} Contatta / Vai a ritirare</button>
-        <button class="iconbtn" style="width:52px;height:52px" data-nav aria-label="Indicazioni">${Icon('navigation', { size: 20, color: 'var(--verde)' })}</button>
+        <button class="btn btn-grad" style="flex:1" data-contact aria-label="${t('producer.contactPickup')}">${Icon('message-circle', { size: 18, color: '#fff' })} ${t('producer.contactPickup')}</button>
+        <button class="iconbtn" style="width:52px;height:52px" data-nav aria-label="${t('producer.directionsAria')}">${Icon('navigation', { size: 20, color: 'var(--verde)' })}</button>
       </div>
     </div>`,
     onMount(el) {
@@ -304,7 +304,7 @@ function waHref(num, name) {
   let d = onlyDigits(num);
   // numero italiano scritto senza prefisso (parte con 3, 9-10 cifre) -> aggiungi 39
   if (d && !String(num).trim().startsWith('+') && d.length <= 10 && d[0] === '3') d = '39' + d;
-  const msg = encodeURIComponent(`Ciao${name ? ' ' + name : ''}, vi ho trovati su Gaia Food. Vorrei venire a ritirare.`);
+  const msg = encodeURIComponent(t('contact.waMsg', { name: name ? ' ' + name : '' }));
   return `https://wa.me/${d}?text=${msg}`;
 }
 function mapsHref(p) {
@@ -315,10 +315,10 @@ function mapsHref(p) {
 export function openContact(p) {
   const c = p.contact || {};
   const rows = [];
-  if (c.whatsapp) rows.push(`<a href="${waHref(c.whatsapp, p.name)}" target="_blank" rel="noopener" class="contact-row wa" aria-label="Scrivi su WhatsApp"><span class="cr-ic">${Icon('message-circle', { size: 20 })}</span> WhatsApp</a>`);
-  if (c.phone) rows.push(`<a href="${telHref(c.phone)}" class="contact-row ph" aria-label="Chiama il produttore"><span class="cr-ic">${Icon('phone', { size: 20 })}</span> Chiama</a>`);
-  if (c.email) rows.push(`<a href="mailto:${c.email}" class="contact-row em" aria-label="Scrivi una email"><span class="cr-ic">${Icon('mail', { size: 20 })}</span> Email</a>`);
-  rows.push(`<a href="${mapsHref(p)}" target="_blank" rel="noopener" class="contact-row dir" aria-label="Indicazioni per andare a ritirare"><span class="cr-ic">${Icon('navigation', { size: 20 })}</span> Indicazioni · vai a ritirare</a>`);
+  if (c.whatsapp) rows.push(`<a href="${waHref(c.whatsapp, p.name)}" target="_blank" rel="noopener" class="contact-row wa" aria-label="${t('contact.waAria')}"><span class="cr-ic">${Icon('message-circle', { size: 20 })}</span> WhatsApp</a>`);
+  if (c.phone) rows.push(`<a href="${telHref(c.phone)}" class="contact-row ph" aria-label="${t('contact.callAria')}"><span class="cr-ic">${Icon('phone', { size: 20 })}</span> ${t('contact.call')}</a>`);
+  if (c.email) rows.push(`<a href="mailto:${c.email}" class="contact-row em" aria-label="${t('contact.emailAria')}"><span class="cr-ic">${Icon('mail', { size: 20 })}</span> Email</a>`);
+  rows.push(`<a href="${mapsHref(p)}" target="_blank" rel="noopener" class="contact-row dir" aria-label="${t('contact.directionsAria')}"><span class="cr-ic">${Icon('navigation', { size: 20 })}</span> ${t('contact.directions')}</a>`);
   const back = document.createElement('div'); back.className = 'sheet-backdrop';
   back.setAttribute('role', 'dialog');
   back.setAttribute('aria-modal', 'true');
@@ -327,7 +327,7 @@ export function openContact(p) {
     <div class="sh-title">${p.name}</div>
     <div class="sh-sub">${p.hours || ''}</div>
     ${rows.join('')}
-    <div class="sh-note">Contatto diretto · nessun pagamento, nessun intermediario.</div></div>`;
+    <div class="sh-note">${t('contact.note')}</div></div>`;
   const close = () => { document.removeEventListener('keydown', onKey); back.remove(); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   back.onclick = (e) => { if (e.target === back) close(); };
@@ -349,19 +349,19 @@ export function Salvati() {
   if (salvatiFilter && !present.some(c => c.id === salvatiFilter)) salvatiFilter = null;
   const shown = salvatiFilter ? saved.filter(p => p.categories.includes(salvatiFilter)) : saved;
   const chips = [
-    `<button class="chip ${salvatiFilter === null ? 'active' : ''}" data-filter="">Tutti · ${saved.length}</button>`,
+    `<button class="chip ${salvatiFilter === null ? 'active' : ''}" data-filter="">${t('saved.all', { n: saved.length })}</button>`,
     ...present.map(c => `<button class="chip ${salvatiFilter === c.id ? 'active' : ''}" data-filter="${c.id}">${Icon(c.glyph, { size: 14 })}${c.label}</button>`),
   ].join('');
   const renderList = () => shown.length
     ? shown.map(ProducerCard).join('')
-    : `<div class="center muted" style="padding:40px 20px">Nessun salvato in questa categoria.</div>`;
+    : `<div class="center muted" style="padding:40px 20px">${t('saved.emptyCategory')}</div>`;
   return {
     html: `<div class="screen">${StatusBar()}
-      <div class="pad mt8"><h1 class="h1">Salvati</h1></div>
+      <div class="pad mt8"><h1 class="h1">${t('saved.title')}</h1></div>
       ${saved.length ? `<div class="pad mt12"><div class="chips">${chips}</div></div>` : ''}
       <div class="scroll"><div class="pad mt16 gap8" id="saved-list">
         ${saved.length ? renderList()
-        : `<div class="center muted" style="padding:60px 20px">${Icon('bookmark', { size: 40, color: 'var(--faint)' })}<div class="mt12">Ancora nessun produttore salvato.<br>Tocca il segnalibro su una scheda per ritrovarlo qui.</div></div>`}
+        : `<div class="center muted" style="padding:60px 20px">${Icon('bookmark', { size: 40, color: 'var(--faint)' })}<div class="mt12">${t('saved.empty')}</div></div>`}
       </div></div>
       ${BottomNav('salvati')}</div>`,
     onMount(el) {
@@ -377,11 +377,11 @@ export function Salvati() {
 export function Profilo() {
   const notifOn = localStorage.getItem('gf_notif') !== '0'; // default: attive
   const u = currentUser() || {};
-  const uName = u.name || (u.email ? u.email.split('@')[0] : 'Il tuo profilo');
-  const uMeta = u.email || 'Membro di Gaia Food';
+  const uName = u.name || (u.email ? u.email.split('@')[0] : t('profile.yourProfile'));
+  const uMeta = u.email || t('settings.member');
   const langCur = LANGS.find(l => l.code === getLang()) || LANGS[0];
   const uz = userZone();
-  const zoneLabel = uz ? ((uz.comuni && uz.comuni[0]) || uz.label || uz.region || 'Zona') : 'Zona';
+  const zoneLabel = uz ? ((uz.comuni && uz.comuni[0]) || uz.label || uz.region || t('profile.zone')) : t('profile.zone');
   const chevr = Icon('chevron-right', { size: 18, color: 'var(--faint)' });
   const rowIc = (bg, col, ic) => `<span class="p5-ic" style="background:${bg};color:${col}">${ic}</span>`;
   return {
@@ -461,7 +461,7 @@ export function ProfiloEdit() {
   const u = currentUser() || {};
   const uName = u.name || (u.email ? u.email.split('@')[0] : '');
   const uz = userZone();
-  const cityPh = (uz && ((uz.comuni && uz.comuni[0]) || uz.label)) || 'La tua città';
+  const cityPh = (uz && ((uz.comuni && uz.comuni[0]) || uz.label)) || t('profile.cityPlaceholder');
   const esc = s => String(s || '').replace(/"/g, '&quot;');
   return {
     html: `<div class="screen no-nav pedit">
@@ -542,7 +542,7 @@ export function Soon(title) {
     html: `<div class="screen no-nav">${StatusBar()}
       <div class="toprow"><button class="iconbtn" data-back>${Icon('arrow-left', { size: 18 })}</button></div>
       <div class="center" style="padding:80px 30px">${Icon('truck', { size: 44, color: 'var(--terra)' })}
-      <h2 class="h2 mt16">${title}</h2><p class="muted mt8">Funzione in arrivo. Te lo faremo sapere appena è pronta.</p></div></div>`,
+      <h2 class="h2 mt16">${title}</h2><p class="muted mt8">${t('soon.body')}</p></div></div>`,
     onMount(el) { const back = el.querySelector('[data-back]'); if (back) back.onclick = () => history.back(); },
   };
 }

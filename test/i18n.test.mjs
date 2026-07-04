@@ -3,7 +3,14 @@
 // che qui stubbiamo o lasciamo cadere nei try/catch del modulo.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { t, detectLang, setLang, getLang, SUPPORTED, LANGS } from '../js/i18n.js';
+import IT from '../js/i18n/it.js';
+import EN from '../js/i18n/en.js';
+
+const jsDir = fileURLToPath(new URL('../js', import.meta.url));
 
 test('SUPPORTED / LANGS coerenti', () => {
   assert.ok(SUPPORTED.includes('it') && SUPPORTED.includes('en'));
@@ -66,4 +73,34 @@ test('detectLang(): senza scelta salvata usa la lingua del dispositivo, con fall
     setNav(['fr-FR']);          // nessuno supportato → default en
     assert.equal(detectLang(), 'en');
   });
+});
+
+// ---------------- parità dizionari & copertura chiavi (anti-drift IT/EN) ----------------
+test('parità dizionari: IT ed EN hanno esattamente le stesse chiavi', () => {
+  const missingInEn = Object.keys(IT).filter((k) => !(k in EN)).sort();
+  const missingInIt = Object.keys(EN).filter((k) => !(k in IT)).sort();
+  assert.deepEqual(missingInEn, [], 'chiavi in IT ma non in EN: ' + missingInEn.join(', '));
+  assert.deepEqual(missingInIt, [], 'chiavi in EN ma non in IT: ' + missingInIt.join(', '));
+});
+
+test('placeholder coerenti: ogni {param} di IT esiste anche in EN', () => {
+  const ph = (s) => (String(s).match(/\{(\w+)\}/g) || []).sort();
+  for (const k of Object.keys(IT)) {
+    if (k in EN) assert.deepEqual(ph(EN[k]), ph(IT[k]), `placeholder diversi per la chiave "${k}"`);
+  }
+});
+
+// Scansiona il codice: OGNI chiave i18n usata (t('sezione.chiave')) deve esistere in it.js.
+// Questo test avrebbe intercettato da solo il bug 'profile.saved' (usata ma non definita) e copre
+// automaticamente ogni nuova schermata che viene tradotta.
+test('ogni chiave t() usata nel codice esiste nel dizionario IT', () => {
+  const files = fs.readdirSync(jsDir, { recursive: true }).filter((f) => typeof f === 'string' && f.endsWith('.js'));
+  const used = new Set();
+  for (const rel of files) {
+    const src = fs.readFileSync(path.join(jsDir, rel), 'utf8');
+    for (const m of src.matchAll(/\bt\(\s*['"]([a-z0-9]+\.[A-Za-z0-9.]+)['"]/g)) used.add(m[1]);
+  }
+  const missing = [...used].filter((k) => !(k in IT)).sort();
+  assert.deepEqual(missing, [], 'chiavi usate nel codice ma assenti da it.js: ' + missing.join(', '));
+  assert.ok(used.size > 40, 'attese molte chiavi in uso, trovate: ' + used.size);
 });

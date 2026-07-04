@@ -13,9 +13,9 @@ export const VerifyBadge = (v, { compact = false, onphoto = false } = {}) => {
   // hourglass→clock (scadenza/aggiornamento), pause→info (sospeso). Significato invariato.
   // Regola non negoziabile: SEMPRE icona + testo + data (mai solo colore).
   const map = {
-    valid: { icon: 'check-circle', label: compact ? 'Verificato' : 'Verificato sul campo' },
-    expiring: { icon: 'clock', label: compact ? 'In aggiornamento' : 'Verifica in aggiornamento' },
-    suspended: { icon: 'info', label: compact ? 'Verifica sospesa' : 'Verifica sospesa — in ricontrollo' },
+    valid: { icon: 'check-circle', label: compact ? t('verify.validCompact') : t('verify.valid') },
+    expiring: { icon: 'clock', label: compact ? t('verify.expiringCompact') : t('verify.expiring') },
+    suspended: { icon: 'info', label: compact ? t('verify.suspendedCompact') : t('verify.suspended') },
   };
   const m = map[v.state] || map.valid;
   return `<span class="vbadge ${v.state}${compact ? ' compact' : ''}${onphoto ? ' onphoto' : ''}">
@@ -40,7 +40,7 @@ export const VideoBlock = (v) => {
   const coming = v.state === 'coming';
   return `<div class="vblock ${coming ? 'coming' : ''}">
     ${Photo(v.tone, '', '')}
-    ${coming ? '<span class="vsoon">In arrivo</span>' : ''}
+    ${coming ? '<span class="vsoon">' + t('common.comingSoon') + '</span>' : ''}
     <div class="vplay">${Icon('play', { size: 20, color: coming ? '#fff' : 'var(--ink)' })}</div>
     <div class="vmeta">
       <div><div class="vtype">${v.type}</div><div class="vtitle">${v.title}</div></div>

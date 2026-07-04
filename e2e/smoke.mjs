@@ -125,6 +125,18 @@ async function main() {
   const me = await ev(`fetch('/api/auth/me').then(r=>r.json()).then(d=>d.user&&d.user.email)`, true);
   if (me !== 'e2e@test.it') throw new Error('sessione non riconosciuta dal backend, me=' + JSON.stringify(me));
   ok('Backend: /api/auth/me riconosce la sessione (e2e@test.it)');
+
+  // 6) cambio lingua → EN: l'interfaccia si traduce (nav + Home)
+  await rpc('Page.navigate', { url: APP + '/#/profilo' });
+  await waitFor(`document.querySelector('[data-lang-open]')`, 'chip lingua in Profilo');
+  await ev(`document.querySelector('[data-lang-open]').click()`);
+  await waitFor(`[...document.querySelectorAll('[data-lang]')].some(b=>b.dataset.lang==='en')`, 'sheet lingua aperto');
+  await ev(`[...document.querySelectorAll('[data-lang]')].find(b=>b.dataset.lang==='en').click()`);
+  await waitFor(`[...document.querySelectorAll('.bottomnav a')].map(a=>a.textContent).join(' ').includes('Discover')`, 'nav tradotta in inglese');
+  await rpc('Page.navigate', { url: APP + '/#/home' });
+  await waitFor(`document.querySelector('#q') && document.querySelector('#q').placeholder === 'where can I get milk?'`, 'Home in inglese');
+  ok('Cambio lingua → EN: nav e Home tradotti');
+  await shot(path.join(os.tmpdir(), 'gf-e2e-en-home.png')); // artefatto: Home in inglese (stato finale verde)
 }
 
 let code = 0;
