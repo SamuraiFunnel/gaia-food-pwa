@@ -84,13 +84,13 @@ const fileStore = {
   writeWait: (d) => writeJson(WAITLIST, d),
   readCand: () => readJson(CANDIDATURE, { candidature: [] }),
   writeCand: (d) => writeJson(CANDIDATURE, d),
-  readCrm: () => readJson(CRM, { states: {}, hidden: [], manual: [], pipeline: [] }),
-  writeCrm: (d) => writeJson(CRM, d),
+  readCrm: (project) => { const all = readJson(CRM, { byProject: {} }); return all.byProject[project] || { states: {}, hidden: [], manual: [], pipeline: [] }; },
+  writeCrm: (project, doc) => { const all = readJson(CRM, { byProject: {} }); all.byProject = all.byProject || {}; all.byProject[project] = doc; writeJson(CRM, all); },
 };
 
 // ========================= DB-MODE (Postgres/Neon) =========================
 let pool = null;
-const cache = { users: { users: [] }, producers: [], wait: { leads: [] }, cand: { candidature: [] }, crm: { states: {}, hidden: [], manual: [], pipeline: [] } };
+const cache = { users: { users: [] }, producers: [], wait: { leads: [] }, cand: { candidature: [] }, crm: { byProject: {} } };
 let META = { zone: null, categories: [] };
 
 // Coda di persistenza serializzata per collezione → i "replace-all" non si sovrappongono.
@@ -171,10 +171,10 @@ async function persistWait(d) {
     }
   });
 }
-async function persistCrm(d) {
+async function persistCrmRow(project, doc) {
   await pool.query(
-    `INSERT INTO crm_doc (k,v,updated_at) VALUES ('main',$1,now())
-     ON CONFLICT (k) DO UPDATE SET v=$1, updated_at=now()`, [JSON.stringify(d)]);
+    `INSERT INTO crm_doc (k,v,updated_at) VALUES ($1,$2,now())
+     ON CONFLICT (k) DO UPDATE SET v=$2, updated_at=now()`, [project, JSON.stringify(doc)]);
 }
 
 // Carica dal DB; se una tabella è vuota, la semina dai file del repo (migrazione una-tantum).
@@ -196,9 +196,9 @@ async function loadOrSeed() {
   let w = await pool.query('SELECT email,zona,source,ts,ip FROM waitlist ORDER BY ts');
   if (w.rowCount === 0) { const s = readJson(WAITLIST, { leads: [] }).leads || []; if (s.length) { await persistWait({ leads: s }); w = await pool.query('SELECT email,zona,source,ts,ip FROM waitlist ORDER BY ts'); } }
   cache.wait = { leads: w.rows.map(rowToLead) };
-  // CRM doc (stage per contatto, nascosti, contatti manuali, pipeline personalizzata) — parte vuoto
-  const cr = await pool.query(`SELECT v FROM crm_doc WHERE k='main'`);
-  cache.crm = (cr.rows[0] && cr.rows[0].v) || { states: {}, hidden: [], manual: [], pipeline: [] };
+  // CRM doc PER-PROGETTO (una riga per progetto: stage, nascosti, manuali, pipeline)
+  const cr = await pool.query('SELECT k,v FROM crm_doc');
+  cache.crm = { byProject: Object.fromEntries(cr.rows.map((r) => [r.k, r.v])) };
 }
 
 const dbStore = {
@@ -219,8 +219,8 @@ const dbStore = {
   writeWait: (d) => { cache.wait = clone(d); enqueue('wait', () => persistWait(cache.wait)); },
   readCand: () => clone(cache.cand),
   writeCand: (d) => { cache.cand = clone(d); enqueue('cand', () => persistCand(cache.cand)); },
-  readCrm: () => clone(cache.crm),
-  writeCrm: (d) => { cache.crm = clone(d); enqueue('crm', () => persistCrm(cache.crm)); },
+  readCrm: (project) => clone(cache.crm.byProject[project] || { states: {}, hidden: [], manual: [], pipeline: [] }),
+  writeCrm: (project, doc) => { cache.crm.byProject[project] = clone(doc); const snap = clone(doc); enqueue('crm', () => persistCrmRow(project, snap)); },
   query: (...a) => pool.query(...a), // per il cruscotto (read-only) in Fase 2
 };
 

@@ -164,9 +164,13 @@ const CRM_DEFAULT_STAGES = [
   { id: 'qualificato', label: 'Qualificato' }, { id: 'trattativa', label: 'Trattativa' }, { id: 'cliente', label: 'Cliente' },
 ];
 const crmStages = (crm) => (Array.isArray(crm.pipeline) && crm.pipeline.length ? crm.pipeline : CRM_DEFAULT_STAGES);
+// Questo servizio possiede SOLO i dati di Gaia Food (membri/candidature/waitlist): i contatti "derivati"
+// esistono quindi solo per i progetti gaia-food. Gli altri progetti (es. DFE) hanno solo i contatti manuali
+// (+ in futuro connettori dedicati, es. GHL). Lo store CRM (stage/nascosti/manuali/pipeline) è per-progetto.
+const isGaiaProject = (p) => String(p || '').startsWith('gaia-food');
 
-function crmContacts() {
-  const crm = readCrm();
+function crmContacts(project) {
+  const crm = readCrm(project);
   const states = crm.states || {};
   const hidden = new Set(crm.hidden || []);
   const validStage = new Set(crmStages(crm).map((s) => s.id));
@@ -176,6 +180,7 @@ function crmContacts() {
   };
   const day = (v) => (v ? String(v).slice(0, 10) : '');
   const out = [];
+  if (isGaiaProject(project)) {   // contatti DERIVATI: solo per i progetti Gaia Food (unica fonte di questo servizio)
   for (const u of readUsers().users) {
     const id = 'u:' + u.id;
     if (hidden.has(id)) continue;
@@ -207,6 +212,7 @@ function crmContacts() {
       zona: l.zona || '', hist: [l.ts ? ('Richiesta zona ' + day(l.ts)) : null].filter(Boolean),
     });
   }
+  } // fine contatti derivati (solo Gaia)
   for (const m of (crm.manual || [])) {
     out.push({
       id: m.id, name: m.name || 'Contatto', email: m.email || m.phone || '', seg: m.seg || 'lead',
@@ -387,16 +393,17 @@ async function api(req, res, url) {
     const ADMIN_TOKEN = process.env.GF_ADMIN_TOKEN || '';
     if (!ADMIN_TOKEN) return send(res, 503, { error: 'crm_non_configurato' });
     if ((req.headers['x-admin-token'] || '') !== ADMIN_TOKEN) return send(res, 401, { error: 'non_autorizzato' });
-    if (method === 'GET') return send(res, 200, { contacts: crmContacts(), stages: crmStages(readCrm()) });
+    const project = str(new URLSearchParams(req.url.split('?')[1] || '').get('project') || '', 80).trim() || 'default';
+    if (method === 'GET') return send(res, 200, { contacts: crmContacts(project), stages: crmStages(readCrm(project)) });
     if (method === 'POST') {
       const d = await body(req);
       const op = str(d.op, 20) || 'stage';
-      const cr = readCrm();
+      const cr = readCrm(project);
       cr.states = cr.states || {}; cr.hidden = cr.hidden || []; cr.manual = cr.manual || []; cr.pipeline = cr.pipeline || [];
       if (op === 'stage') {
         const id = str(d.id, 200).trim(), stage = str(d.stage, 40).trim();
         if (!id || !stage) return send(res, 400, { error: 'id/stage mancanti' });
-        cr.states[id] = { stage }; writeCrm(cr); return send(res, 200, { ok: true });
+        cr.states[id] = { stage }; writeCrm(project, cr); return send(res, 200, { ok: true });
       }
       if (op === 'create') {
         const c = d.contact || {};
@@ -409,7 +416,7 @@ async function api(req, res, url) {
           src: str(c.src, 40).trim() || 'manuale', zona: str(c.zona, 120).trim(),
           note: str(c.note, 2000).trim(), stage: str(c.stage, 40).trim() || 'nuovo', createdAt: new Date().toISOString(),
         });
-        writeCrm(cr); return send(res, 200, { ok: true, id });
+        writeCrm(project, cr); return send(res, 200, { ok: true, id });
       }
       if (op === 'delete') {
         const id = str(d.id, 200).trim();
@@ -417,7 +424,7 @@ async function api(req, res, url) {
         if (id.startsWith('m:')) cr.manual = cr.manual.filter((m) => m.id !== id);
         else if (!cr.hidden.includes(id)) cr.hidden.push(id);   // contatto derivato → archiviato (non tocca il dato-fonte)
         delete cr.states[id];
-        writeCrm(cr); return send(res, 200, { ok: true });
+        writeCrm(project, cr); return send(res, 200, { ok: true });
       }
       if (op === 'pipeline') {
         const seen = new Set();
@@ -425,7 +432,7 @@ async function api(req, res, url) {
           .map((s) => ({ id: slugify(str((s && (s.id || s.label)) || '', 40)), label: str((s && s.label) || '', 40).trim() }))
           .filter((s) => s.id && s.label && !seen.has(s.id) && seen.add(s.id));
         if (!stages.length) return send(res, 400, { error: 'almeno uno stage' });
-        cr.pipeline = stages; writeCrm(cr); return send(res, 200, { ok: true, stages });
+        cr.pipeline = stages; writeCrm(project, cr); return send(res, 200, { ok: true, stages });
       }
       return send(res, 400, { error: 'operazione sconosciuta' });
     }
