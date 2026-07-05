@@ -16,6 +16,7 @@ const STORE = path.join(DATA_RW, 'producers.json');
 const WAITLIST = path.join(DATA_RW, 'waitlist.json');
 const CANDIDATURE = path.join(DATA_RW, 'candidature.json');
 const USERS = path.join(DATA_RW, 'users.json');
+const CRM = path.join(DATA_RW, 'crm.json'); // stato CRM per contatto (stage), gestito dal cruscotto del Lab
 
 const DB_URL = process.env.DATABASE_URL || '';
 const useDb = !!DB_URL;
@@ -83,15 +84,17 @@ const fileStore = {
   writeWait: (d) => writeJson(WAITLIST, d),
   readCand: () => readJson(CANDIDATURE, { candidature: [] }),
   writeCand: (d) => writeJson(CANDIDATURE, d),
+  readCrm: () => readJson(CRM, { states: {} }),
+  writeCrm: (d) => writeJson(CRM, d),
 };
 
 // ========================= DB-MODE (Postgres/Neon) =========================
 let pool = null;
-const cache = { users: { users: [] }, producers: [], wait: { leads: [] }, cand: { candidature: [] } };
+const cache = { users: { users: [] }, producers: [], wait: { leads: [] }, cand: { candidature: [] }, crm: { states: {} } };
 let META = { zone: null, categories: [] };
 
 // Coda di persistenza serializzata per collezione → i "replace-all" non si sovrappongono.
-const queues = { users: Promise.resolve(), producers: Promise.resolve(), wait: Promise.resolve(), cand: Promise.resolve() };
+const queues = { users: Promise.resolve(), producers: Promise.resolve(), wait: Promise.resolve(), cand: Promise.resolve(), crm: Promise.resolve() };
 function enqueue(coll, fn) {
   queues[coll] = queues[coll].then(fn).catch((e) => console.error(`persist ${coll}:`, e.message));
   return queues[coll];
@@ -115,6 +118,9 @@ CREATE TABLE IF NOT EXISTS candidature (
 );
 CREATE TABLE IF NOT EXISTS waitlist (
   id bigserial PRIMARY KEY, email text, zona text, source text, ts timestamptz, ip text
+);
+CREATE TABLE IF NOT EXISTS crm_state (
+  contact_id text PRIMARY KEY, stage text, updated_at timestamptz DEFAULT now()
 );`;
 
 // --- persistenze "replace-all" in transazione (volumi minuscoli) ---
@@ -165,6 +171,14 @@ async function persistWait(d) {
     }
   });
 }
+async function persistCrm(d) {
+  await tx(async (c) => {
+    await c.query('DELETE FROM crm_state');
+    for (const [cid, st] of Object.entries(d.states || {})) {
+      await c.query(`INSERT INTO crm_state (contact_id,stage) VALUES ($1,$2)`, [cid, (st && st.stage) || null]);
+    }
+  });
+}
 
 // Carica dal DB; se una tabella è vuota, la semina dai file del repo (migrazione una-tantum).
 async function loadOrSeed() {
@@ -185,6 +199,9 @@ async function loadOrSeed() {
   let w = await pool.query('SELECT email,zona,source,ts,ip FROM waitlist ORDER BY ts');
   if (w.rowCount === 0) { const s = readJson(WAITLIST, { leads: [] }).leads || []; if (s.length) { await persistWait({ leads: s }); w = await pool.query('SELECT email,zona,source,ts,ip FROM waitlist ORDER BY ts'); } }
   cache.wait = { leads: w.rows.map(rowToLead) };
+  // CRM state — nessun seed dai file: parte vuoto e si popola man mano dal cruscotto
+  const cr = await pool.query('SELECT contact_id, stage FROM crm_state');
+  cache.crm = { states: Object.fromEntries(cr.rows.map((r) => [r.contact_id, { stage: r.stage }])) };
 }
 
 const dbStore = {
@@ -205,6 +222,8 @@ const dbStore = {
   writeWait: (d) => { cache.wait = clone(d); enqueue('wait', () => persistWait(cache.wait)); },
   readCand: () => clone(cache.cand),
   writeCand: (d) => { cache.cand = clone(d); enqueue('cand', () => persistCand(cache.cand)); },
+  readCrm: () => clone(cache.crm),
+  writeCrm: (d) => { cache.crm = clone(d); enqueue('crm', () => persistCrm(cache.crm)); },
   query: (...a) => pool.query(...a), // per il cruscotto (read-only) in Fase 2
 };
 

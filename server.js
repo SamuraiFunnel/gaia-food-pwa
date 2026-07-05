@@ -6,7 +6,7 @@ const CONFIG = path.join(ROOT, 'data', 'config.json');
 // Persistenza dati (utenti, produttori, waitlist, candidature) → modulo store.
 // Con DATABASE_URL → Postgres/Neon (durevole a riavvii/deploy); senza → file JSON (locale/test).
 const DB = require('./db');
-const { readUsers, writeUsers, readStore, writeStore, readWait, writeWait, readCand, writeCand } = DB;
+const { readUsers, writeUsers, readStore, writeStore, readWait, writeWait, readCand, writeCand, readCrm, writeCrm } = DB;
 // I MEDIA caricati (foto/video, avatar) restano su disco (GF_DATA_DIR o ./data). NB: su hosting free il
 // disco è effimero → gli upload non sopravvivono ai deploy (migrazione a object-storage: passo successivo).
 const DATA_RW = process.env.GF_DATA_DIR || path.join(ROOT, 'data');
@@ -155,6 +155,45 @@ function custodiSummary(users, seed, meId, now = Date.now()) {
   const COMM = 7.8;
   const commission = Math.round(counts.radicato * COMM * 100) / 100;
   return { seed, credit, perActive: PER, commission, perCommission: COMM, freeAt: FREE_AT, counts, people, level, next };
+}
+
+// --- CRM: costruisce la lista contatti (membri + candidature + waitlist) unendo lo stage salvato.
+//     Consumato SOLO dall'endpoint admin (protetto da GF_ADMIN_TOKEN), a sua volta dietro il proxy del Lab. ---
+function crmContacts() {
+  const crm = (readCrm().states) || {};
+  const stageOf = (id, def) => (crm[id] && crm[id].stage) || def;
+  const day = (v) => (v ? String(v).slice(0, 10) : '');
+  const out = [];
+  for (const u of readUsers().users) {
+    const id = 'u:' + u.id;
+    out.push({
+      id, name: (u.name && u.name.trim()) || (u.email ? u.email.split('@')[0] : 'Membro'),
+      email: u.email || '', seg: 'membro', src: u.provider === 'google' ? 'google' : 'app',
+      stage: stageOf(id, 'nuovo'), sig: 'cold',
+      zona: u.zone ? (u.zone.label || u.zone.region || '') : '', custode: u.referredBy || '',
+      hist: [u.createdAt ? ('Iscritto ' + day(u.createdAt)) : null, u.zone ? ('Zona: ' + (u.zone.label || u.zone.region || '')) : null].filter(Boolean),
+    });
+  }
+  const stMap = { todo: 'nuovo', visita: 'qualificato', done: 'cliente' };
+  for (const c of readCand().candidature) {
+    const id = 'c:' + c.id;
+    out.push({
+      id, name: c.name || 'Produttore', email: [c.place, (c.categories || []).join(', ')].filter(Boolean).join(' · '),
+      seg: 'produttore', src: 'sito', stage: stageOf(id, stMap[c.state] || 'nuovo'), sig: 'cold',
+      zona: c.place || '', hist: [c.ts ? ('Candidatura ' + day(c.ts)) : null].filter(Boolean),
+    });
+  }
+  const seen = new Set();
+  for (const l of readWait().leads) {
+    const id = 'w:' + (l.email || '') + ':' + (l.zona || '');
+    if (seen.has(id)) continue; seen.add(id);
+    out.push({
+      id, name: l.email ? l.email.split('@')[0] : 'Lead', email: l.zona || '',
+      seg: 'waitlist', src: l.source || 'sito', stage: stageOf(id, 'nuovo'), sig: 'cold',
+      zona: l.zona || '', hist: [l.ts ? ('Richiesta zona ' + day(l.ts)) : null].filter(Boolean),
+    });
+  }
+  return out;
 }
 
 // --- normalizzazione campi produttore (difende lo store da payload malformati) ---
@@ -318,6 +357,23 @@ async function api(req, res, url) {
     const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
     const seed = ensureSeed(me);
     return send(res, 200, custodiSummary(readUsers().users, seed, me.id, Date.now()));
+  }
+
+  // --- CRM (contatti+pipeline) per il cruscotto del Lab. Protetto da GF_ADMIN_TOKEN (header x-admin-token):
+  //     è consumato SOLO dal proxy serverless del Lab (server-to-server), il segreto non tocca mai il browser. ---
+  if (seg[1] === 'admin' && seg[2] === 'crm') {
+    const ADMIN_TOKEN = process.env.GF_ADMIN_TOKEN || '';
+    if (!ADMIN_TOKEN) return send(res, 503, { error: 'crm_non_configurato' });
+    if ((req.headers['x-admin-token'] || '') !== ADMIN_TOKEN) return send(res, 401, { error: 'non_autorizzato' });
+    if (method === 'GET') return send(res, 200, { contacts: crmContacts() });
+    if (method === 'POST') {
+      const d = await body(req);
+      const id = str(d.id, 200).trim(), stage = str(d.stage, 40).trim();
+      if (!id || !stage) return send(res, 400, { error: 'id/stage mancanti' });
+      const cr = readCrm(); cr.states = cr.states || {}; cr.states[id] = { stage }; writeCrm(cr);
+      return send(res, 200, { ok: true });
+    }
+    return send(res, 405, { error: 'metodo non consentito' });
   }
 
   // --- waitlist (lista d'attesa zone non coperte) — POST pubblico, GET solo admin ---
