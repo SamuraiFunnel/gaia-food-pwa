@@ -159,17 +159,30 @@ function custodiSummary(users, seed, meId, now = Date.now()) {
 
 // --- CRM: costruisce la lista contatti (membri + candidature + waitlist) unendo lo stage salvato.
 //     Consumato SOLO dall'endpoint admin (protetto da GF_ADMIN_TOKEN), a sua volta dietro il proxy del Lab. ---
+const CRM_DEFAULT_STAGES = [
+  { id: 'nuovo', label: 'Nuovo' }, { id: 'contattato', label: 'Contattato' },
+  { id: 'qualificato', label: 'Qualificato' }, { id: 'trattativa', label: 'Trattativa' }, { id: 'cliente', label: 'Cliente' },
+];
+const crmStages = (crm) => (Array.isArray(crm.pipeline) && crm.pipeline.length ? crm.pipeline : CRM_DEFAULT_STAGES);
+
 function crmContacts() {
-  const crm = (readCrm().states) || {};
-  const stageOf = (id, def) => (crm[id] && crm[id].stage) || def;
+  const crm = readCrm();
+  const states = crm.states || {};
+  const hidden = new Set(crm.hidden || []);
+  const validStage = new Set(crmStages(crm).map((s) => s.id));
+  const stageOf = (id, def) => {
+    const s = (states[id] && states[id].stage) || def;
+    return validStage.has(s) ? s : crmStages(crm)[0].id; // se lo stage salvato non esiste più → primo
+  };
   const day = (v) => (v ? String(v).slice(0, 10) : '');
   const out = [];
   for (const u of readUsers().users) {
     const id = 'u:' + u.id;
+    if (hidden.has(id)) continue;
     out.push({
       id, name: (u.name && u.name.trim()) || (u.email ? u.email.split('@')[0] : 'Membro'),
       email: u.email || '', seg: 'membro', src: u.provider === 'google' ? 'google' : 'app',
-      stage: stageOf(id, 'nuovo'), sig: 'cold',
+      picture: u.picture || '', stage: stageOf(id, 'nuovo'), sig: 'cold',
       zona: u.zone ? (u.zone.label || u.zone.region || '') : '', custode: u.referredBy || '',
       hist: [u.createdAt ? ('Iscritto ' + day(u.createdAt)) : null, u.zone ? ('Zona: ' + (u.zone.label || u.zone.region || '')) : null].filter(Boolean),
     });
@@ -177,20 +190,29 @@ function crmContacts() {
   const stMap = { todo: 'nuovo', visita: 'qualificato', done: 'cliente' };
   for (const c of readCand().candidature) {
     const id = 'c:' + c.id;
+    if (hidden.has(id)) continue;
     out.push({
       id, name: c.name || 'Produttore', email: [c.place, (c.categories || []).join(', ')].filter(Boolean).join(' · '),
-      seg: 'produttore', src: 'sito', stage: stageOf(id, stMap[c.state] || 'nuovo'), sig: 'cold',
+      seg: 'produttore', src: 'sito', picture: '', stage: stageOf(id, stMap[c.state] || 'nuovo'), sig: 'cold',
       zona: c.place || '', hist: [c.ts ? ('Candidatura ' + day(c.ts)) : null].filter(Boolean),
     });
   }
   const seen = new Set();
   for (const l of readWait().leads) {
     const id = 'w:' + (l.email || '') + ':' + (l.zona || '');
-    if (seen.has(id)) continue; seen.add(id);
+    if (seen.has(id) || hidden.has(id)) continue; seen.add(id);
     out.push({
       id, name: l.email ? l.email.split('@')[0] : 'Lead', email: l.zona || '',
-      seg: 'waitlist', src: l.source || 'sito', stage: stageOf(id, 'nuovo'), sig: 'cold',
+      seg: 'waitlist', src: l.source || 'sito', picture: '', stage: stageOf(id, 'nuovo'), sig: 'cold',
       zona: l.zona || '', hist: [l.ts ? ('Richiesta zona ' + day(l.ts)) : null].filter(Boolean),
+    });
+  }
+  for (const m of (crm.manual || [])) {
+    out.push({
+      id: m.id, name: m.name || 'Contatto', email: m.email || m.phone || '', seg: m.seg || 'lead',
+      src: m.src || 'manuale', picture: '', stage: stageOf(m.id, m.stage || 'nuovo'), sig: m.sig || 'cold',
+      zona: m.zona || '', note: m.note || '', manual: true,
+      hist: [m.createdAt ? ('Aggiunto ' + day(m.createdAt)) : null, m.note || null].filter(Boolean),
     });
   }
   return out;
@@ -365,13 +387,47 @@ async function api(req, res, url) {
     const ADMIN_TOKEN = process.env.GF_ADMIN_TOKEN || '';
     if (!ADMIN_TOKEN) return send(res, 503, { error: 'crm_non_configurato' });
     if ((req.headers['x-admin-token'] || '') !== ADMIN_TOKEN) return send(res, 401, { error: 'non_autorizzato' });
-    if (method === 'GET') return send(res, 200, { contacts: crmContacts() });
+    if (method === 'GET') return send(res, 200, { contacts: crmContacts(), stages: crmStages(readCrm()) });
     if (method === 'POST') {
       const d = await body(req);
-      const id = str(d.id, 200).trim(), stage = str(d.stage, 40).trim();
-      if (!id || !stage) return send(res, 400, { error: 'id/stage mancanti' });
-      const cr = readCrm(); cr.states = cr.states || {}; cr.states[id] = { stage }; writeCrm(cr);
-      return send(res, 200, { ok: true });
+      const op = str(d.op, 20) || 'stage';
+      const cr = readCrm();
+      cr.states = cr.states || {}; cr.hidden = cr.hidden || []; cr.manual = cr.manual || []; cr.pipeline = cr.pipeline || [];
+      if (op === 'stage') {
+        const id = str(d.id, 200).trim(), stage = str(d.stage, 40).trim();
+        if (!id || !stage) return send(res, 400, { error: 'id/stage mancanti' });
+        cr.states[id] = { stage }; writeCrm(cr); return send(res, 200, { ok: true });
+      }
+      if (op === 'create') {
+        const c = d.contact || {};
+        const name = str(c.name, 120).trim();
+        if (!name) return send(res, 400, { error: 'Il nome è obbligatorio' });
+        const id = 'm:' + crypto.randomBytes(6).toString('hex');
+        cr.manual.push({
+          id, name, email: str(c.email, 160).trim(), phone: str(c.phone, 40).trim(),
+          seg: ['membro', 'produttore', 'waitlist', 'lead'].includes(c.seg) ? c.seg : 'lead',
+          src: str(c.src, 40).trim() || 'manuale', zona: str(c.zona, 120).trim(),
+          note: str(c.note, 2000).trim(), stage: str(c.stage, 40).trim() || 'nuovo', createdAt: new Date().toISOString(),
+        });
+        writeCrm(cr); return send(res, 200, { ok: true, id });
+      }
+      if (op === 'delete') {
+        const id = str(d.id, 200).trim();
+        if (!id) return send(res, 400, { error: 'id mancante' });
+        if (id.startsWith('m:')) cr.manual = cr.manual.filter((m) => m.id !== id);
+        else if (!cr.hidden.includes(id)) cr.hidden.push(id);   // contatto derivato → archiviato (non tocca il dato-fonte)
+        delete cr.states[id];
+        writeCrm(cr); return send(res, 200, { ok: true });
+      }
+      if (op === 'pipeline') {
+        const seen = new Set();
+        const stages = (Array.isArray(d.stages) ? d.stages : []).slice(0, 12)
+          .map((s) => ({ id: slugify(str((s && (s.id || s.label)) || '', 40)), label: str((s && s.label) || '', 40).trim() }))
+          .filter((s) => s.id && s.label && !seen.has(s.id) && seen.add(s.id));
+        if (!stages.length) return send(res, 400, { error: 'almeno uno stage' });
+        cr.pipeline = stages; writeCrm(cr); return send(res, 200, { ok: true, stages });
+      }
+      return send(res, 400, { error: 'operazione sconosciuta' });
     }
     return send(res, 405, { error: 'metodo non consentito' });
   }
