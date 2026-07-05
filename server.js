@@ -3,17 +3,13 @@
 const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto');
 const ROOT = __dirname, PORT = process.env.PORT || 4324;
 const CONFIG = path.join(ROOT, 'data', 'config.json');
-// Tutti i dati SCRIVIBILI (produttori, utenti, waitlist, candidature, media) → GF_DATA_DIR
-// (disco persistente Render: /var/data) se impostato, altrimenti ./data in locale.
+// Persistenza dati (utenti, produttori, waitlist, candidature) → modulo store.
+// Con DATABASE_URL → Postgres/Neon (durevole a riavvii/deploy); senza → file JSON (locale/test).
+const DB = require('./db');
+const { readUsers, writeUsers, readStore, writeStore, readWait, writeWait, readCand, writeCand } = DB;
+// I MEDIA caricati (foto/video, avatar) restano su disco (GF_DATA_DIR o ./data). NB: su hosting free il
+// disco è effimero → gli upload non sopravvivono ai deploy (migrazione a object-storage: passo successivo).
 const DATA_RW = process.env.GF_DATA_DIR || path.join(ROOT, 'data');
-// producers.json è EDITABILE (admin): vive sul disco persistente, con SEED dal repo al primo avvio.
-const SEED_STORE = path.join(ROOT, 'data', 'producers.json');
-const STORE = path.join(DATA_RW, 'producers.json');
-const WAITLIST = path.join(DATA_RW, 'waitlist.json');
-const CANDIDATURE = path.join(DATA_RW, 'candidature.json');
-const USERS = path.join(DATA_RW, 'users.json'); // utenti finali (login Google/email)
-// Media caricati (foto/video) → disco persistente. I seed del repo restano sotto ROOT/assets e sono serviti da lì;
-// i nuovi upload vanno su DATA_RW/assets e sono serviti dal fallback statico (vedi createServer).
 const PHOTODIR = path.join(DATA_RW, 'assets', 'photos', 'producers');
 const VIDEODIR = path.join(DATA_RW, 'assets', 'videos', 'producers');
 const CANDPHOTODIR = path.join(DATA_RW, 'assets', 'photos', 'candidature');
@@ -23,8 +19,6 @@ fs.mkdirSync(USERPHOTODIR, { recursive: true });
 fs.mkdirSync(PHOTODIR, { recursive: true });
 fs.mkdirSync(VIDEODIR, { recursive: true });
 fs.mkdirSync(CANDPHOTODIR, { recursive: true });
-// SEED una-tantum: se sul disco non c'è ancora producers.json, copialo dal repo (così l'app parte con i dati).
-try { if (!fs.existsSync(STORE) && fs.existsSync(SEED_STORE)) fs.copyFileSync(SEED_STORE, STORE); } catch (e) { console.error('seed producers.json:', e.message); }
 
 // Limiti payload: JSON normale 12MB, upload media (foto/video base64) fino a 80MB.
 const BODY_MAX_JSON = 12e6, BODY_MAX_MEDIA = 80e6;
@@ -38,14 +32,6 @@ const sessions = new Map(); // token -> role (staff: admin/verificatore)
 const userSessions = new Map(); // token -> userId (utenti finali, separati dallo staff)
 // Google Sign-In: client id da env. Se assente, l'endpoint /api/auth/google risponde 503.
 const GOOGLE_CLIENT_ID = process.env.GF_GOOGLE_CLIENT_ID || '';
-const readUsers = () => { try { return JSON.parse(fs.readFileSync(USERS, 'utf8')); } catch { return { users: [] }; } };
-const writeUsers = (d) => fs.writeFileSync(USERS, JSON.stringify(d, null, 2));
-const readStore = () => JSON.parse(fs.readFileSync(STORE, 'utf8'));
-const writeStore = (d) => fs.writeFileSync(STORE, JSON.stringify(d, null, 2));
-const readWait = () => { try { return JSON.parse(fs.readFileSync(WAITLIST, 'utf8')); } catch { return { leads: [] }; } };
-const writeWait = (d) => fs.writeFileSync(WAITLIST, JSON.stringify(d, null, 2));
-const readCand = () => { try { return JSON.parse(fs.readFileSync(CANDIDATURE, 'utf8')); } catch { return { candidature: [] }; } };
-const writeCand = (d) => fs.writeFileSync(CANDIDATURE, JSON.stringify(d, null, 2));
 const config = () => { try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch { return {}; } };
 // Password: prima le env (produzione), poi fallback a config.json (locale). Retro-compatibile.
 const adminPass = (cfg) => process.env.GF_ADMIN_PASSWORD || cfg.adminPassword;
@@ -505,7 +491,11 @@ function requestHandler(req, res) {
 // importato da un test (require/import), non ci si mette in ascolto: si espongono le funzioni pure
 // e l'handler HTTP, così i test possono creare un server usa-e-getta su porta effimera.
 if (require.main === module) {
-  http.createServer(requestHandler).listen(PORT, () => console.log(`Gaia Food App + API → http://localhost:${PORT}`));
+  DB.init()
+    .then(() => http.createServer(requestHandler).listen(PORT, () => console.log(`Gaia Food App + API → http://localhost:${PORT} [store: ${DB.mode}]`)))
+    .catch((e) => { console.error('Avvio store fallito:', e); process.exit(1); });
+  // Su deploy/stop Render manda SIGTERM: svuota la coda di persistenza prima di uscire.
+  process.on('SIGTERM', () => { Promise.resolve(DB.flush && DB.flush()).finally(() => process.exit(0)); });
 }
 
 module.exports = {

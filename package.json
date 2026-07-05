@@ -2,8 +2,13 @@
   "name": "gaia-food-app",
   "version": "1.0.0",
   "private": true,
-  "description": "Gaia Food — app (UI statica + API) servita da server.js, zero dipendenze",
-  "engines": { "node": ">=18" },
+  "description": "Gaia Food — app (UI statica + API) servita da server.js; persistenza Postgres (Neon) o file",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "^8.22.0"
+  },
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
