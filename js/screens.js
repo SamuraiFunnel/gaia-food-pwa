@@ -390,6 +390,9 @@ export function Profilo() {
   const zoneLabel = uz ? ((uz.comuni && uz.comuni[0]) || uz.label || uz.region || t('profile.zone')) : t('profile.zone');
   const chevr = Icon('chevron-right', { size: 18, color: 'var(--faint)' });
   const rowIc = (bg, col, ic) => `<span class="p5-ic" style="background:${bg};color:${col}">${ic}</span>`;
+  // Etichetta dinamica dell'ingresso produttore: form di richiesta → area sbloccata dopo l'approvazione.
+  const pst = u.producerStatus;
+  const prodLabel = pst === 'requested' ? 'Richiesta in corso' : (pst ? 'La mia area' : t('settings.producer'));
   return {
     html: `<div class="screen prof05">
       <style>
@@ -434,7 +437,7 @@ export function Profilo() {
         <div class="p5-card">
           <a class="p5-row" href="#/custodi" data-link>${rowIc('var(--celeste-pale)', 'var(--celeste-deep)', Icon('share', { size: 18 }))}<span class="p5-lb">${t('settings.invite')}</span>${chevr}</a>
           <a class="p5-row" href="#/custodi/produttore" data-link>${rowIc('var(--verde-pale)', 'var(--verde-deep)', Icon('sprout', { size: 18 }))}<span class="p5-lb">${t('settings.custodi')}</span>${chevr}</a>
-          <a class="p5-row" href="#/candidati" data-link>${rowIc('var(--terra-pale)', 'var(--terra-deep)', Icon('leaf', { size: 18 }))}<span class="p5-lb">${t('settings.producer')}</span>${chevr}</a>
+          <a class="p5-row" href="#/azienda" data-link>${rowIc('var(--terra-pale)', 'var(--terra-deep)', Icon('leaf', { size: 18 }))}<span class="p5-lb">${prodLabel}</span>${chevr}</a>
         </div>
 
         <div class="p5-card" style="margin-top:16px">

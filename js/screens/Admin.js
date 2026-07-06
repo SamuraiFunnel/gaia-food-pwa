@@ -1,6 +1,6 @@
 import { Icon } from '../icons.js';
 import { StatusBar } from '../components.js';
-import { getState, adminMe, adminLogin, adminLogout, createProducer, updateProducer, deleteProducer, uploadPhoto } from '../store.js';
+import { getState, adminMe, adminLogin, adminLogout, createProducer, updateProducer, deleteProducer, uploadPhoto, reloadData, fetchCandidature, adminProducers, approveProducer, verifyProducer, publishProducer } from '../store.js';
 import {
   extrasCss,
   buildVideos, bindVideos, readVideos,
@@ -73,12 +73,47 @@ function renderLogin(host) {
   host.querySelector('#pw').onkeydown = e => { if (e.key === 'Enter') go(); };
 }
 
-function renderDash(host, role) {
-  const ps = getState().producers;
+async function renderDash(host, role) {
+  host.innerHTML = `<div class="muted" style="padding:20px">Caricamento…</div>`;
+  // Pipeline self-service: candidature (richieste) + lista COMPLETA produttori (include bozze/in-verifica).
+  let cand = [], all = [];
+  try { [cand, all] = await Promise.all([fetchCandidature(), adminProducers()]); } catch (e) {}
+  const requests = cand.filter(c => c.userId && c.state === 'todo');        // form inviato, non ancora approvato
+  const drafts = all.filter(p => p.ownerId && p.status === 'draft');         // approvato, sta compilando
+  const review = all.filter(p => p.status === 'in_review');                  // inviato per la verifica
+  const ps = getState().producers;                                          // schede pubblicate (lista classica)
+
+  const reqRow = (c) => `<div class="arow">
+      <div style="flex:1;min-width:0"><div class="nm">${esc(c.name)}</div>
+        <div class="mt">${[esc(c.place), (c.categories || []).join(', '), esc((c.contact && c.contact.phone) || '')].filter(Boolean).join(' · ')}</div></div>
+      <button class="mini" style="background:var(--verde);color:#fff;border-color:var(--verde)" data-approve="${esc(c.userId)}" data-name="${esc(c.name)}">Approva</button>
+    </div>`;
+  const draftRow = (p) => `<div class="arow">
+      <div class="th" style="background-image:url('${p.photo || ''}')"></div>
+      <div style="flex:1;min-width:0"><div class="nm">${esc(p.name) || '(senza nome)'}</div>
+        <div class="mt">${esc(p.ownerId)} · ${(p.products || []).length} prodotti · sta compilando</div></div>
+      <button class="mini" data-rev="${p.id}">Rivedi</button>
+    </div>`;
+  const revRow = (p) => `<div class="arow">
+      <div class="th" style="background-image:url('${p.photo || ''}')"></div>
+      <div style="flex:1;min-width:0"><div class="nm">${esc(p.name)}</div>
+        <div class="mt">${esc(p.place)} · ${(p.products || []).length} prodotti · ${p.verifiedAt ? 'verificato in sede ✓' : 'da verificare in sede'}</div></div>
+      ${p.verifiedAt
+      ? `<button class="mini" style="background:var(--verde);color:#fff;border-color:var(--verde)" data-pub="${p.id}">Pubblica</button>`
+      : `<button class="mini" data-ver="${p.id}">Segna verificato</button>`}
+      <button class="mini" data-rev="${p.id}">Rivedi</button>
+    </div>`;
+  const section = (title, count, inner, hint) => `
+    <div style="margin:18px 0 8px" class="row"><h1 style="font-size:18px">${title} <span class="muted" style="font-size:13px;font-weight:400">(${count})</span></h1></div>
+    ${count ? inner : `<div class="muted" style="font-size:13px;padding:0 2px 4px">${hint}</div>`}`;
+
   host.innerHTML = `
-    <div class="row"><h1>Produttori <span class="muted" style="font-size:14px;font-weight:400">(${ps.length})</span></h1>
-      <button class="mini" id="logout">Esci (${role})</button></div>
-    <button class="btn btn-grad btn-block" id="add" style="margin:12px 0 16px">${Icon('plus', { size: 18, color: '#fff' })} Aggiungi produttore</button>
+    <div class="row"><h1>Produttori</h1><button class="mini" id="logout">Esci (${role})</button></div>
+    ${section('🟠 Richieste da approvare', requests.length, requests.map(reqRow).join(''), 'Nessuna richiesta in attesa.')}
+    ${section('✍️ In compilazione', drafts.length, drafts.map(draftRow).join(''), 'Nessuna bozza in compilazione.')}
+    ${section('🔎 Da verificare e pubblicare', review.length, review.map(revRow).join(''), 'Nessuna scheda inviata alla verifica.')}
+    <div style="margin:22px 0 8px" class="row"><h1 style="font-size:18px">✅ Pubblicati <span class="muted" style="font-size:13px;font-weight:400">(${ps.length})</span></h1></div>
+    <button class="btn btn-grad btn-block" id="add" style="margin:6px 0 14px">${Icon('plus', { size: 18, color: '#fff' })} Aggiungi produttore</button>
     <div id="rows">${ps.map(p => `
       <div class="arow">
         <div class="th" style="background-image:url('${p.photo || ''}')"></div>
@@ -87,8 +122,22 @@ function renderDash(host, role) {
         <button class="mini" data-edit="${p.id}">Modifica</button>
         <button class="mini danger" data-del="${p.id}">Elimina</button>
       </div>`).join('')}</div>`;
+
   host.querySelector('#logout').onclick = async () => { await adminLogout(); renderLogin(host); };
   host.querySelector('#add').onclick = () => renderEditor(host, null);
+  host.querySelectorAll('[data-approve]').forEach(b => b.onclick = async () => {
+    b.disabled = true; b.textContent = '…';
+    try { await approveProducer(b.getAttribute('data-approve'), b.getAttribute('data-name')); renderDash(host, role); }
+    catch (e) { b.disabled = false; b.textContent = 'Approva'; alert('Errore: ' + e.message); }
+  });
+  host.querySelectorAll('[data-ver]').forEach(b => b.onclick = async () => {
+    b.disabled = true; try { await verifyProducer(b.getAttribute('data-ver')); renderDash(host, role); } catch (e) { b.disabled = false; alert('Errore: ' + e.message); }
+  });
+  host.querySelectorAll('[data-pub]').forEach(b => b.onclick = async () => {
+    if (!confirm('Pubblicare la scheda? Andrà live sulla mappa col badge «Verificato sul campo».')) return;
+    b.disabled = true; try { await publishProducer(b.getAttribute('data-pub')); await reloadData(); renderDash(host, role); } catch (e) { b.disabled = false; alert('Errore: ' + e.message); }
+  });
+  host.querySelectorAll('[data-rev]').forEach(b => b.onclick = () => { const p = all.find(x => x.id === b.getAttribute('data-rev')); if (p) renderEditor(host, p); });
   host.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => renderEditor(host, ps.find(p => p.id === b.dataset.edit)));
   host.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
     const p = ps.find(x => x.id === b.dataset.del);

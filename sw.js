@@ -7,7 +7,7 @@
    - CDN (font Google, MapLibre, tiles), foto → cache-first (riusa la copia, scarica una volta)
    Aggiornamento: il nuovo SW si attiva subito (skipWaiting) e prende il controllo (clients.claim).
 */
-const VERSION = 'gaia-food-v19';
+const VERSION = 'gaia-food-v21';
 const SHELL_CACHE = VERSION + '-shell';
 const RUNTIME_CACHE = VERSION + '-runtime';
 
@@ -28,6 +28,7 @@ const SHELL = [
   './js/screens/Stati.js', './js/screens/DlvScegli.js', './js/screens/DlvCarrello.js',
   './js/screens/DlvZona.js', './js/screens/DlvSlot.js', './js/screens/DlvRiepilogo.js',
   './js/screens/DlvTracking.js', './js/screens/DlvNonDisp.js', './js/screens/Admin.js',
+  './js/screens/Azienda.js',
   './js/screens/Hub.js', './js/screens/Custodi.js', './js/screens/Legal.js',
   './data/producers.json',
   './assets/brand/gaia-food-pin.webp', './assets/brand/Marcellus-Regular.ttf',

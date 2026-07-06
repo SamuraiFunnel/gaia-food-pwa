@@ -31,6 +31,7 @@ import { DlvRiepilogo } from './screens/DlvRiepilogo.js';
 import { DlvTracking } from './screens/DlvTracking.js';
 import { DlvNonDisp } from './screens/DlvNonDisp.js';
 import { Admin } from './screens/Admin.js';
+import { Azienda } from './screens/Azienda.js';
 import { Hub } from './screens/Hub.js';
 
 const app = document.getElementById('app');
@@ -41,7 +42,7 @@ const RAIL = [
   { ic: 'map-pin', key: 'rail.map', href: '#/mappa', match: ['#/mappa'] },
   { ic: 'play', key: 'rail.ciboVero', href: '#/cibovero', match: ['#/cibovero', '#/video'] },
   { ic: 'bookmark', key: 'nav.salvati', href: '#/salvati', match: ['#/salvati'] },
-  { ic: 'leaf', key: 'rail.becomeProducer', href: '#/candidati', match: ['#/candidati'] },
+  { ic: 'leaf', key: 'rail.becomeProducer', href: '#/azienda', match: ['#/azienda', '#/candidati'] },
 ];
 function buildRail() {
   const r = document.createElement('aside'); r.id = 'rail';
@@ -60,6 +61,12 @@ function buildRail() {
 // Ridisegna le etichette del rail nella lingua attiva (a ogni render / cambio lingua).
 function refreshRail() {
   document.querySelectorAll('#rail [data-k]').forEach(el => { el.textContent = t(el.getAttribute('data-k')); });
+  // Etichetta dinamica dell'ingresso produttore: "Diventa produttore" → "La mia area" quando sbloccato.
+  const az = document.querySelector('#rail a[href="#/azienda"] .rl-t');
+  if (az) {
+    const s = (currentUser() || {}).producerStatus;
+    az.textContent = !s ? t('rail.becomeProducer') : (s === 'requested' ? 'Richiesta in corso' : 'La mia area');
+  }
 }
 function markRail() {
   const h = location.hash || '#/home';
@@ -117,6 +124,7 @@ const routes = [
   { re: /^#\/privacy$/, view: () => Privacy() },
   { re: /^#\/profilo\/modifica$/, view: () => S.ProfiloEdit() },
   { re: /^#\/profilo$/, view: () => S.Profilo() },
+  { re: /^#\/azienda$/, view: () => Azienda() },
   { re: /^#\/candidati\/form$/, view: () => Form() },
   { re: /^#\/candidati\/stato$/, view: () => StatoCandidatura() },
   { re: /^#\/candidati$/, view: () => Candidati() },

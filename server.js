@@ -7,6 +7,8 @@ const CONFIG = path.join(ROOT, 'data', 'config.json');
 // Con DATABASE_URL → Postgres/Neon (durevole a riavvii/deploy); senza → file JSON (locale/test).
 const DB = require('./db');
 const { readUsers, writeUsers, readStore, writeStore, readWait, writeWait, readCand, writeCand, readCrm, writeCrm } = DB;
+// Salvataggio media: Cloudinary in produzione (env), fallback su disco in dev/test (vedi media.js).
+const { saveMedia } = require('./media');
 // I MEDIA caricati (foto/video, avatar) restano su disco (GF_DATA_DIR o ./data). NB: su hosting free il
 // disco è effimero → gli upload non sopravvivono ai deploy (migrazione a object-storage: passo successivo).
 const DATA_RW = process.env.GF_DATA_DIR || path.join(ROOT, 'data');
@@ -14,11 +16,13 @@ const PHOTODIR = path.join(DATA_RW, 'assets', 'photos', 'producers');
 const VIDEODIR = path.join(DATA_RW, 'assets', 'videos', 'producers');
 const CANDPHOTODIR = path.join(DATA_RW, 'assets', 'photos', 'candidature');
 const USERPHOTODIR = path.join(DATA_RW, 'assets', 'photos', 'users'); // avatar utenti finali
+const PRODMEDIADIR = path.join(DATA_RW, 'assets', 'media', 'producers'); // media self-service (fallback disco)
 fs.mkdirSync(DATA_RW, { recursive: true });
 fs.mkdirSync(USERPHOTODIR, { recursive: true });
 fs.mkdirSync(PHOTODIR, { recursive: true });
 fs.mkdirSync(VIDEODIR, { recursive: true });
 fs.mkdirSync(CANDPHOTODIR, { recursive: true });
+fs.mkdirSync(PRODMEDIADIR, { recursive: true });
 
 // Limiti payload: JSON normale 12MB, upload media (foto/video base64) fino a 80MB.
 const BODY_MAX_JSON = 12e6, BODY_MAX_MEDIA = 80e6;
@@ -67,6 +71,15 @@ const canEdit = r => r === 'admin' || r === 'verificatore';
 // --- auth utente finale (Google / email / ospite), separata dallo staff ---
 const userTokenOf = (req) => { const m = (req.headers.cookie || '').match(/gf_user=([^;]+)/); return m ? m[1] : null; };
 function userOf(req) { const t = userTokenOf(req); const id = t && userSessions.get(t); return id ? readUsers().users.find(u => u.id === id) || null : null; }
+// Scheda posseduta dall'utente loggato (owner). SICUREZZA: si risolve SEMPRE da userId→producerId,
+// e la scheda deve avere ownerId === userId. Mai fidarsi di un producerId passato dal client.
+function ownedProducer(req) {
+  const me = userOf(req);
+  if (!me || !me.producerId) return { me: me || null, store: null, p: null };
+  const store = readStore();
+  const p = store.producers.find(x => x.id === me.producerId && x.ownerId === me.id) || null;
+  return { me, store, p };
+}
 // Crea sessione utente + cookie httpOnly; ritorna l'header Set-Cookie.
 function startUserSession(res, userId) {
   const tok = crypto.randomBytes(18).toString('hex'); userSessions.set(tok, userId);
@@ -213,6 +226,20 @@ function crmContacts(project) {
     });
   }
   } // fine contatti derivati (solo Gaia)
+  // contatti da GHL (connettore Anniversario DFE): snapshot sincronizzato, scritto dall'op 'ghl-store'.
+  // Vale per TUTTI i progetti (fuori dal gate Gaia): l'array è popolato solo per i progetti collegati a GHL.
+  for (const g of (crm.ghl || [])) {
+    if (hidden.has(g.id)) continue;
+    const tl = Array.isArray(g.timeline) ? g.timeline : [];
+    out.push({
+      id: g.id, name: g.name || 'Lead', email: g.email || g.phone || '', seg: g.seg || 'lead',
+      src: g.src || 'GHL', picture: '', stage: stageOf(g.id, g.phase || 'nuovo'), sig: g.sig || 'cold',
+      zona: g.zona || '', note: g.note || '', ghl: true,
+      won: (typeof g.won === 'boolean' ? g.won : null),
+      timeline: tl,
+      hist: tl.map((t) => (t.label || (t.phase + (t.at ? ' — ' + day(t.at) : '')))).filter(Boolean),
+    });
+  }
   for (const m of (crm.manual || [])) {
     out.push({
       id: m.id, name: m.name || 'Contatto', email: m.email || m.phone || '', seg: m.seg || 'lead',
@@ -242,6 +269,48 @@ function cleanSeasonal(s) {
   if (!s || typeof s !== 'object') return null;
   return { label: str(s.label, 120), tone: str(s.tone, 40), note: str(s.note, 240) };
 }
+// --- Inventario prodotti (self-service): ogni prodotto è una scheda ricca. ---
+// Mesi di disponibilità: array di interi 1..12, dedup e ordinati.
+const monthsOf = (v) => (Array.isArray(v) ? [...new Set(v.map((n) => parseInt(n, 10)).filter((n) => n >= 1 && n <= 12))].sort((a, b) => a - b) : []);
+// Fascia di prezzo: '€' | '€€' | '€€€' oppure { from: numero }. Vuoto → null (facoltativo).
+function cleanPriceBand(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'object' && v.from != null) { const f = num(v.from); return f != null ? { from: f } : null; }
+  const s = str(v, 8); return ['€', '€€', '€€€'].includes(s) ? s : null;
+}
+// Un prodotto. PATCH parziale-safe: i campi assenti nel payload conservano il valore esistente (base).
+function cleanProduct(p, base = {}) {
+  if (!p || typeof p !== 'object') return null;
+  const has = (k) => k in p;
+  const returns = has('returnsMonth') ? (monthsOf([p.returnsMonth])[0] || null) : (base.returnsMonth ?? null);
+  return {
+    id: base.id || ('p' + crypto.randomBytes(4).toString('hex')),
+    name: has('name') ? str(p.name, 120) : (base.name || ''),
+    category: has('category') ? str(p.category, 60) : (base.category || ''),
+    photos: has('photos') ? (Array.isArray(p.photos) ? p.photos.slice(0, 7).map((s) => str(s, 1200)) : []) : (base.photos || []),
+    unit: has('unit') ? str(p.unit, 60) : (base.unit || ''),
+    months: has('months') ? monthsOf(p.months) : (base.months || []),
+    always: has('always') ? !!p.always : !!base.always,
+    price: has('price') ? ((num(p.price) != null && num(p.price) >= 0) ? num(p.price) : null) : (base.price ?? null),
+    description: has('description') ? str(p.description, 400) : (base.description || ''),
+    availability: has('availability') ? (['available', 'out', 'returns'].includes(p.availability) ? p.availability : 'available') : (base.availability || 'available'),
+    returnsMonth: returns,
+  };
+}
+const PRODUCER_STATES = ['draft', 'in_review', 'published', 'in_scadenza', 'sospeso', 'archiviato'];
+// Blocchi mancanti perché la scheda possa essere inviata alla verifica (onboarding tassativo, §D6 del piano 13).
+function producerReadiness(p) {
+  const miss = [];
+  const productOk = (p.products || []).some((x) => x.name && (x.photos || []).length >= 1 && x.unit && ((x.months || []).length > 0 || x.always));
+  if (!productOk) miss.push('product');            // ≥1 prodotto completo (nome+foto+unità+mesi)
+  if (!(p.story && p.photo)) miss.push('identity'); // storia + almeno 1 foto azienda
+  const phone = p.contact && (String(p.contact.whatsapp || '').trim() || String(p.contact.phone || '').trim());
+  if (!phone) miss.push('phone');                   // ≥1 numero di telefono
+  if (!(p.address && p.hours)) miss.push('reach');  // come si raggiunge + orari
+  return miss;
+}
+// Scheda "pubblica": nascosta finché non è pubblicata. Le schede seed (senza status) sono considerate pubbliche.
+const isPublished = (p) => !p.status || p.status === 'published';
 // Normalizza solo i campi presenti nel patch (PATCH parziale-safe); lascia intatto il resto.
 function normalizePatch(patch) {
   const out = { ...patch };
@@ -251,6 +320,10 @@ function normalizePatch(patch) {
   if ('categories' in out) out.categories = Array.isArray(out.categories) ? out.categories.map(c => str(c, 60)) : [];
   if ('videos' in out) out.videos = (Array.isArray(out.videos) ? out.videos : []).map(cleanVideo).filter(Boolean);
   if ('seasonal' in out) out.seasonal = (Array.isArray(out.seasonal) ? out.seasonal : []).map(cleanSeasonal).filter(Boolean);
+  if ('products' in out) out.products = (Array.isArray(out.products) ? out.products : []).map((p) => cleanProduct(p)).filter(Boolean);
+  if ('status' in out) out.status = PRODUCER_STATES.includes(out.status) ? out.status : 'draft';
+  if ('story' in out) out.story = str(out.story, 4000);
+  if ('howToReach' in out) out.howToReach = str(out.howToReach, 600);
   if ('verify' in out && out.verify && typeof out.verify === 'object') {
     out.verify = { state: str(out.verify.state, 40) || 'valid', date: str(out.verify.date, 60), next: str(out.verify.next, 60) };
   }
@@ -434,6 +507,31 @@ async function api(req, res, url) {
         if (!stages.length) return send(res, 400, { error: 'almeno uno stage' });
         cr.pipeline = stages; writeCrm(project, cr); return send(res, 200, { ok: true, stages });
       }
+      // ghl-store: snapshot completo dei contatti sincronizzati da GHL (scritto dal connettore Vercel /api/ghl-sync).
+      // Sostituisce interamente cr.ghl ad ogni sync (riflette lo stato attuale su GHL); states/hidden/manual restano.
+      if (op === 'ghl-store') {
+        const list = Array.isArray(d.contacts) ? d.contacts.slice(0, 3000) : [];
+        cr.ghl = list.map((c) => ({
+          id: (str(c.id, 80).trim()) || ('g:' + crypto.randomBytes(6).toString('hex')),
+          name: str(c.name, 120), email: str(c.email, 160), phone: str(c.phone, 40),
+          seg: str(c.seg, 24) || 'lead', src: str(c.src, 60) || 'GHL',
+          phase: str(c.phase, 40) || 'lead', sig: ['hot', 'warm', 'cold'].includes(c.sig) ? c.sig : 'cold',
+          zona: str(c.zona, 120), note: str(c.note, 2000),
+          won: typeof c.won === 'boolean' ? c.won : null,
+          timeline: (Array.isArray(c.timeline) ? c.timeline.slice(0, 12) : [])
+            .map((t) => ({ phase: str(t && t.phase, 40), at: str(t && t.at, 40), label: str(t && t.label, 160) }))
+            .filter((t) => t.phase || t.label),
+        }));
+        cr.ghlSyncedAt = str(d.syncedAt, 40) || new Date().toISOString();
+        // semina la pipeline del progetto solo se non ancora personalizzata (primo sync)
+        if (!(cr.pipeline || []).length && Array.isArray(d.pipeline) && d.pipeline.length) {
+          const seen = new Set();
+          cr.pipeline = d.pipeline.slice(0, 12)
+            .map((s) => ({ id: slugify(str((s && (s.id || s.label)) || '', 40)), label: str((s && s.label) || '', 40).trim() }))
+            .filter((s) => s.id && s.label && !seen.has(s.id) && seen.add(s.id));
+        }
+        writeCrm(project, cr); return send(res, 200, { ok: true, count: cr.ghl.length, syncedAt: cr.ghlSyncedAt });
+      }
       return send(res, 400, { error: 'operazione sconosciuta' });
     }
     return send(res, 405, { error: 'metodo non consentito' });
@@ -515,13 +613,192 @@ async function api(req, res, url) {
     }
   }
 
+  // --- Portale self-service produttori (piano 13): richiesta · area "La mia azienda" · verifica staff ---
+  if (seg[1] === 'producer') {
+    const action = seg[2];
+
+    // ===== Azioni STAFF (browser admin, cookie gf_sess) =====
+    if (['approve', 'direct-unlock', 'verify', 'publish', 'suspend'].includes(action)) {
+      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      if (method !== 'POST') return send(res, 405, { error: 'metodo non consentito' });
+      const d = await body(req);
+
+      // approve / direct-unlock: sblocca l'area, crea la scheda-bozza, lega owner + stato utente.
+      if (action === 'approve' || action === 'direct-unlock') {
+        const uid = String(d.userId || '').trim().toLowerCase();
+        const target = readUsers().users.find(u => u.id === uid);
+        if (!target) return send(res, 404, { error: 'utente non trovato' });
+        if (target.producerId) { // idempotente: già sbloccato
+          const store0 = readStore(); const existing = store0.producers.find(x => x.id === target.producerId) || null;
+          return send(res, 200, { ok: true, alreadyUnlocked: true, producer: existing, user: publicUser(target) });
+        }
+        const store = readStore();
+        // Semina la bozza dai dati del FORM "Diventa produttore" (candidatura collegata all'utente):
+        // così, appena sbloccata, la Vetrina parte già con nome/comune/categorie/contatti inseriti nella richiesta.
+        const candDoc = readCand();
+        const c = candDoc.candidature.filter(x => x.userId === target.id).sort((a, b) => String(b.ts).localeCompare(String(a.ts)))[0] || null;
+        let nid = slugify(d.name || (c && c.name) || target.name || (target.email || '').split('@')[0] || 'produttore'); let n = nid, i = 2;
+        while (store.producers.some(p => p.id === n)) n = nid + '-' + (i++);
+        const cc = (c && c.contact) || {};
+        const p = { id: n,
+          name: str(d.name, 160) || (c && c.name) || str(target.name, 160) || '',
+          place: (c && str(c.place, 160)) || '',
+          categories: (c && Array.isArray(c.categories)) ? c.categories.slice(0, 20).map(x => str(x, 60)) : [],
+          primary: (c && Array.isArray(c.categories) && c.categories[0]) ? str(c.categories[0], 60) : '',
+          tone: 'pascolo', verify: { state: 'pending', date: '' }, seasonal: [], videos: [], products: [],
+          contact: { whatsapp: str(cc.whatsapp, 80), phone: str(cc.phone, 80), email: str(cc.email, 160) },
+          note: (c && str(c.note, 2000)) || '',
+          status: 'draft', ownerId: target.id, createdAt: new Date().toISOString() };
+        store.producers.push(p); writeStore(store);
+        const user = upsertUser({ id: target.id, role: 'producer', producerId: n, producerStatus: 'approved' });
+        try { if (c && c.state === 'todo') { c.state = 'visita'; writeCand(candDoc); } } catch {}
+        return send(res, 200, { ok: true, producer: p, user: publicUser(user) });
+      }
+
+      // verify / publish / suspend operano su una scheda esistente (producerId nel body).
+      const pid = String(d.producerId || '').trim();
+      const store = readStore();
+      const p = store.producers.find(x => x.id === pid);
+      if (!p) return send(res, 404, { error: 'scheda non trovata' });
+      if (action === 'verify') { // verifica in sede fatta → pronta per il go-live
+        p.verifiedAt = new Date().toISOString();
+        p.verify = { state: 'valid', date: str(d.date, 60) || p.verifiedAt.slice(0, 10), next: str(d.next, 60) };
+        writeStore(store); return send(res, 200, { ok: true, producer: p });
+      }
+      if (action === 'publish') { // go-live col badge: richiede la verifica in sede
+        if (!p.verifiedAt) return send(res, 400, { error: 'verifica in sede mancante: /verify prima di pubblicare' });
+        p.status = 'published'; p.publishedAt = new Date().toISOString(); writeStore(store);
+        if (p.ownerId) upsertUser({ id: p.ownerId, producerStatus: 'published' });
+        return send(res, 200, { ok: true, producer: p });
+      }
+      if (action === 'suspend') {
+        p.status = 'sospeso'; writeStore(store);
+        if (p.ownerId) upsertUser({ id: p.ownerId, producerStatus: 'in_review' });
+        return send(res, 200, { ok: true, producer: p });
+      }
+    }
+
+    // ===== Azioni UTENTE-OWNER (cookie gf_user) =====
+    // Richiesta "diventa produttore": crea una candidatura legata all'account + stato 'requested'.
+    if (action === 'request' && method === 'POST') {
+      const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
+      if (me.producerId) return send(res, 200, { status: me.producerStatus || 'approved', producerId: me.producerId });
+      const d = await body(req);
+      const dc = (d.contact && typeof d.contact === 'object') ? d.contact : {};
+      const cand = readCand(); const cid = crypto.randomBytes(8).toString('hex');
+      cand.candidature.push({
+        id: cid, userId: me.id,
+        name: str(d.name, 160).trim() || (me.name || (me.email || '').split('@')[0] || 'Produttore'),
+        place: str(d.place, 160).trim(),
+        categories: Array.isArray(d.categories) ? d.categories.map(c => str(c, 60)) : [],
+        contact: {
+          whatsapp: str(dc.whatsapp || d.whatsapp, 80).trim(),
+          phone: str(dc.phone || d.phone, 80).trim(),
+          email: str(dc.email || d.email, 160).trim() || (me.email || ''),
+        },
+        note: str(d.note, 2000).trim(), photos: [], state: 'todo', ts: new Date().toISOString(),
+      });
+      writeCand(cand);
+      const user = upsertUser({ id: me.id, producerStatus: 'requested' });
+      return send(res, 200, { ok: true, status: 'requested', candidaturaId: cid, user: publicUser(user) });
+    }
+
+    // Area "La mia azienda": tutto sotto /api/producer/me/*
+    if (action === 'me') {
+      const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
+      const sub = seg[3];
+
+      // GET → stato + scheda + blocchi mancanti per l'invio
+      if (!sub && method === 'GET') {
+        const store = readStore();
+        const p = me.producerId ? store.producers.find(x => x.id === me.producerId) || null : null;
+        return send(res, 200, { status: me.producerStatus || null, producer: p, readiness: p ? producerReadiness(p) : null });
+      }
+
+      // Le mutazioni richiedono owner + scheda posseduta.
+      const { store, p } = ownedProducer(req);
+      if (!p) return send(res, 403, { error: 'nessuna scheda da gestire' });
+
+      // PATCH identità/contatti/come-si-raggiunge — WHITELIST: mai status/verify/ownerId (anti-escalation).
+      if (!sub && (method === 'PATCH' || method === 'PUT')) {
+        const d = await body(req);
+        if ('name' in d) p.name = str(d.name, 160);
+        if ('place' in d) p.place = str(d.place, 160);
+        if ('story' in d) p.story = str(d.story, 4000);
+        if ('categories' in d) p.categories = Array.isArray(d.categories) ? d.categories.map(c => str(c, 60)) : [];
+        if ('primary' in d) p.primary = str(d.primary, 60);
+        if ('photo' in d) p.photo = str(d.photo, 1200);
+        if ('hours' in d) p.hours = str(d.hours, 200);
+        if ('address' in d) p.address = str(d.address, 240);
+        if ('howToReach' in d) p.howToReach = str(d.howToReach, 600);
+        if ('lat' in d) p.lat = num(d.lat);
+        if ('lng' in d) p.lng = num(d.lng);
+        if ('contact' in d && d.contact && typeof d.contact === 'object') {
+          p.contact = { whatsapp: str(d.contact.whatsapp, 80).trim(), phone: str(d.contact.phone, 80).trim(), email: str(d.contact.email, 160).trim() };
+        }
+        if (me.producerStatus === 'approved') upsertUser({ id: me.id, producerStatus: 'onboarding' });
+        writeStore(store); return send(res, 200, { producer: p });
+      }
+
+      // Prodotti (CRUD)
+      if (sub === 'products') {
+        const pid = seg[4]; p.products = Array.isArray(p.products) ? p.products : [];
+        if (!pid && method === 'POST') { const prod = cleanProduct(await body(req)); if (!prod) return send(res, 400, { error: 'prodotto non valido' }); p.products.push(prod); writeStore(store); return send(res, 200, { product: prod, producer: p }); }
+        const idx = p.products.findIndex(x => x.id === pid);
+        if (pid && (method === 'PATCH' || method === 'PUT')) { if (idx < 0) return send(res, 404, { error: 'prodotto non trovato' }); p.products[idx] = cleanProduct(await body(req), p.products[idx]); writeStore(store); return send(res, 200, { product: p.products[idx], producer: p }); }
+        if (pid && method === 'DELETE') { if (idx < 0) return send(res, 404, { error: 'prodotto non trovato' }); const [removed] = p.products.splice(idx, 1); writeStore(store); return send(res, 200, { ok: true, removed }); }
+      }
+
+      // Disponibilità (toggle) — live subito anche a scheda pubblicata (§D8).
+      if (sub === 'availability' && seg[4] && method === 'POST') {
+        const prod = (p.products || []).find(x => x.id === seg[4]);
+        if (!prod) return send(res, 404, { error: 'prodotto non trovato' });
+        const d = await body(req);
+        prod.availability = ['available', 'out', 'returns'].includes(d.availability) ? d.availability : prod.availability;
+        if ('returnsMonth' in d) prod.returnsMonth = monthsOf([d.returnsMonth])[0] || null;
+        writeStore(store); return send(res, 200, { product: prod });
+      }
+
+      // Upload media (foto prodotto/azienda o clip) → Cloudinary o disco → URL da salvare poi nel campo.
+      if (sub === 'media' && method === 'POST') {
+        const d = await body(req, BODY_MAX_MEDIA);
+        try {
+          const r = await saveMedia(d.dataUrl, { folder: `producers/${p.id}`, diskDir: PRODMEDIADIR, diskUrlBase: 'assets/media/producers', filenameBase: `${p.id}-${crypto.randomBytes(4).toString('hex')}` });
+          return send(res, 200, r);
+        } catch (e) { return send(res, e.code === 400 ? 400 : 502, { error: e.message }); }
+      }
+
+      // Invio per la verifica: valida i blocchi tassativi + consenso → in_review.
+      if (sub === 'submit' && method === 'POST') {
+        const d = await body(req);
+        const missing = producerReadiness(p);
+        if (!d.acceptTerms) missing.push('consent');
+        if (missing.length) return send(res, 400, { error: 'onboarding incompleto', missing });
+        p.status = 'in_review'; p.submittedAt = new Date().toISOString();
+        p.consent = { acceptedInApp: true, acceptedAt: p.submittedAt, signedOnSite: false, signedAt: '' };
+        writeStore(store);
+        const user = upsertUser({ id: me.id, producerStatus: 'in_review' });
+        return send(res, 200, { ok: true, producer: p, user: publicUser(user) });
+      }
+    }
+    return send(res, 404, { error: 'route produttore inesistente' });
+  }
+
   // --- producers ---
   if (seg[1] === 'producers') {
     const store = readStore();
     const id = seg[2];
-    // GET list / one (pubblico)
-    if (method === 'GET' && !id) return send(res, 200, store);
-    if (method === 'GET' && id) { const p = store.producers.find(x => x.id === id); return p ? send(res, 200, p) : send(res, 404, { error: 'not found' }); }
+    const staff = canEdit(roleOf(req));
+    // GET list / one — pubblico, ma le schede NON pubblicate (bozza/in-verifica) sono visibili solo allo staff.
+    if (method === 'GET' && !id) {
+      const producers = staff ? store.producers : store.producers.filter(isPublished);
+      return send(res, 200, { ...store, producers });
+    }
+    if (method === 'GET' && id) {
+      const p = store.producers.find(x => x.id === id);
+      if (!p || (!staff && !isPublished(p))) return send(res, 404, { error: 'not found' });
+      return send(res, 200, p);
+    }
 
     // mutazioni: serve ruolo
     const role = roleOf(req);
@@ -531,7 +808,7 @@ async function api(req, res, url) {
       const data = normalizePatch(await body(req));
       let nid = slugify(data.name || data.id || 'produttore'); let n = nid, i = 2;
       while (store.producers.some(p => p.id === n)) n = nid + '-' + (i++);
-      const p = Object.assign({ categories: [], primary: 'latte', tone: 'pascolo', verify: { state: 'valid', date: '' }, seasonal: [], videos: [], contact: {} }, data, { id: n });
+      const p = Object.assign({ categories: [], primary: 'latte', tone: 'pascolo', verify: { state: 'valid', date: '' }, seasonal: [], videos: [], products: [], contact: {}, status: 'published', ownerId: null }, data, { id: n });
       store.producers.push(p); writeStore(store); return send(res, 200, p);
     }
     if (id && (method === 'PUT' || method === 'PATCH')) { // aggiorna
@@ -622,4 +899,5 @@ module.exports = {
   // logica di business / utility pure (testabili a unità)
   custodiSummary, slugify, num, str, cleanVideo, cleanSeasonal, normalizePatch,
   throttle, EMAIL_RE, hashPassword, verifyPassword, publicUser,
+  cleanProduct, cleanPriceBand, monthsOf, producerReadiness, isPublished,
 };

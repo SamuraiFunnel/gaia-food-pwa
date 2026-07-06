@@ -41,6 +41,8 @@ function userToRow(u) {
     zone: u.zone ? JSON.stringify(u.zone) : null, // colonna jsonb → serializzo io (node-pg non lo fa)
     seed: u.seed || null, referred_by: u.referredBy || null,
     referred_at: u.referredAt || null, created_at: u.createdAt || null,
+    // stato "produttore" (self-service): ruolo, scheda posseduta, stato del ciclo di onboarding.
+    role: u.role || null, producer_id: u.producerId || null, producer_status: u.producerStatus || null,
   };
 }
 function rowToUser(r) {
@@ -58,6 +60,9 @@ function rowToUser(r) {
   if (r.seed) u.seed = r.seed;
   if (r.referred_by) u.referredBy = r.referred_by;
   if (r.referred_at) u.referredAt = toIso(r.referred_at);
+  if (r.role) u.role = r.role;
+  if (r.producer_id) u.producerId = r.producer_id;
+  if (r.producer_status) u.producerStatus = r.producer_status;
   u.createdAt = toIso(r.created_at) || u.createdAt;
   return u;
 }
@@ -104,11 +109,17 @@ const DDL = `
 CREATE TABLE IF NOT EXISTS users (
   id text PRIMARY KEY, email text, provider text, pass_hash text,
   name text, picture text, city text, phone text, lang text, notif boolean DEFAULT false,
-  zone jsonb, seed text UNIQUE, referred_by text, referred_at timestamptz, created_at timestamptz DEFAULT now()
+  zone jsonb, seed text UNIQUE, referred_by text, referred_at timestamptz, created_at timestamptz DEFAULT now(),
+  role text, producer_id text, producer_status text
 );
+-- Colonne produttore aggiunte a posteriori: ALTER idempotente per i DB già creati prima di questa feature.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS producer_id text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS producer_status text;
 CREATE INDEX IF NOT EXISTS idx_users_created ON users (created_at);
 CREATE INDEX IF NOT EXISTS idx_users_provider ON users (provider);
 CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users (referred_by);
+CREATE INDEX IF NOT EXISTS idx_users_producer_id ON users (producer_id);
 CREATE TABLE IF NOT EXISTS producers (
   id text PRIMARY KEY, name text, place text, km numeric, lat numeric, lng numeric,
   primary_cat text, verify_state text, data jsonb NOT NULL DEFAULT '{}'
@@ -136,9 +147,9 @@ async function persistUsers(d) {
     for (const u of d.users) {
       const r = userToRow(u);
       await c.query(
-        `INSERT INTO users (id,email,provider,pass_hash,name,picture,city,phone,lang,notif,zone,seed,referred_by,referred_at,created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-        [r.id, r.email, r.provider, r.pass_hash, r.name, r.picture, r.city, r.phone, r.lang, r.notif, r.zone, r.seed, r.referred_by, r.referred_at, r.created_at]);
+        `INSERT INTO users (id,email,provider,pass_hash,name,picture,city,phone,lang,notif,zone,seed,referred_by,referred_at,created_at,role,producer_id,producer_status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+        [r.id, r.email, r.provider, r.pass_hash, r.name, r.picture, r.city, r.phone, r.lang, r.notif, r.zone, r.seed, r.referred_by, r.referred_at, r.created_at, r.role, r.producer_id, r.producer_status]);
     }
   });
 }

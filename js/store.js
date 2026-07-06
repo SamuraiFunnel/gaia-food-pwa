@@ -17,7 +17,9 @@ async function fetchData() {
 }
 function apply(d) {
   state.zone = d.zone; state.categories = d.categories;
-  state.producers = d.producers.map(p => ({ ...p, saved: state.saved.includes(p.id) }));
+  // Lo stato globale (mappa/home/salvati) mostra SOLO schede pubblicate: se lo staff è loggato il server
+  // ritorna anche le bozze → le filtriamo qui, così le viste utente non le mostrano mai. L'admin usa adminProducers().
+  state.producers = (d.producers || []).filter(p => !p.status || p.status === 'published').map(p => ({ ...p, saved: state.saved.includes(p.id) }));
 }
 export async function loadData() {
   if (state.loaded) return state;
@@ -130,3 +132,28 @@ export function lastCandidatura() {
 // Lista candidature (solo staff loggato).
 export async function fetchCandidature() { const d = await j('./api/candidature'); return d.candidature || []; }
 export async function updateCandidatura(id, patch) { return j('./api/candidature/' + id, { method: 'PUT', body: JSON.stringify(patch) }); }
+
+// ---- Admin: pipeline produttori self-service (staff, cookie gf_sess via `j`) ----
+// Lista COMPLETA (include bozze/in-verifica): lato staff il server non filtra. NON tocca lo stato globale
+// (che resta la lista pubblica), così le viste utente non mostrano mai le bozze.
+export async function adminProducers() { const d = await j('./api/producers'); return d.producers || []; }
+export async function approveProducer(userId, name) { return j('./api/producer/approve', { method: 'POST', body: JSON.stringify({ userId, name }) }); }
+export async function directUnlockProducer(userId, name) { return j('./api/producer/direct-unlock', { method: 'POST', body: JSON.stringify({ userId, name }) }); }
+export async function verifyProducer(producerId, date, next) { return j('./api/producer/verify', { method: 'POST', body: JSON.stringify({ producerId, date, next }) }); }
+export async function publishProducer(producerId) { return j('./api/producer/publish', { method: 'POST', body: JSON.stringify({ producerId }) }); }
+
+// ---- Produttore self-service "La mia azienda" (piano 13) ----
+// Endpoint utente-owner (cookie gf_user) via `ja` (credentials:'include'). Quando l'endpoint ritorna
+// {user}, aggiorniamo state.user così il router/UI vedono subito il nuovo producerStatus.
+export async function requestProducer(payload = {}) {
+  const d = await ja('./api/producer/request', { method: 'POST', body: JSON.stringify(payload) });
+  if (d.user) state.user = d.user; return d;
+}
+export async function getMyProducer() { return ja('./api/producer/me'); } // { status, producer, readiness }
+export async function patchMyProducer(patch) { const d = await ja('./api/producer/me', { method: 'PATCH', body: JSON.stringify(patch) }); return d.producer; }
+export async function addMyProduct(prod) { const d = await ja('./api/producer/me/products', { method: 'POST', body: JSON.stringify(prod) }); return d.producer; }
+export async function updateMyProduct(pid, patch) { const d = await ja('./api/producer/me/products/' + pid, { method: 'PATCH', body: JSON.stringify(patch) }); return d.producer; }
+export async function deleteMyProduct(pid) { return ja('./api/producer/me/products/' + pid, { method: 'DELETE' }); }
+export async function uploadProducerMedia(dataUrl) { const d = await ja('./api/producer/me/media', { method: 'POST', body: JSON.stringify({ dataUrl }) }); return d.url; }
+export async function submitMyProducer(payload = {}) { const d = await ja('./api/producer/me/submit', { method: 'POST', body: JSON.stringify(payload) }); if (d.user) state.user = d.user; return d; }
+export async function setProductAvailability(pid, availability, returnsMonth) { return ja('./api/producer/me/availability/' + pid, { method: 'POST', body: JSON.stringify({ availability, returnsMonth }) }); }
