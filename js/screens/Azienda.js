@@ -8,7 +8,7 @@ import { StatusBar } from '../components.js';
 import {
   currentUser, getState, getMyProducer, requestProducer, patchMyProducer,
   addMyProduct, updateMyProduct, deleteMyProduct, uploadProducerMedia,
-  submitMyProducer,
+  submitMyProducer, markProducerSeen,
 } from '../store.js';
 
 const MONTHS = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
@@ -192,6 +192,7 @@ async function mount(root) {
     return renderVetrina(host, data, refresh);
   }
   await refresh();
+  markProducerSeen(); // aprendo l'area, la notifica di stato è "vista" → il pallino sparirà
 }
 
 // -------- stato: non ancora produttore → FORM di richiesta --------

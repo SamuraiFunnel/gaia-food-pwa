@@ -1,6 +1,6 @@
 import { Icon } from './icons.js';
 import { StatusBar, Photo, VerifyBadge, ProducerCard, VideoBlock, BottomNav, initMap, catGlyph, catLabel, Lockup } from './components.js';
-import { getState, results, producerById, toggleSaved, hubSeen, lastFunction, resetHub, currentUser, userZoneIsActive, userZone, updateProfile, uploadAvatar, signOut } from './store.js';
+import { getState, results, producerById, toggleSaved, hubSeen, lastFunction, resetHub, currentUser, userZoneIsActive, userZone, updateProfile, uploadAvatar, signOut, producerStatusNotice } from './store.js';
 import { t, getLang, setLang, LANGS, locDate } from './i18n.js';
 
 // Avatar utente: mostra la foto (URL Google o path caricato) se c'è, altrimenti l'iniziale.
@@ -437,7 +437,7 @@ export function Profilo() {
         <div class="p5-card">
           <a class="p5-row" href="#/custodi" data-link>${rowIc('var(--celeste-pale)', 'var(--celeste-deep)', Icon('share', { size: 18 }))}<span class="p5-lb">${t('settings.invite')}</span>${chevr}</a>
           <a class="p5-row" href="#/custodi/produttore" data-link>${rowIc('var(--verde-pale)', 'var(--verde-deep)', Icon('sprout', { size: 18 }))}<span class="p5-lb">${t('settings.custodi')}</span>${chevr}</a>
-          <a class="p5-row" href="#/azienda" data-link>${rowIc('var(--terra-pale)', 'var(--terra-deep)', Icon('leaf', { size: 18 }))}<span class="p5-lb">${prodLabel}</span>${chevr}</a>
+          <a class="p5-row" href="#/azienda" data-link>${rowIc('var(--terra-pale)', 'var(--terra-deep)', Icon('leaf', { size: 18 }))}<span class="p5-lb">${prodLabel}</span>${producerStatusNotice() ? '<span style="width:9px;height:9px;border-radius:50%;background:var(--verde);flex:none;margin-right:6px"></span>' : ''}${chevr}</a>
         </div>
 
         <div class="p5-card" style="margin-top:16px">

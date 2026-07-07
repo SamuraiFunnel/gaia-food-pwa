@@ -157,3 +157,14 @@ export async function deleteMyProduct(pid) { return ja('./api/producer/me/produc
 export async function uploadProducerMedia(dataUrl) { const d = await ja('./api/producer/me/media', { method: 'POST', body: JSON.stringify({ dataUrl }) }); return d.url; }
 export async function submitMyProducer(payload = {}) { const d = await ja('./api/producer/me/submit', { method: 'POST', body: JSON.stringify(payload) }); if (d.user) state.user = d.user; return d; }
 export async function setProductAvailability(pid, availability, returnsMonth) { return ja('./api/producer/me/availability/' + pid, { method: 'POST', body: JSON.stringify({ availability, returnsMonth }) }); }
+// Notifica in-app: c'è una tappa positiva non ancora vista (area sbloccata / scheda pubblicata)?
+// Ritorna lo stato ('approved'|'published') se è una novità, altrimenti null. Si "consuma" aprendo l'area.
+export function producerStatusNotice() {
+  const u = state.user; if (!u || !u.producerStatus) return null;
+  let seen = ''; try { seen = localStorage.getItem('gf_prodSeen') || ''; } catch (_) {}
+  const milestones = { approved: 1, published: 1 };
+  return (u.producerStatus !== seen && milestones[u.producerStatus]) ? u.producerStatus : null;
+}
+export function markProducerSeen() {
+  const u = state.user; if (u && u.producerStatus) { try { localStorage.setItem('gf_prodSeen', u.producerStatus); } catch (_) {} }
+}

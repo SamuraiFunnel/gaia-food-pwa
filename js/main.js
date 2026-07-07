@@ -1,4 +1,4 @@
-import { loadData, results, currentUser, authMe } from './store.js';
+import { loadData, results, currentUser, authMe, producerStatusNotice } from './store.js';
 import { Icon } from './icons.js';
 import { initMap, ProducerCard, Lockup } from './components.js';
 import * as S from './screens.js';
@@ -62,10 +62,16 @@ function buildRail() {
 function refreshRail() {
   document.querySelectorAll('#rail [data-k]').forEach(el => { el.textContent = t(el.getAttribute('data-k')); });
   // Etichetta dinamica dell'ingresso produttore: "Diventa produttore" → "La mia area" quando sbloccato.
-  const az = document.querySelector('#rail a[href="#/azienda"] .rl-t');
-  if (az) {
+  const azLink = document.querySelector('#rail a[href="#/azienda"]');
+  if (azLink) {
     const s = (currentUser() || {}).producerStatus;
-    az.textContent = !s ? t('rail.becomeProducer') : (s === 'requested' ? 'Richiesta in corso' : 'La mia area');
+    const az = azLink.querySelector('.rl-t');
+    if (az) az.textContent = !s ? t('rail.becomeProducer') : (s === 'requested' ? 'Richiesta in corso' : 'La mia area');
+    // pallino di notifica quando c'è una novità di stato non ancora vista
+    const notice = producerStatusNotice();
+    let dot = azLink.querySelector('.rl-dot');
+    if (notice && !dot) { dot = document.createElement('span'); dot.className = 'rl-dot'; dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:var(--verde);margin-left:6px;flex:none'; azLink.appendChild(dot); }
+    else if (!notice && dot) dot.remove();
   }
 }
 function markRail() {
