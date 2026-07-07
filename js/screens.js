@@ -205,18 +205,29 @@ export function Producer(id) {
           <div class="pv3-cap"><h3>${v.title || t('producer.chapter')}</h3>
             <div class="pv3-d">${v.duration ? v.duration + ' · ' : ''}${v.state === 'coming' ? t('producer.notAvailableYet') : t('producer.tapToPlay')}</div></div>
         </a>`;
+  // Capitolo (lista laterale su desktop — variante 02): miniatura + tipo + titolo + durata.
+  const chapterRow = ({ v, i }, k) => `
+        <button class="pv3-ch ${k === 0 ? 'on' : ''}" type="button" data-pv3-goto="${k}">
+          <span class="pv3-ch-th">${Photo(v.tone, '', '', i === mainIdx ? p.photo : '')}<span class="pv3-ch-pl">${Icon(v.state === 'coming' ? 'clock' : 'play', { size: 13, color: '#fff' })}</span></span>
+          <span class="pv3-ch-meta"><span class="pv3-ch-k">${VCHIP[v.type] || t('producer.videoGeneric')}</span><span class="pv3-ch-t">${v.title || t('producer.chapter')}</span>
+            <span class="pv3-ch-d">${v.state === 'coming' ? t('producer.notAvailableYet') : (v.duration || '')}</span></span>
+        </button>`;
+  const multi = vOrdered.length > 1;
   const videoSection = vOrdered.length ? `
         <div class="block">
           <div class="block-h"><div class="section-t">${t('producer.watchVisit')}</div><span class="eyebrow tnum">${t('producer.videoCount', { n: vids.length })}</span></div>
-          <div class="pv3">
-            <div class="pv3-track" data-pv3-track>${vOrdered.map(slide).join('')}</div>
-            ${vOrdered.length > 1 ? `
-            <div class="pv3-count" data-pv3-count>1 / ${vOrdered.length}</div>
-            <button class="pv3-arrow pv3-l" type="button" data-pv3-prev aria-label="${t('producer.prevVideo')}">${chev('l')}</button>
-            <button class="pv3-arrow pv3-r" type="button" data-pv3-next aria-label="${t('producer.nextVideo')}">${chev('r')}</button>
-            <div class="pv3-dots" data-pv3-dots>${vOrdered.map((_, k) => `<i class="${k === 0 ? 'on' : ''}"></i>`).join('')}</div>` : ''}
+          <div class="pv3-wrap ${multi ? '' : 'solo'}">
+            <div class="pv3">
+              <div class="pv3-track" data-pv3-track>${vOrdered.map(slide).join('')}</div>
+              ${multi ? `
+              <div class="pv3-count" data-pv3-count>1 / ${vOrdered.length}</div>
+              <button class="pv3-arrow pv3-l" type="button" data-pv3-prev aria-label="${t('producer.prevVideo')}">${chev('l')}</button>
+              <button class="pv3-arrow pv3-r" type="button" data-pv3-next aria-label="${t('producer.nextVideo')}">${chev('r')}</button>
+              <div class="pv3-dots" data-pv3-dots>${vOrdered.map((_, k) => `<i class="${k === 0 ? 'on' : ''}"></i>`).join('')}</div>` : ''}
+            </div>
+            ${multi ? `<div class="pv3-chapters">${vOrdered.map(chapterRow).join('')}</div>` : ''}
           </div>
-          ${vOrdered.length > 1 ? `<div class="pv3-hint">${t('producer.swipeHint')}</div>` : ''}
+          ${multi ? `<div class="pv3-hint">${t('producer.swipeHint')}</div>` : ''}
         </div>` : '';
   return {
     html: `<div class="screen no-nav prod">
@@ -276,12 +287,14 @@ export function Producer(id) {
         const n = track.children.length;
         const countEl = el.querySelector('[data-pv3-count]');
         const dots = [...el.querySelectorAll('[data-pv3-dots] i')];
+        const chaps = [...el.querySelectorAll('[data-pv3-goto]')]; // capitoli laterali (desktop, variante 02)
         const prevB = el.querySelector('[data-pv3-prev]');
         const nextB = el.querySelector('[data-pv3-next]');
         let cur = 0;
         const paint = (i) => {
           if (countEl) countEl.textContent = `${i + 1} / ${n}`;
           dots.forEach((d, k) => d.classList.toggle('on', k === i));
+          chaps.forEach((c, k) => c.classList.toggle('on', k === i));
           if (prevB) prevB.style.opacity = i === 0 ? '.4' : '1';
           if (nextB) nextB.style.opacity = i === n - 1 ? '.4' : '1';
         };
@@ -293,6 +306,7 @@ export function Producer(id) {
         const go = (i) => { i = Math.max(0, Math.min(n - 1, i)); track.scrollTo({ left: i * track.clientWidth, behavior: 'smooth' }); };
         if (prevB) prevB.onclick = (e) => { e.preventDefault(); go(cur - 1); };
         if (nextB) nextB.onclick = (e) => { e.preventDefault(); go(cur + 1); };
+        chaps.forEach((c, k) => c.onclick = () => go(k)); // clic sul capitolo → porta il player su quel video
         paint(0);
       }
     },

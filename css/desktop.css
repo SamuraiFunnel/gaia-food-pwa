@@ -129,6 +129,11 @@
   .screen.prod .vgrid { grid-template-columns: repeat(3, 1fr); }
   .screen.prod .story, .screen.prod .pullquote, .screen.prod .seasonal { max-width: 780px; }
   .screen.prod .cta-sticky { max-width: 1080px; margin: 0 auto; }
+  /* Widget «Guarda la visita» (variante 02): player a sinistra (~340px) + capitoli a destra. */
+  .screen.prod .pv3-wrap { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
+  .screen.prod .pv3-wrap.solo { grid-template-columns: 360px; justify-content: center; }
+  .screen.prod .pv3-chapters { display: flex; flex-direction: column; gap: 12px; }
+  .screen.prod .pv3-hint { display: none; }
 
   /* ----- DESKTOP_CONSEGNA : carrello (sx) + riepilogo (dx) affiancati ----- */
   .screen.dk-cons .dk-cons-row { display: flex; align-items: stretch; }
