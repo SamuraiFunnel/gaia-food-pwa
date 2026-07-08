@@ -32,8 +32,9 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
   '.mp4': 'video/mp4', '.webm': 'video/webm' };
 
-const sessions = new Map(); // token -> role (staff: admin/verificatore)
-const userSessions = new Map(); // token -> userId (utenti finali, separati dallo staff)
+// Sessioni STATELESS (audit R1 / obiettivo 1.2): niente Map in memoria → sopravvivono a riavvii/deploy
+// e a più istanze. Il cookie contiene un token firmato HMAC (payload-base64 + firma), verificato ad ogni richiesta.
+// Segreto: env GF_SESSION_SECRET se presente, altrimenti generato UNA volta e persistito nel DB (vedi sessionSecret()).
 // Google Sign-In: client id da env. Se assente, l'endpoint /api/auth/google risponde 503.
 const GOOGLE_CLIENT_ID = process.env.GF_GOOGLE_CLIENT_ID || '';
 const config = () => { try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch { return {}; } };
@@ -65,12 +66,42 @@ const slugify = s => (s || 'produttore').toLowerCase().normalize('NFD').replace(
 
 function send(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); }
 function body(req, max = BODY_MAX_JSON) { return new Promise((ok) => { let b = ''; req.on('data', c => { b += c; if (b.length > max) req.destroy(); }); req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch { ok({}); } }); }); }
-function roleOf(req) { const c = req.headers.cookie || ''; const m = c.match(/gf_sess=([^;]+)/); return m ? sessions.get(m[1]) || null : null; }
+// --- token di sessione firmati (stateless) ---
+let _sessSecret = null;
+function sessionSecret() {
+  if (_sessSecret) return _sessSecret;
+  if (process.env.GF_SESSION_SECRET) { _sessSecret = process.env.GF_SESSION_SECRET; return _sessSecret; }
+  // Senza env: segreto generato una volta e PERSISTITO (riusa lo store crm_doc con chiave riservata '__sys').
+  let doc = {}; try { doc = readCrm('__sys') || {}; } catch {}
+  if (doc.sessionSecret) { _sessSecret = doc.sessionSecret; return _sessSecret; }
+  _sessSecret = crypto.randomBytes(32).toString('hex');
+  try { writeCrm('__sys', { ...doc, sessionSecret: _sessSecret }); } catch {}
+  return _sessSecret;
+}
+const b64u = (s) => Buffer.from(s).toString('base64url');
+function signSession(obj) {
+  const bodyB = b64u(JSON.stringify(obj));
+  const mac = crypto.createHmac('sha256', sessionSecret()).update(bodyB).digest('base64url');
+  return bodyB + '.' + mac;
+}
+function verifySession(token, maxAgeMs) {
+  if (!token || token.indexOf('.') < 0) return null;
+  const i = token.lastIndexOf('.'), bodyB = token.slice(0, i), mac = token.slice(i + 1);
+  const expected = crypto.createHmac('sha256', sessionSecret()).update(bodyB).digest('base64url');
+  let a, b; try { a = Buffer.from(mac); b = Buffer.from(expected); } catch { return null; }
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  let obj; try { obj = JSON.parse(Buffer.from(bodyB, 'base64url').toString('utf8')); } catch { return null; }
+  if (maxAgeMs && obj.iat && (Date.now() - obj.iat > maxAgeMs)) return null;
+  return obj;
+}
+const cookieVal = (req, name) => { const m = (req.headers.cookie || '').match(new RegExp(name + '=([^;]+)')); return m ? m[1] : null; };
+const STAFF_MAXAGE = 86400e3, USER_MAXAGE = 2592000e3; // 1 giorno staff · 30 giorni utente
+function roleOf(req) { const s = verifySession(cookieVal(req, 'gf_sess'), STAFF_MAXAGE); return (s && s.t === 'staff') ? s.role : null; }
 const canEdit = r => r === 'admin' || r === 'verificatore';
 
 // --- auth utente finale (Google / email / ospite), separata dallo staff ---
-const userTokenOf = (req) => { const m = (req.headers.cookie || '').match(/gf_user=([^;]+)/); return m ? m[1] : null; };
-function userOf(req) { const t = userTokenOf(req); const id = t && userSessions.get(t); return id ? readUsers().users.find(u => u.id === id) || null : null; }
+const userTokenOf = (req) => cookieVal(req, 'gf_user');
+function userOf(req) { const s = verifySession(cookieVal(req, 'gf_user'), USER_MAXAGE); if (!s || s.t !== 'user') return null; return readUsers().users.find(u => u.id === s.id) || null; }
 // Scheda posseduta dall'utente loggato (owner). SICUREZZA: si risolve SEMPRE da userId→producerId,
 // e la scheda deve avere ownerId === userId. Mai fidarsi di un producerId passato dal client.
 function ownedProducer(req) {
@@ -82,8 +113,7 @@ function ownedProducer(req) {
 }
 // Crea sessione utente + cookie httpOnly; ritorna l'header Set-Cookie.
 function startUserSession(res, userId) {
-  const tok = crypto.randomBytes(18).toString('hex'); userSessions.set(tok, userId);
-  return `gf_user=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`; // 30 giorni
+  return `gf_user=${signSession({ t: 'user', id: userId, iat: Date.now() })}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`; // 30 giorni
 }
 // Upsert utente in users.json: aggiorna i campi noti, preserva createdAt.
 function upsertUser(fields) {
@@ -354,13 +384,12 @@ async function api(req, res, url) {
     if (password && password === adminPass(cfg)) role = 'admin';
     else if (password && password === verifierPass(cfg)) role = 'verificatore';
     if (!role) return send(res, 401, { error: 'Password errata' });
-    const tok = crypto.randomBytes(18).toString('hex'); sessions.set(tok, role);
+    const tok = signSession({ t: 'staff', role, iat: Date.now() });
     res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `gf_sess=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400` });
     return res.end(JSON.stringify({ role }));
   }
   if (url === '/api/logout' && method === 'POST') {
-    const c = req.headers.cookie || ''; const m = c.match(/gf_sess=([^;]+)/); if (m) sessions.delete(m[1]);
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'gf_sess=; Path=/; Max-Age=0' }); return res.end('{}');
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'gf_sess=; Path=/; Max-Age=0' }); return res.end('{}'); // stateless: basta cancellare il cookie
   }
   if (url === '/api/me') return send(res, 200, { role: roleOf(req) });
 
@@ -422,9 +451,8 @@ async function api(req, res, url) {
   if (url === '/api/auth/config' && method === 'GET') return send(res, 200, { googleClientId: GOOGLE_CLIENT_ID });
   if (url === '/api/auth/me' && method === 'GET') return send(res, 200, { user: publicUser(userOf(req)) });
   if (url === '/api/auth/logout' && method === 'POST') {
-    const t = userTokenOf(req); if (t) userSessions.delete(t);
     res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'gf_user=; Path=/; Max-Age=0' });
-    return res.end('{}');
+    return res.end('{}'); // stateless
   }
   // Profilo: imposta/aggiorna la ZONA (regione) dell'utente loggato → vista personalizzata per territorio.
   // Profilo utente: aggiorna zona E/O dati del profilo (nome, città, lingua, notifiche). Solo i campi presenti.

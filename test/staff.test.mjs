@@ -133,10 +133,12 @@ test('waitlist: GET consentito allo staff', async () => {
 });
 
 // -------------------------------------------------- logout
-test('logout staff: azzera il ruolo', async () => {
+test('logout staff: cancella il cookie di sessione (stateless)', async () => {
   const cookie = await loginAdmin('s6');
-  await api('POST', '/api/logout', { cookie });
-  // il token è stato invalidato lato server: una GET /api/me con lo stesso cookie non è più admin
-  const me = await api('GET', '/api/me', { cookie });
-  assert.equal(me.json.role, null);
+  const out = await api('POST', '/api/logout', { cookie });
+  // Sessioni stateless (token firmati): il logout CANCELLA il cookie (Set-Cookie: gf_sess=; Max-Age=0),
+  // così il browser non lo invia più. Non c'è invalidazione server-side del token (trade-off noto, ADR-01: scadenza breve).
+  const sc = (out.headers['set-cookie'] || []).join(' ; ');
+  assert.match(sc, /gf_sess=;/);
+  assert.match(sc, /Max-Age=0/);
 });
