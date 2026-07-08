@@ -142,8 +142,7 @@ export function Home() {
         <div class="pad">
           <h1 class="h1">${t('home.title1')} <em>${t('home.titleEm')}</em></h1>
           <div class="search mt12">${Icon('search', { size: 20, color: 'var(--terra-deep)' })}
-            <input id="q" aria-label="${t('home.searchAria')}" placeholder="${t('home.searchPlaceholder')}" value="${s.query}">
-            ${Icon('mic', { size: 19, color: 'var(--faint)' })}</div>
+            <input id="q" aria-label="${t('home.searchAria')}" placeholder="${t('home.searchPlaceholder')}" value="${s.query}"></div>
           ${inZone ? `<div class="chips mt12">${chips}</div>` : ''}
         </div>
         ${inZone ? `

@@ -1,4 +1,4 @@
-import { loadData, results, currentUser, authMe, producerStatusNotice } from './store.js';
+import { loadData, results, currentUser, authMe, producerStatusNotice, getState, adminMe } from './store.js';
 import { Icon } from './icons.js';
 import { initMap, ProducerCard, Lockup } from './components.js';
 import * as S from './screens.js';
@@ -73,6 +73,13 @@ function refreshRail() {
     if (notice && !dot) { dot = document.createElement('span'); dot.className = 'rl-dot'; dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:var(--verde);margin-left:6px;flex:none'; azLink.appendChild(dot); }
     else if (!notice && dot) dot.remove();
   }
+  // RBAC (audit B1): Gestione visibile solo ad admin, Area verificatore ad admin+verificatore.
+  // Ai clienti/produttori questi ingressi staff sono nascosti del tutto.
+  const role = getState().role;
+  const sashaLink = document.querySelector('#rail a[href="#/sasha"]');
+  const adminLink = document.querySelector('#rail a[href="#/admin"]');
+  if (sashaLink) sashaLink.style.display = (role === 'admin' || role === 'verificatore') ? '' : 'none';
+  if (adminLink) adminLink.style.display = (role === 'admin') ? '' : 'none';
 }
 function markRail() {
   const h = location.hash || '#/home';
@@ -195,6 +202,6 @@ try { window.matchMedia('(min-width: 1024px)').addEventListener('change', render
 // Bootstrap: prima risolviamo la sessione (cookie httpOnly) così il GATE sa subito se l'utente è loggato,
 // poi carichiamo i dati. authMe() non fallisce mai (ritorna null se non loggato).
 // setLang(detectLang()) carica il dizionario giusto (lingua salvata o del dispositivo) PRIMA del primo render.
-Promise.all([authMe().catch(() => null), loadData(), setLang(detectLang(), { persist: false })]).then(render).catch(err => {
+Promise.all([authMe().catch(() => null), adminMe().catch(() => null), loadData(), setLang(detectLang(), { persist: false })]).then(render).catch(err => {
   app.innerHTML = `<div class="pad" style="padding:40px">Errore nel caricare i dati: ${err.message}</div>`;
 });

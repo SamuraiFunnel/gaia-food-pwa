@@ -1,5 +1,5 @@
 import { Icon } from '../icons.js';
-import { StatusBar } from '../components.js';
+import { StatusBar, toast } from '../components.js';
 import { getState, submitCandidatura } from '../store.js';
 import { t } from '../i18n.js';
 
@@ -226,7 +226,7 @@ export function Form() {
       } catch (e) {
         submit.disabled = false;
         submit.innerHTML = orig;
-        alert(t('form.submitError', { reason: e.message || t('common.retry') }));
+        toast(t('form.submitError', { reason: e.message || t('common.retry') }), 'error');
       }
     };
   }

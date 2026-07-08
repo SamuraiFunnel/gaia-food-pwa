@@ -73,6 +73,39 @@ export const BottomNav = (active) => `
 
 export const catGlyph = { latte: 'droplet', uova: 'egg', olio: 'leaf', grano: 'wheat', formaggio: 'cheese', miele: 'honey', carne: 'carne', 'frutta-verdura': 'frutta-verdura' };
 
+// ---- Feedback in-app (sostituiscono alert()/confirm() nativi) ----
+// Toast: messaggio non bloccante, auto-dismiss, coerente col brand. type: 'info'|'error'|'success'.
+export function toast(msg, type = 'info') {
+  const host = document.getElementById('app') || document.body;
+  let wrap = host.querySelector('.gf-toasts');
+  if (!wrap) { wrap = document.createElement('div'); wrap.className = 'gf-toasts'; host.appendChild(wrap); }
+  const el = document.createElement('div');
+  el.className = 'gf-toast ' + (type || 'info');
+  el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+  el.textContent = msg;
+  wrap.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('in'));
+  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 260); }, 3400);
+}
+// Conferma: dialog in-app, ritorna Promise<boolean>. Sostituisce confirm() per le azioni distruttive.
+export function confirmSheet(title, { body = '', okLabel = 'Conferma', cancelLabel = 'Annulla', danger = false } = {}) {
+  return new Promise((resolve) => {
+    const host = document.getElementById('app') || document.body;
+    const back = document.createElement('div'); back.className = 'gf-confirm-bd';
+    back.setAttribute('role', 'dialog'); back.setAttribute('aria-modal', 'true');
+    back.innerHTML = `<div class="gf-confirm"><div class="gf-confirm-t">${title}</div>${body ? `<div class="gf-confirm-b">${body}</div>` : ''}
+      <div class="gf-confirm-row"><button type="button" class="gf-confirm-no">${cancelLabel}</button><button type="button" class="gf-confirm-ok${danger ? ' danger' : ''}">${okLabel}</button></div></div>`;
+    const done = (v) => { document.removeEventListener('keydown', onKey); back.remove(); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    back.onclick = (e) => { if (e.target === back) done(false); };
+    back.querySelector('.gf-confirm-no').onclick = () => done(false);
+    back.querySelector('.gf-confirm-ok').onclick = () => done(true);
+    document.addEventListener('keydown', onKey);
+    host.appendChild(back);
+    const ok = back.querySelector('.gf-confirm-ok'); if (ok) ok.focus();
+  });
+}
+
 // ---- MapLibre ----
 // Style "carta" caldo/illustrato (guida turistica), risolto relativo a questo modulo.
 const WARM_STYLE_URL = new URL('./map-style.json', import.meta.url).href;

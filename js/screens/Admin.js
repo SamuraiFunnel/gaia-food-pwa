@@ -1,5 +1,5 @@
 import { Icon } from '../icons.js';
-import { StatusBar } from '../components.js';
+import { StatusBar, toast, confirmSheet } from '../components.js';
 import { getState, adminMe, adminLogin, adminLogout, createProducer, updateProducer, deleteProducer, uploadPhoto, reloadData, fetchCandidature, adminProducers, approveProducer, verifyProducer, publishProducer } from '../store.js';
 import {
   extrasCss,
@@ -128,20 +128,20 @@ async function renderDash(host, role) {
   host.querySelectorAll('[data-approve]').forEach(b => b.onclick = async () => {
     b.disabled = true; b.textContent = '…';
     try { await approveProducer(b.getAttribute('data-approve'), b.getAttribute('data-name')); renderDash(host, role); }
-    catch (e) { b.disabled = false; b.textContent = 'Approva'; alert('Errore: ' + e.message); }
+    catch (e) { b.disabled = false; b.textContent = 'Approva'; toast('Errore: ' + e.message, 'error'); }
   });
   host.querySelectorAll('[data-ver]').forEach(b => b.onclick = async () => {
-    b.disabled = true; try { await verifyProducer(b.getAttribute('data-ver')); renderDash(host, role); } catch (e) { b.disabled = false; alert('Errore: ' + e.message); }
+    b.disabled = true; try { await verifyProducer(b.getAttribute('data-ver')); renderDash(host, role); } catch (e) { b.disabled = false; toast('Errore: ' + e.message, 'error'); }
   });
   host.querySelectorAll('[data-pub]').forEach(b => b.onclick = async () => {
-    if (!confirm('Pubblicare la scheda? Andrà live sulla mappa col badge «Verificato sul campo».')) return;
-    b.disabled = true; try { await publishProducer(b.getAttribute('data-pub')); await reloadData(); renderDash(host, role); } catch (e) { b.disabled = false; alert('Errore: ' + e.message); }
+    if (!(await confirmSheet('Pubblicare la scheda?', { body: 'Andrà live sulla mappa col badge «Verificato sul campo».', okLabel: 'Pubblica' }))) return;
+    b.disabled = true; try { await publishProducer(b.getAttribute('data-pub')); await reloadData(); renderDash(host, role); } catch (e) { b.disabled = false; toast('Errore: ' + e.message, 'error'); }
   });
   host.querySelectorAll('[data-rev]').forEach(b => b.onclick = () => { const p = all.find(x => x.id === b.getAttribute('data-rev')); if (p) renderEditor(host, p); });
   host.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => renderEditor(host, ps.find(p => p.id === b.dataset.edit)));
   host.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
     const p = ps.find(x => x.id === b.dataset.del);
-    if (confirm('Eliminare "' + p.name + '"? L\'azione è definitiva.')) { await deleteProducer(p.id); renderDash(host, role); }
+    if (await confirmSheet('Eliminare "' + p.name + '"?', { body: "L'azione è definitiva.", okLabel: 'Elimina', danger: true })) { await deleteProducer(p.id); renderDash(host, role); }
   });
 }
 

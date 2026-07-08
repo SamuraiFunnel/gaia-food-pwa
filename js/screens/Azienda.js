@@ -4,7 +4,7 @@
 // invio bloccato finché non è completo. Composizione editoriale centrata, icone a linea coerenti,
 // prezzo PRECISO. Testi in italiano hard-coded (niente chiavi t() nuove).
 import { Icon } from '../icons.js';
-import { StatusBar } from '../components.js';
+import { StatusBar, toast, confirmSheet } from '../components.js';
 import {
   currentUser, getState, getMyProducer, requestProducer, patchMyProducer,
   addMyProduct, updateMyProduct, deleteMyProduct, uploadProducerMedia,
@@ -45,7 +45,7 @@ function pickImage(onData) {
   const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
   inp.onchange = () => {
     const f = inp.files && inp.files[0]; if (!f) return;
-    if (f.size > 8 * 1024 * 1024) { alert('Foto troppo grande (max 8MB).'); return; }
+    if (f.size > 8 * 1024 * 1024) { toast('Foto troppo grande (max 8MB).', 'error'); return; }
     const fr = new FileReader(); fr.onload = () => onData(fr.result); fr.readAsDataURL(f);
   };
   inp.click();
@@ -245,7 +245,7 @@ function renderIntro(host, refresh) {
         contact: { phone: g('phone').trim(), whatsapp: g('whatsapp').trim() }, note: g('note').trim(),
       });
       await refresh();
-    } catch (e) { btn.disabled = false; btn.textContent = 'Invia la richiesta'; alert('Non è stato possibile inviare la richiesta. Riprova.'); }
+    } catch (e) { btn.disabled = false; btn.textContent = 'Invia la richiesta'; toast('Non è stato possibile inviare la richiesta. Riprova.', 'error'); }
   };
 }
 
@@ -370,7 +370,7 @@ function renderVetrina(host, data, refresh) {
   if (coverBtn) coverBtn.onclick = () => pickImage(async (dataUrl) => {
     coverBtn.textContent = 'Carico…';
     try { const url = await uploadProducerMedia(dataUrl); await patchMyProducer({ photo: url }); await refresh(); }
-    catch (e) { alert('Upload non riuscito. Riprova.'); await refresh(); }
+    catch (e) { toast('Upload non riuscito. Riprova.', 'error'); await refresh(); }
   });
   q('[data-edit-head]').onclick = () => editHead(p, refresh);
   const es = q('[data-edit-story]'); if (es) es.onclick = () => editStory(p, refresh);
@@ -498,7 +498,7 @@ function editProduct(existing, cats, refresh) {
       if (add) add.onclick = () => pickImage(async (dataUrl) => {
         add.textContent = '…';
         try { const url = await uploadProducerMedia(dataUrl); photos.push(url); paintThumbs(); }
-        catch (e) { alert('Upload non riuscito.'); paintThumbs(); }
+        catch (e) { toast('Upload non riuscito.', 'error'); paintThumbs(); }
       });
       thumbsEl.querySelectorAll('[data-rm]').forEach((b) => b.onclick = () => { photos.splice(+b.getAttribute('data-rm'), 1); paintThumbs(); });
     };
@@ -516,10 +516,10 @@ function editProduct(existing, cats, refresh) {
       try {
         if (existing) await updateMyProduct(existing.id, payload); else await addMyProduct(payload);
         close(); await refresh();
-      } catch (e) { alert('Salvataggio non riuscito. Riprova.'); }
+      } catch (e) { toast('Salvataggio non riuscito. Riprova.', 'error'); }
     };
     const del = sh.querySelector('.del');
-    if (del) del.onclick = async () => { if (!confirm('Eliminare questo prodotto?')) return; await deleteMyProduct(existing.id); close(); await refresh(); };
+    if (del) del.onclick = async () => { if (!(await confirmSheet('Eliminare questo prodotto?', { okLabel: 'Elimina', danger: true }))) return; await deleteMyProduct(existing.id); close(); await refresh(); };
   });
 }
 
@@ -534,7 +534,7 @@ function confirmSubmit(refresh) {
     go.onclick = async () => {
       go.disabled = true; go.textContent = 'Invio…';
       try { await submitMyProducer({ acceptTerms: true }); close(); await refresh(); }
-      catch (e) { alert('Manca ancora qualcosa per inviare. Controlla i punti evidenziati.'); go.disabled = false; go.textContent = 'Invia per la verifica'; close(); await refresh(); }
+      catch (e) { toast('Manca ancora qualcosa per inviare. Controlla i punti evidenziati.', 'error'); go.disabled = false; go.textContent = 'Invia per la verifica'; close(); await refresh(); }
     };
   });
 }
