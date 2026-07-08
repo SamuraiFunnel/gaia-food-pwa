@@ -142,8 +142,12 @@ test('ciclo produttore: request → approve → onboarding → submit → verify
   assert.equal(published.status, 200);
   assert.equal(published.json.producer.status, 'published');
 
-  // ORA è pubblica
-  assert.ok((await api('GET', '/api/producers')).json.producers.some((p) => p.id === producerId), 'scheda live nella lista pubblica');
+  // ORA è pubblica — e senza campi interni/PII (security S1)
+  const pubList = (await api('GET', '/api/producers')).json.producers;
+  const pubP = pubList.find((p) => p.id === producerId);
+  assert.ok(pubP, 'scheda live nella lista pubblica');
+  assert.equal(pubP.ownerId, undefined, 'ownerId (email) NON esposto nel GET pubblico (S1)');
+  assert.equal(pubP.consent, undefined, 'consent NON esposto nel GET pubblico (S1)');
 
   // disponibilità: toggle live anche a scheda pubblicata (§D8)
   const avail = await api('POST', `/api/producer/me/availability/${pid}`, { cookie: A, body: { availability: 'out' } });

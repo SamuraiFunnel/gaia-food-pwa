@@ -110,6 +110,13 @@ function verifyPassword(pw, stored) {
 }
 // Utente "pubblico": non esporre MAI passHash al client.
 function publicUser(u) { if (!u) return null; const { passHash, ...rest } = u; return rest; }
+// Scheda produttore "pubblica" (security S1): strippa i campi interni/PII — soprattutto ownerId (= email
+// del proprietario) — dalle risposte NON-staff. Il cliente vede solo ciò che deve.
+function publicProducer(p) {
+  if (!p || typeof p !== 'object') return p;
+  const { ownerId, consent, submittedAt, verifiedAt, publishedAt, ...pub } = p;
+  return pub;
+}
 
 // --- Referral "I Custodi di Gaia": ogni utente ha un "seme" (codice personale);
 //     chi si iscrive con un seme resta collegato all'invitante (referredBy). ---
@@ -791,13 +798,13 @@ async function api(req, res, url) {
     const staff = canEdit(roleOf(req));
     // GET list / one — pubblico, ma le schede NON pubblicate (bozza/in-verifica) sono visibili solo allo staff.
     if (method === 'GET' && !id) {
-      const producers = staff ? store.producers : store.producers.filter(isPublished);
+      const producers = staff ? store.producers : store.producers.filter(isPublished).map(publicProducer);
       return send(res, 200, { ...store, producers });
     }
     if (method === 'GET' && id) {
       const p = store.producers.find(x => x.id === id);
       if (!p || (!staff && !isPublished(p))) return send(res, 404, { error: 'not found' });
-      return send(res, 200, p);
+      return send(res, 200, staff ? p : publicProducer(p));
     }
 
     // mutazioni: serve ruolo

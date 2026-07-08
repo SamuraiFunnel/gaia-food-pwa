@@ -7,7 +7,7 @@
    - CDN (font Google, MapLibre, tiles), foto → cache-first (riusa la copia, scarica una volta)
    Aggiornamento: il nuovo SW si attiva subito (skipWaiting) e prende il controllo (clients.claim).
 */
-const VERSION = 'gaia-food-v25';
+const VERSION = 'gaia-food-v26';
 const SHELL_CACHE = VERSION + '-shell';
 const RUNTIME_CACHE = VERSION + '-runtime';
 

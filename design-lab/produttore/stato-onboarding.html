@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stato onboarding · stepper + progresso (fix audit B3/B5)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --carta:#F4F1EB;--carta2:#EDE6DA;--bianco:#FBF9F5;--canvas:#E7DECF;--ink:#1F1812;--muted:#796d5f;--muted2:#8f8271;
+    --verde:#16A34A;--verde-deep:#15803D;--celeste:#0EA5E9;--bd:#E8E0D3;--bd2:#E1D8C9;
+    --grad:linear-gradient(135deg,#16A34A,#0EA5E9);--serif:'Fraunces',Georgia,serif;--sans:'Inter',system-ui,sans-serif; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{ font-family:var(--sans);color:var(--ink);background:var(--canvas);padding:44px 24px 70px;line-height:1.6 }
+  .wrap{ max-width:760px;margin:0 auto }
+  .eyebrow{ display:inline-flex;gap:8px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--verde-deep);padding:6px 12px;border-radius:999px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.16) }
+  h1{ font-family:var(--serif);font-weight:600;font-size:32px;margin:14px 0 4px }
+  .lead{ color:var(--muted);font-size:14.5px;max-width:600px }
+  .lbl{ font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:26px 0 10px }
+  .box{ background:var(--carta);border-radius:18px;box-shadow:0 20px 50px -30px rgba(20,14,8,.45),0 0 0 1px rgba(31,24,18,.05);padding:22px 24px }
+  /* barra progresso (identica all'app) */
+  .az-progress{ max-width:460px;margin:0 auto 2px }
+  .az-progress-h{ display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px }
+  .az-progress-h b{ color:var(--ink) }
+  .az-bar{ height:8px;border-radius:100px;background:var(--carta2);overflow:hidden }
+  .az-bar>i{ display:block;height:100%;border-radius:100px;background:var(--grad) }
+  /* stepper (identico all'app) */
+  .steps{ display:flex;align-items:center;justify-content:center;gap:8px }
+  .step{ font-size:11.5px;font-weight:700;color:var(--muted2) }
+  .step.on{ color:var(--verde-deep) } .step.done{ color:var(--verde) }
+  .steps i{ width:22px;height:2px;border-radius:2px;background:var(--bd2) }
+  .steps i.done{ background:var(--verde) }
+  .three{ display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:4px }
+  .three .cap{ text-align:center;font-size:12px;color:var(--muted);margin-top:8px }
+  .foot{ margin-top:32px;color:var(--muted);font-size:12.5px }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="eyebrow">Gaia Food · Fix audit B3 · B5</span>
+  <h1>Stato &amp; progresso nell'area produttore</h1>
+  <p class="lead">Ora il produttore sa sempre <b>dove si trova</b> e <b>quanto manca</b>: uno stepper di stato + una barra di completamento mentre riempie la vetrina.</p>
+
+  <div class="lbl">Barra progresso (mentre compila)</div>
+  <div class="box">
+    <div class="az-progress"><div class="az-progress-h"><span>La tua vetrina</span><b>60% completa</b></div><div class="az-bar"><i style="width:60%"></i></div></div>
+  </div>
+
+  <div class="lbl">Stepper di stato (sempre visibile in fondo)</div>
+  <div class="three">
+    <div class="box"><div class="steps"><span class="step on">Bozza</span><i></i><span class="step">In verifica</span><i></i><span class="step">Live</span></div><div class="cap">sta compilando</div></div>
+    <div class="box"><div class="steps"><span class="step done">Bozza</span><i class="done"></i><span class="step on">In verifica</span><i></i><span class="step">Live</span></div><div class="cap">inviata, verifica in sede</div></div>
+    <div class="box"><div class="steps"><span class="step done">Bozza</span><i class="done"></i><span class="step done">In verifica</span><i class="done"></i><span class="step on">Live</span></div><div class="cap">pubblicata sulla mappa</div></div>
+  </div>
+
+  <div class="foot">Anteprima statica dei componenti reali (stessa CSS dell'app). + fatto: spinner sugli upload foto · aria-label sui bottoni-icona · 100dvh su OnbVideo. Live su gaia-food-pwa.onrender.com.</div>
+</div>
+</body>
+</html>
