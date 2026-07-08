@@ -36,7 +36,7 @@ export function OnbVideo() {
   return {
     html: `
     <style>
-      .onb{ display:flex; flex-direction:column; min-height:100vh; }
+      .onb{ display:flex; flex-direction:column; min-height:100vh; min-height:100dvh; }
       .onb-top{ display:flex; align-items:flex-start; justify-content:space-between; padding:14px 24px 0; }
       .onb-skip{ border:none; background:transparent; color:var(--verde-deep); font-size:13px; font-weight:600;
         cursor:pointer; padding:10px 6px; margin-top:14px; min-height:44px; }

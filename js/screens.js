@@ -136,7 +136,7 @@ export function Home() {
       ${StatusBar()}
       <div class="toprow">
         <button class="loc" type="button" data-open-auth="zone" aria-label="${t('home.changeZone')}">${Icon('map-pin', { size: 16, color: 'var(--verde)' })}<b>${locLabel}</b>${inZone ? ` · ${s.radius} km` : ''} ${Icon('chevron-down', { size: 14, color: 'var(--faint)' })}</button>
-        <a class="iconbtn" href="#/profilo" data-link>${Icon('user', { size: 18 })}</a>
+        <a class="iconbtn" href="#/profilo" data-link aria-label="${t('nav.tu')}">${Icon('user', { size: 18 })}</a>
       </div>
       <div class="scroll">
         <div class="pad">
@@ -562,7 +562,7 @@ export function ProfiloEdit() {
 export function Soon(title) {
   return {
     html: `<div class="screen no-nav">${StatusBar()}
-      <div class="toprow"><button class="iconbtn" data-back>${Icon('arrow-left', { size: 18 })}</button></div>
+      <div class="toprow"><button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 18 })}</button></div>
       <div class="center" style="padding:80px 30px">${Icon('truck', { size: 44, color: 'var(--terra)' })}
       <h2 class="h2 mt16">${title}</h2><p class="muted mt8">${t('soon.body')}</p></div></div>`,
     onMount(el) { const back = el.querySelector('[data-back]'); if (back) back.onclick = () => history.back(); },

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feedback in-app · toast + conferma (fix audit B2/C1)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --carta:#F4F1EB; --bianco:#FBF9F5; --canvas:#E7DECF; --ink:#1F1812; --muted:#796d5f; --faint:#b0a48f;
+    --verde:#16A34A; --verde-deep:#15803D; --celeste:#0EA5E9; --bd:#E8E0D3; --bd3:#D8CDBB; --red:#C0392B;
+    --grad:linear-gradient(135deg,#16A34A,#0EA5E9); --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{ font-family:var(--sans); color:var(--ink); background:var(--canvas); padding:44px 24px 80px; line-height:1.6; }
+  .wrap{ max-width:760px; margin:0 auto; }
+  .eyebrow{ display:inline-flex;gap:8px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--verde-deep);padding:6px 12px;border-radius:999px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.16); }
+  h1{ font-family:var(--serif); font-weight:600; font-size:32px; margin:14px 0 4px; }
+  .lead{ color:var(--muted); font-size:14.5px; max-width:600px; }
+  .before{ margin-top:22px; background:#fff; border:1px solid var(--bd); border-radius:14px; padding:14px 16px; font-size:13.5px; color:var(--muted); }
+  .before b{ color:var(--red) }
+  .row{ display:flex; gap:26px; flex-wrap:wrap; margin-top:26px; align-items:flex-start; }
+  .col{ flex:1; min-width:300px; }
+  .lbl{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:12px; }
+  /* stage per il telefono/contenitore */
+  .stage{ background:var(--carta); border-radius:22px; box-shadow:0 24px 60px -30px rgba(20,14,8,.5),0 0 0 1px rgba(31,24,18,.05); padding:26px 20px 30px; min-height:220px; position:relative; overflow:hidden; }
+  .stage .hint{ text-align:center; color:var(--faint); font-size:12.5px; margin-top:6px; }
+  /* --- toast (identico all'app) --- */
+  .gf-toasts{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .gf-toast{ max-width:440px; background:var(--ink); color:#fff; font-size:14px; font-weight:500; line-height:1.4;
+    padding:12px 16px; border-radius:13px; box-shadow:0 14px 34px -12px rgba(20,14,8,.6); }
+  .gf-toast.error{ background:#7a2318; }
+  .gf-toast.success{ background:var(--verde-deep); }
+  /* --- confirm (identico all'app) --- */
+  .cbd{ background:rgba(20,14,8,.42); border-radius:16px; padding:26px 18px; display:flex; align-items:center; justify-content:center; }
+  .gf-confirm{ width:100%; max-width:340px; background:var(--carta); border-radius:20px; padding:22px; box-shadow:0 30px 80px -20px rgba(20,14,8,.55); }
+  .gf-confirm-t{ font-family:var(--serif); font-weight:600; font-size:19px; color:var(--ink); }
+  .gf-confirm-b{ font-size:14px; color:var(--muted); margin-top:8px; }
+  .gf-confirm-row{ display:flex; gap:10px; margin-top:20px; }
+  .gf-confirm-row button{ flex:1; height:48px; border-radius:13px; font-family:inherit; font-size:15px; font-weight:600; cursor:pointer; border:none; }
+  .gf-confirm-no{ background:var(--bianco); border:1px solid var(--bd3); color:var(--ink); }
+  .gf-confirm-ok{ background:var(--grad); color:#fff; }
+  .gf-confirm-ok.danger{ background:var(--red); }
+  .foot{ margin-top:34px; color:var(--muted); font-size:12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="eyebrow">Gaia Food App · Fix audit B2 · C1</span>
+  <h1>Feedback in-app</h1>
+  <p class="lead">Basta <b>dialog nativi</b> del browser: ora errori, conferme e successi sono coerenti col brand. Sostituiti tutti gli 8 <code>alert()</code> e 3 <code>confirm()</code> in Azienda / Admin / Form.</p>
+  <div class="before">Prima: <b>alert("Salvataggio non riuscito. Riprova.")</b> — popup grigio di sistema, bloccante, fuori-brand.</div>
+
+  <div class="row">
+    <div class="col">
+      <div class="lbl">Toast (sostituisce alert)</div>
+      <div class="stage">
+        <div class="gf-toasts">
+          <div class="gf-toast">Foto troppo grande (max 8MB).</div>
+          <div class="gf-toast error">Upload non riuscito. Riprova.</div>
+          <div class="gf-toast success">Modifiche salvate ✓</div>
+        </div>
+        <div class="hint">non bloccante · sparisce da solo · in fondo allo schermo</div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="lbl">Conferma (sostituisce confirm)</div>
+      <div class="stage" style="padding:0">
+        <div class="cbd" style="min-height:220px">
+          <div class="gf-confirm">
+            <div class="gf-confirm-t">Eliminare questo prodotto?</div>
+            <div class="gf-confirm-b">L'azione è definitiva.</div>
+            <div class="gf-confirm-row">
+              <button class="gf-confirm-no">Annulla</button>
+              <button class="gf-confirm-ok danger">Elimina</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">Anteprima statica dei componenti reali (stessa CSS dell'app). + fatto: RBAC (Gestione/Verificatore nascosti ai clienti) · microfono finto rimosso dalla search. Live su gaia-food-pwa.onrender.com.</div>
+</div>
+</body>
+</html>

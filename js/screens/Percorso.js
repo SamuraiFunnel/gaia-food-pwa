@@ -54,7 +54,7 @@ export function Percorso() {
       ${StatusBar()}
       <div class="toprow">
         <span class="loc">${Icon('map-pin', { size: 16, color: 'var(--terra-deep)' })}<b>${comune}</b> · ${z ? z.label : ''}</span>
-        <a class="iconbtn" href="#/profilo" data-link>${Icon('user', { size: 18 })}</a>
+        <a class="iconbtn" href="#/profilo" data-link aria-label="${t('nav.tu')}">${Icon('user', { size: 18 })}</a>
       </div>
       <div class="scroll">
         <div class="pad mt8">

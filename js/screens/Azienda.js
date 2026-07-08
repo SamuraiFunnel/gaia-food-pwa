@@ -118,6 +118,18 @@ export function Azienda() {
       .az .cta{ width:100%; height:52px; border:none; border-radius:15px; background:var(--grad-azione); color:#fff; font-family:inherit; font-size:15.5px; font-weight:600; cursor:pointer; box-shadow:0 12px 26px -12px rgba(22,163,74,.6); display:flex; align-items:center; justify-content:center; gap:8px; }
       .az .cta[disabled]{ background:var(--bd3,#d8cdb8); color:#fff; box-shadow:none; cursor:not-allowed; }
       .az .cta.ghost{ background:var(--bianco); color:var(--ink); border:1px solid var(--bd3); box-shadow:none; max-width:340px; margin:0 auto; }
+      /* stepper stato (B3) + barra progresso onboarding (B5) + spinner upload (B4) */
+      .az .az-steps{ display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:13px; }
+      .az .az-step{ font-size:11.5px; font-weight:700; color:var(--muted2); }
+      .az .az-step.on{ color:var(--verde-deep); } .az .az-step.done{ color:var(--verde); }
+      .az .az-steps i{ width:22px; height:2px; border-radius:2px; background:var(--bd2); }
+      .az .az-steps i.done{ background:var(--verde); }
+      .az .az-progress{ max-width:460px; margin:0 auto 2px; }
+      .az .az-progress-h{ display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:6px; }
+      .az .az-progress-h b{ color:var(--ink); }
+      .az .az-bar{ height:8px; border-radius:100px; background:var(--carta2); overflow:hidden; }
+      .az .az-bar > i{ display:block; height:100%; border-radius:100px; background:var(--grad-azione); transition:width .3s ease; }
+      .az .az-spin{ display:inline-block; width:20px; height:20px; border-radius:50%; border:2.5px solid var(--bd); border-top-color:var(--verde); animation:azsp .8s linear infinite; }
       .az .banner{ max-width:460px; margin:0 auto; display:flex; gap:12px; align-items:center; text-align:left; border-radius:16px; padding:14px 18px; }
       .az .banner .bi{ width:40px;height:40px;border-radius:12px;flex:none;background:#fff;display:flex;align-items:center;justify-content:center; }
       .az .banner .bt b{ display:block; font-size:14.5px; color:var(--ink); } .az .banner .bt span{ font-size:12.5px; color:var(--muted); }
@@ -274,6 +286,20 @@ function renderVetrina(host, data, refresh) {
   const published = p.status === 'published';
   const inReview = p.status === 'in_review';
 
+  // Stepper stato (B3): dà il "cosa succede ora / dove sei" — Bozza → In verifica → Live.
+  const stage = published ? 'live' : (inReview ? 'review' : 'draft');
+  const stepper = `<div class="az-steps">
+    <span class="az-step ${stage === 'draft' ? 'on' : 'done'}">Bozza</span>
+    <i class="${stage !== 'draft' ? 'done' : ''}"></i>
+    <span class="az-step ${stage === 'review' ? 'on' : (stage === 'live' ? 'done' : '')}">In verifica</span>
+    <i class="${stage === 'live' ? 'done' : ''}"></i>
+    <span class="az-step ${stage === 'live' ? 'on' : ''}">Live</span></div>`;
+  // Barra progresso onboarding (B5): quota dei 4 blocchi tassativi completati. Solo mentre si compila.
+  const pct = Math.max(0, Math.min(100, Math.round((4 - missing.length) / 4 * 100)));
+  const progress = (!published && !inReview)
+    ? `<div class="az-progress"><div class="az-progress-h"><span>La tua vetrina</span><b>${pct}% completa</b></div><div class="az-bar"><i style="width:${pct}%"></i></div></div>`
+    : '';
+
   const statusPill = published
     ? `<span class="pill live">${IC.check('#fff', 13)} Live</span>`
     : inReview ? `<span class="pill rev">${IC.clock('#fff', 13)} In verifica</span>`
@@ -352,6 +378,7 @@ function renderVetrina(host, data, refresh) {
             <button class="az-covbtn" data-cover>${IC.camera('var(--terra-deep)', 14)} ${p.photo ? 'Cambia foto' : 'Foto copertina'}</button>
           </div>
           <div class="az-body">
+            ${progress}
             <div class="cen" style="margin-top:0"><button class="editlink" data-edit-head>${pencil('var(--verde-deep)')} Nome e comune</button></div>
             ${storyBlock}
             ${prodBlock}
@@ -360,7 +387,7 @@ function renderVetrina(host, data, refresh) {
           </div>
         </div>
       </div>
-      <div class="guide"><div class="az-page">${guide}</div></div>
+      <div class="guide"><div class="az-page">${stepper}${guide}</div></div>
     </div>`;
 
   // ---- wiring ----
@@ -496,7 +523,7 @@ function editProduct(existing, cats, refresh) {
         + (photos.length < 7 ? `<div class="thumb add" data-addphoto>${IC.plus('var(--terra-deep)', 20)}</div>` : '');
       const add = thumbsEl.querySelector('[data-addphoto]');
       if (add) add.onclick = () => pickImage(async (dataUrl) => {
-        add.textContent = '…';
+        add.innerHTML = '<span class="az-spin"></span>'; add.style.pointerEvents = 'none';
         try { const url = await uploadProducerMedia(dataUrl); photos.push(url); paintThumbs(); }
         catch (e) { toast('Upload non riuscito.', 'error'); paintThumbs(); }
       });

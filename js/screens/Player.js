@@ -23,7 +23,7 @@ export function Player(id, startIndex = null) {
   if (!p) {
     return {
       html: `<div class="screen no-nav">${StatusBar()}
-        <div class="toprow"><button class="iconbtn" data-back>${Icon('arrow-left', { size: 18 })}</button></div>
+        <div class="toprow"><button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 18 })}</button></div>
         <div class="center" style="padding:70px 30px">
           ${Icon('play', { size: 44, color: 'var(--faint)' })}
           <h2 class="h2 mt16">${t('player.notAvailableTitle')}</h2>
