@@ -564,6 +564,10 @@ function editReach(p, refresh) {
       .geo-map{ height:180px; border-radius:14px; overflow:hidden; margin:10px 0 4px; border:1px solid var(--bd,#E4DBCB); background:#eee; }
       .geo-note{ font-size:12.5px; font-weight:600; color:var(--verde-deep,#15803D); margin-bottom:6px; min-height:16px; }
       .geo-tip{ font-weight:400; font-size:12px; color:var(--muted,#796d5f); }
+      .hrs{ display:flex; gap:10px; margin-bottom:8px; }
+      .hrs .ht{ flex:1; }
+      .hrs .ht span{ display:block; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted2,#8f8271); margin-bottom:4px; }
+      .hrs .ht input{ width:100%; }
     </style>
     <div class="fl">Indirizzo <span class="geo-tip">— scrivi e scegli dal menù, finisci sulla mappa</span></div>
     <div class="geo-wrap">
@@ -572,7 +576,12 @@ function editReach(p, refresh) {
     </div>
     <div class="geo-map" data-geomap hidden></div>
     <div class="geo-note" data-geonote></div>
-    <div class="fl">Orari / quando si può venire</div><input data-f="hours" value="${esc(p.hours)}" placeholder="Tutti i giorni 8–19, la domenica su chiamata">
+    <div class="fl">Orari</div>
+    <div class="hrs">
+      <label class="ht"><span>Apre</span><input type="time" data-f="hopen" value="${esc(p.hoursOpen || '')}"></label>
+      <label class="ht"><span>Chiude</span><input type="time" data-f="hclose" value="${esc(p.hoursClose || '')}"></label>
+    </div>
+    <input data-f="hnote" value="${esc(p.hoursNote != null ? p.hoursNote : (p.hours || ''))}" placeholder="Giorni / note — es. Tutti i giorni, domenica su chiamata">
     <div class="fl">Indicazioni utili (facoltativo)</div><input data-f="howToReach" value="${esc(p.howToReach)}" placeholder="Dopo il ponte, prima cascina a destra">
     <button class="save">Salva</button>`, (sh, close) => {
     let lat = (p.lat != null ? p.lat : null), lng = (p.lng != null ? p.lng : null), picked = false;
@@ -617,9 +626,14 @@ function editReach(p, refresh) {
     document.addEventListener('click', (e) => { if (!sh.querySelector('.geo-wrap').contains(e.target)) sug.hidden = true; });
 
     sh.querySelector('.save').onclick = async () => {
+      const hopen = sh.querySelector('[data-f=hopen]').value;
+      const hclose = sh.querySelector('[data-f=hclose]').value;
+      const hnote = sh.querySelector('[data-f=hnote]').value.trim();
+      const range = (hopen && hclose) ? `${hopen}–${hclose}` : (hopen || hclose || '');
+      const hours = [range, hnote].filter(Boolean).join(' · '); // frase mostrata nella scheda
       const patch = {
         address: addrIn.value.trim(),
-        hours: sh.querySelector('[data-f=hours]').value.trim(),
+        hours, hoursOpen: hopen, hoursClose: hclose, hoursNote: hnote,
         howToReach: sh.querySelector('[data-f=howToReach]').value.trim(),
       };
       if (picked && lat != null && lng != null) { patch.lat = lat; patch.lng = lng; } // aggancio mappa solo se scelto ora

@@ -933,7 +933,10 @@ async function api(req, res, url) {
         if ('primary' in d) p.primary = str(d.primary, 60);
         if ('photo' in d) p.photo = str(d.photo, 1200);
         if ('photoPos' in d) p.photoPos = str(d.photoPos, 40); // focal point copertina, es. "50% 30%"
-        if ('hours' in d) p.hours = str(d.hours, 200);
+        if ('hours' in d) p.hours = str(d.hours, 200);           // stringa componibile per la scheda
+        if ('hoursOpen' in d) p.hoursOpen = str(d.hoursOpen, 10);  // "HH:MM" apertura
+        if ('hoursClose' in d) p.hoursClose = str(d.hoursClose, 10);
+        if ('hoursNote' in d) p.hoursNote = str(d.hoursNote, 200); // giorni/note libere
         if ('address' in d) p.address = str(d.address, 240);
         if ('howToReach' in d) p.howToReach = str(d.howToReach, 600);
         if ('lat' in d) p.lat = num(d.lat);
