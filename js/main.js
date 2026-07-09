@@ -2,7 +2,7 @@ import { loadData, results, currentUser, authMe, producerStatusNotice, getState,
 import { Icon } from './icons.js';
 import { initMap, ProducerCard, Lockup } from './components.js';
 import * as S from './screens.js';
-import { enhanceHome, enhanceMapFull, enhanceCarrello } from './desktop.js';
+import { enhanceHome, enhanceMapFull } from './desktop.js';
 // schermate (fan-out)
 import { openAuthModal } from './screens/AuthModal.js';
 import { Custodi } from './screens/Custodi.js';
@@ -23,12 +23,9 @@ import { SashaVerifica } from './screens/SashaVerifica.js';
 import { SashaPianifica } from './screens/SashaPianifica.js';
 import { SashaRevoca } from './screens/SashaRevoca.js';
 import { Stati } from './screens/Stati.js';
-import { DlvScegli } from './screens/DlvScegli.js';
-import { DlvCarrello } from './screens/DlvCarrello.js';
-import { DlvZona } from './screens/DlvZona.js';
-import { DlvSlot } from './screens/DlvSlot.js';
-import { DlvRiepilogo } from './screens/DlvRiepilogo.js';
-import { DlvTracking } from './screens/DlvTracking.js';
+// Flusso "Consegna a casa" CONGELATO (audit A3): non attivo → rotte rimosse dal router.
+// Resta solo il teaser "non disponibile" (linkato dall'Hub). I file DlvScegli/Carrello/Zona/Slot/
+// Riepilogo/Tracking restano in repo, pronti da riattivare quando la consegna sarà scoped.
 import { DlvNonDisp } from './screens/DlvNonDisp.js';
 import { Admin } from './screens/Admin.js';
 import { Azienda } from './screens/Azienda.js';
@@ -147,13 +144,7 @@ const routes = [
   { re: /^#\/sasha$/, view: () => SashaCoda() },
   { re: /^#\/admin$/, view: () => Admin() },
   { re: /^#\/stati$/, view: () => Stati() },
-  { re: /^#\/consegna\/scegli$/, view: () => DlvScegli() },
-  { re: /^#\/consegna\/carrello$/, view: () => DlvCarrello() },
-  { re: /^#\/consegna\/zona$/, view: () => DlvZona() },
-  { re: /^#\/consegna\/slot$/, view: () => DlvSlot() },
-  { re: /^#\/consegna\/riepilogo$/, view: () => DlvRiepilogo() },
-  { re: /^#\/consegna\/tracking$/, view: () => DlvTracking() },
-  { re: /^#\/consegna\/non-disponibile$/, view: () => DlvNonDisp() },
+  { re: /^#\/consegna\/non-disponibile$/, view: () => DlvNonDisp() }, // teaser "in arrivo" (Hub) — l'unico attivo
 ];
 
 // Rotte pubbliche (raggiungibili senza login): solo lo splash. L'accesso avviene nel POP-UP (openAuthModal),
@@ -181,7 +172,6 @@ function render() {
   if (view.onMount) { try { view.onMount(app); } catch (e) { console.error('onMount', e); } }
   // Layer desktop split-view (additivo, solo >=1024px; no-op sotto).
   try { enhanceHome(app); } catch (e) { console.error('enhanceHome', e); }
-  if (h === '#/consegna/carrello') { try { enhanceCarrello(app); } catch (e) { console.error('enhanceCarrello', e); } }
   markRail();
   refreshRail(); // etichette del rail nella lingua attiva
 }

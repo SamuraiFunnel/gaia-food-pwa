@@ -456,6 +456,15 @@ export function Profilo() {
           <a class="p5-row" href="#/azienda" data-link>${rowIc('var(--terra-pale)', 'var(--terra-deep)', Icon('leaf', { size: 18 }))}<span class="p5-lb">${prodLabel}</span>${producerStatusNotice() ? '<span style="width:9px;height:9px;border-radius:50%;background:var(--verde);flex:none;margin-right:6px"></span>' : ''}${chevr}</a>
         </div>
 
+        ${(() => {
+          // Ingresso staff (audit A4): mostrato SOLO se sei già staff loggato (ruolo risolto) → i clienti non lo vedono.
+          // Dà allo staff un accesso anche su mobile (il rail è solo desktop). Coerente con la RBAC (B1).
+          const role = getState().role;
+          if (role !== 'admin' && role !== 'verificatore') return '';
+          const srow = (href, ic, label) => `<a class="p5-row" href="${href}" data-link>${rowIc('var(--carta-scura)', 'var(--ink-soft)', Icon(ic, { size: 18 }))}<span class="p5-lb">${label}</span>${chevr}</a>`;
+          return `<div class="p5-sect">Staff</div><div class="p5-card">${role === 'admin' ? srow('#/admin', 'sliders', 'Gestione') : ''}${srow('#/sasha', 'check-circle', 'Area verificatore')}</div>`;
+        })()}
+
         <div class="p5-card" style="margin-top:16px">
           <a class="p5-row" href="#/termini" data-link>${rowIc('var(--carta-scura)', 'var(--ink-soft)', Icon('info', { size: 18 }))}<span class="p5-lb">${t('settings.terms')}</span>${chevr}</a>
           <a class="p5-row" href="#/privacy" data-link>${rowIc('var(--carta-scura)', 'var(--ink-soft)', Icon('lock', { size: 18 }))}<span class="p5-lb">${t('settings.privacy')}</span>${chevr}</a>
