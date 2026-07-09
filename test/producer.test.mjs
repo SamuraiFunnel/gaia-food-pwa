@@ -136,8 +136,10 @@ test('ciclo produttore: request → approve → onboarding → submit → verify
   // publish prima della verifica → 400
   assert.equal((await api('POST', '/api/producer/publish', { cookie: staff, body: { producerId } })).status, 400);
 
-  // verifica in sede → publish → live
-  assert.equal((await api('POST', '/api/producer/verify', { cookie: staff, body: { producerId } })).status, 200);
+  // verifica in sede → publish → live (con attribuzione staff, 1.3)
+  const ver = await api('POST', '/api/producer/verify', { cookie: staff, body: { producerId } });
+  assert.equal(ver.status, 200);
+  assert.ok(ver.json.producer.verify.by, 'verify.by valorizzato (chi ha verificato)');
   const published = await api('POST', '/api/producer/publish', { cookie: staff, body: { producerId } });
   assert.equal(published.status, 200);
   assert.equal(published.json.producer.status, 'published');
@@ -148,6 +150,8 @@ test('ciclo produttore: request → approve → onboarding → submit → verify
   assert.ok(pubP, 'scheda live nella lista pubblica');
   assert.equal(pubP.ownerId, undefined, 'ownerId (email) NON esposto nel GET pubblico (S1)');
   assert.equal(pubP.consent, undefined, 'consent NON esposto nel GET pubblico (S1)');
+  assert.equal(pubP.audit, undefined, 'audit interno NON esposto nel GET pubblico (1.3)');
+  assert.ok(pubP.verify && pubP.verify.by, 'verify.by SÌ esposto (pubblico: chi ha verificato → fiducia)');
 
   // disponibilità: toggle live anche a scheda pubblicata (§D8)
   const avail = await api('POST', `/api/producer/me/availability/${pid}`, { cookie: A, body: { availability: 'out' } });

@@ -56,7 +56,7 @@ export function toggleSaved(id) {
 // ---- API admin ----
 const j = (url, opts = {}) => fetch(url, { headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', ...opts }).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || r.status); return d; });
 export async function adminMe() { const d = await j('./api/me'); state.role = d.role; return d.role; }
-export async function adminLogin(password) { const d = await j('./api/login', { method: 'POST', body: JSON.stringify({ password }) }); state.role = d.role; return d.role; }
+export async function adminLogin(password, name) { const d = await j('./api/login', { method: 'POST', body: JSON.stringify({ password, name }) }); state.role = d.role; return d.role; }
 export async function adminLogout() { await fetch('./api/logout', { method: 'POST', credentials: 'same-origin' }); state.role = null; }
 export async function createProducer(p) { const d = await j('./api/producers', { method: 'POST', body: JSON.stringify(p) }); await reloadData(); return d; }
 export async function updateProducer(id, patch) { const d = await j('./api/producers/' + id, { method: 'PUT', body: JSON.stringify(patch) }); await reloadData(); return d; }

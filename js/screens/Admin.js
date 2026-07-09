@@ -59,6 +59,7 @@ function renderLogin(host) {
     <div style="text-align:center;margin-bottom:14px">${Icon('lock', { size: 28, color: 'var(--verde)' })}</div>
     <h1 style="text-align:center;font-size:20px">Area riservata</h1>
     <p class="muted" style="font-size:13px;text-align:center;margin-bottom:18px">Accesso per amministratori e verificatori.</p>
+    <div class="field"><label>Il tuo nome</label><input type="text" id="staffname" placeholder="Es. Sasha"></div>
     <div class="field"><label>Password</label><input type="text" id="pw" placeholder="••••••" style="-webkit-text-security:disc"></div>
     <button class="btn btn-grad btn-block" id="go">Entra</button>
     <div id="err" style="color:var(--red-alert);font-size:13px;margin-top:10px;text-align:center"></div>
@@ -66,7 +67,8 @@ function renderLogin(host) {
   </div>`;
   const go = async () => {
     const pw = host.querySelector('#pw').value;
-    try { await adminLogin(pw); renderDash(host, getState().role); }
+    const nm = host.querySelector('#staffname').value;
+    try { await adminLogin(pw, nm); renderDash(host, getState().role); }
     catch (e) { host.querySelector('#err').textContent = 'Password errata'; }
   };
   host.querySelector('#go').onclick = go;
@@ -97,7 +99,7 @@ async function renderDash(host, role) {
   const revRow = (p) => `<div class="arow">
       <div class="th" style="background-image:url('${p.photo || ''}')"></div>
       <div style="flex:1;min-width:0"><div class="nm">${esc(p.name)}</div>
-        <div class="mt">${esc(p.place)} · ${(p.products || []).length} prodotti · ${p.verifiedAt ? 'verificato in sede ✓' : 'da verificare in sede'}</div></div>
+        <div class="mt">${esc(p.place)} · ${(p.products || []).length} prodotti · ${p.verify && p.verify.by ? 'verificato da ' + esc(p.verify.by) : (p.verifiedAt ? 'verificato in sede ✓' : 'da verificare in sede')}</div></div>
       ${p.verifiedAt
       ? `<button class="mini" style="background:var(--verde);color:#fff;border-color:var(--verde)" data-pub="${p.id}">Pubblica</button>`
       : `<button class="mini" data-ver="${p.id}">Segna verificato</button>`}
@@ -153,6 +155,7 @@ function renderEditor(host, p) {
   const stOpts = ['valid', 'expiring', 'suspended'].map(s => `<option value="${s}" ${p.verify && p.verify.state === s ? 'selected' : ''}>${s}</option>`).join('');
   host.innerHTML = `
     <div class="row"><h1>${isNew ? 'Nuovo produttore' : 'Modifica'}</h1><button class="mini" id="cancel">← Indietro</button></div>
+    ${(!isNew && Array.isArray(p.audit) && p.audit.length) ? `<div style="background:#fff;border:1px solid var(--bd);border-radius:12px;padding:10px 13px;margin:8px 0 4px"><div style="font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2)">Storico</div><div style="margin-top:5px;display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted)">${p.audit.slice().reverse().map(a => `<span>${esc(a.action)} da <b style="color:var(--ink)">${esc(a.who)}</b> · ${esc((a.ts || '').slice(0, 10))}</span>`).join('')}</div></div>` : ''}
     ${!isNew ? `<div class="photo-prev" style="background-image:url('${p.photo || ''}')"></div>
       <div class="field"><label>Foto del produttore</label><input type="file" id="photo" accept="image/*"><div class="muted" id="pmsg" style="font-size:12px;margin-top:4px"></div></div>` : '<p class="muted" style="font-size:13px;margin-bottom:12px">Salva prima il produttore, poi potrai caricare la foto.</p>'}
     <div class="field"><label>Nome azienda</label><input type="text" id="name" value="${esc(p.name)}"></div>

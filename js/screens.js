@@ -3,6 +3,9 @@ import { StatusBar, Photo, VerifyBadge, ProducerCard, VideoBlock, BottomNav, ini
 import { getState, results, producerById, toggleSaved, hubSeen, lastFunction, resetHub, currentUser, userZoneIsActive, userZone, updateProfile, uploadAvatar, signOut, producerStatusNotice } from './store.js';
 import { t, getLang, setLang, LANGS, locDate } from './i18n.js';
 
+// Escape HTML a livello modulo (per valori dinamici inseriti nell'HTML, es. nome del verificatore).
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 // Avatar utente: mostra la foto (URL Google o path caricato) se c'è, altrimenti l'iniziale.
 function avatarSrc(u) {
   const p = u && u.picture;
@@ -265,7 +268,7 @@ export function Producer(id) {
 
         <div class="block">
           <div class="block-h"><div class="section-t">${t('producer.reviews')}</div></div>
-          <div class="muted" style="font-size:14px">${t('producer.noReviews1')} <b style="color:var(--verde-deep)">${t('producer.verifiedByTech', { date: locDate(p.verify.date) })}</b>.</div>
+          <div class="muted" style="font-size:14px">${t('producer.noReviews1')} <b style="color:var(--verde-deep)">${t('producer.verifiedByTech', { date: locDate(p.verify.date) })}${p.verify.by ? ' — ' + esc(p.verify.by) : ''}</b>.</div>
         </div>
         <div style="height:12px"></div>
       </div>

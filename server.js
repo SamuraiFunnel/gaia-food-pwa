@@ -97,6 +97,8 @@ function verifySession(token, maxAgeMs) {
 const cookieVal = (req, name) => { const m = (req.headers.cookie || '').match(new RegExp(name + '=([^;]+)')); return m ? m[1] : null; };
 const STAFF_MAXAGE = 86400e3, USER_MAXAGE = 2592000e3; // 1 giorno staff · 30 giorni utente
 function roleOf(req) { const s = verifySession(cookieVal(req, 'gf_sess'), STAFF_MAXAGE); return (s && s.t === 'staff') ? s.role : null; }
+// Identità staff dalla sessione (ruolo + nome digitato al login) — per attribuzione e audit-log (obiettivo 1.3).
+function staffOf(req) { const s = verifySession(cookieVal(req, 'gf_sess'), STAFF_MAXAGE); return (s && s.t === 'staff') ? { role: s.role, name: s.name || 'staff' } : null; }
 const canEdit = r => r === 'admin' || r === 'verificatore';
 
 // --- auth utente finale (Google / email / ospite), separata dallo staff ---
@@ -110,6 +112,14 @@ function ownedProducer(req) {
   const store = readStore();
   const p = store.producers.find(x => x.id === me.producerId && x.ownerId === me.id) || null;
   return { me, store, p };
+}
+// Audit-log per-scheda (obiettivo 1.3): chi · azione · quando. Interno (strippato dal pubblico). Ritorna lo staff.
+function auditPush(p, req, action) {
+  const st = staffOf(req) || { role: roleOf(req) || 'staff', name: 'staff' };
+  p.audit = Array.isArray(p.audit) ? p.audit : [];
+  p.audit.push({ ts: new Date().toISOString(), who: st.name, role: st.role, action });
+  if (p.audit.length > 50) p.audit = p.audit.slice(-50);
+  return st;
 }
 // Crea sessione utente + cookie httpOnly; ritorna l'header Set-Cookie.
 function startUserSession(res, userId) {
@@ -144,8 +154,8 @@ function publicUser(u) { if (!u) return null; const { passHash, ...rest } = u; r
 // del proprietario) — dalle risposte NON-staff. Il cliente vede solo ciò che deve.
 function publicProducer(p) {
   if (!p || typeof p !== 'object') return p;
-  const { ownerId, consent, submittedAt, verifiedAt, publishedAt, ...pub } = p;
-  return pub;
+  const { ownerId, consent, submittedAt, verifiedAt, publishedAt, audit, approvedBy, publishedBy, ...pub } = p;
+  return pub; // verify.by resta (è pubblico: mostra CHI ha verificato → fiducia)
 }
 
 // --- Referral "I Custodi di Gaia": ogni utente ha un "seme" (codice personale);
@@ -379,12 +389,12 @@ async function api(req, res, url) {
       res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8', 'Retry-After': String(t.retryAfter) });
       return res.end(JSON.stringify({ error: `Troppi tentativi. Riprova tra ${t.retryAfter}s.`, retryAfter: t.retryAfter }));
     }
-    const { password } = await body(req); const cfg = config();
+    const { password, name } = await body(req); const cfg = config();
     let role = null;
     if (password && password === adminPass(cfg)) role = 'admin';
     else if (password && password === verifierPass(cfg)) role = 'verificatore';
     if (!role) return send(res, 401, { error: 'Password errata' });
-    const tok = signSession({ t: 'staff', role, iat: Date.now() });
+    const tok = signSession({ t: 'staff', role, name: str(name, 60).trim() || (role === 'admin' ? 'Admin' : 'Verificatore'), iat: Date.now() });
     res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `gf_sess=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400` });
     return res.end(JSON.stringify({ role }));
   }
@@ -684,6 +694,7 @@ async function api(req, res, url) {
           contact: { whatsapp: str(cc.whatsapp, 80), phone: str(cc.phone, 80), email: str(cc.email, 160) },
           note: (c && str(c.note, 2000)) || '',
           status: 'draft', ownerId: target.id, createdAt: new Date().toISOString() };
+        auditPush(p, req, 'approvata');
         store.producers.push(p); writeStore(store);
         const user = upsertUser({ id: target.id, role: 'producer', producerId: n, producerStatus: 'approved' });
         try { if (c && c.state === 'todo') { c.state = 'visita'; writeCand(candDoc); } } catch {}
@@ -696,17 +707,20 @@ async function api(req, res, url) {
       const p = store.producers.find(x => x.id === pid);
       if (!p) return send(res, 404, { error: 'scheda non trovata' });
       if (action === 'verify') { // verifica in sede fatta → pronta per il go-live
+        const st = auditPush(p, req, 'verificata');
         p.verifiedAt = new Date().toISOString();
-        p.verify = { state: 'valid', date: str(d.date, 60) || p.verifiedAt.slice(0, 10), next: str(d.next, 60) };
+        p.verify = { state: 'valid', date: str(d.date, 60) || p.verifiedAt.slice(0, 10), next: str(d.next, 60), by: st.name };
         writeStore(store); return send(res, 200, { ok: true, producer: p });
       }
       if (action === 'publish') { // go-live col badge: richiede la verifica in sede
         if (!p.verifiedAt) return send(res, 400, { error: 'verifica in sede mancante: /verify prima di pubblicare' });
-        p.status = 'published'; p.publishedAt = new Date().toISOString(); writeStore(store);
+        const st = auditPush(p, req, 'pubblicata');
+        p.status = 'published'; p.publishedAt = new Date().toISOString(); p.publishedBy = st.name; writeStore(store);
         if (p.ownerId) upsertUser({ id: p.ownerId, producerStatus: 'published' });
         return send(res, 200, { ok: true, producer: p });
       }
       if (action === 'suspend') {
+        auditPush(p, req, 'sospesa');
         p.status = 'sospeso'; writeStore(store);
         if (p.ownerId) upsertUser({ id: p.ownerId, producerStatus: 'in_review' });
         return send(res, 200, { ok: true, producer: p });
