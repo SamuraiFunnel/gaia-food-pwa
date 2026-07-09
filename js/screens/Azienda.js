@@ -4,7 +4,7 @@
 // invio bloccato finché non è completo. Composizione editoriale centrata, icone a linea coerenti,
 // prezzo PRECISO. Testi in italiano hard-coded (niente chiavi t() nuove).
 import { Icon } from '../icons.js';
-import { StatusBar, toast, confirmSheet } from '../components.js';
+import { StatusBar, toast, confirmSheet, initMap } from '../components.js';
 import {
   currentUser, getState, getMyProducer, requestProducer, patchMyProducer,
   addMyProduct, updateMyProduct, deleteMyProduct, uploadProducerMedia,
@@ -119,6 +119,22 @@ function repositionCover(dataUrl) {
     ov.querySelector('.az-rp-ok').onclick = () => done(`${Math.round(px)}% ${Math.round(py)}%`);
     ov.addEventListener('click', (e) => { if (e.target === ov) done(null); });
   });
+}
+
+// Geocoding indirizzo → suggerimenti (Photon, OSM, gratuito e senza chiave, pensato per l'autocomplete).
+// Bias sui risultati vicino all'Abruzzo (zona pilota); ritorna [{label, lat, lng}].
+async function geocode(q) {
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=it&lat=41.78&lon=13.93`;
+  const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  if (!r.ok) throw new Error('geo');
+  const d = await r.json();
+  return (d.features || []).map((f) => {
+    const pr = f.properties || {}, c = (f.geometry && f.geometry.coordinates) || [];
+    const street = pr.street ? (pr.street + (pr.housenumber ? ' ' + pr.housenumber : '')) : '';
+    const parts = [pr.name, street, pr.postcode, pr.city || pr.village || pr.county, pr.state]
+      .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+    return { label: parts.join(', '), lat: c[1], lng: c[0] };
+  }).filter((x) => x.lat != null && x.lng != null && x.label);
 }
 
 export function Azienda() {
@@ -540,16 +556,74 @@ function editContact(p, refresh) {
 
 function editReach(p, refresh) {
   openSheet(`<h3>Come si raggiunge</h3>
-    <div class="fl">Indirizzo</div><input data-f="address" value="${esc(p.address)}" placeholder="Contrada Colli, Villetta Barrea (AQ)">
+    <style>
+      .geo-wrap{ position:relative; }
+      .geo-sug{ position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:5; background:#fff; border:1px solid var(--bd,#E4DBCB); border-radius:12px; box-shadow:0 16px 40px -18px rgba(31,24,18,.4); overflow:hidden; max-height:230px; overflow-y:auto; }
+      .geo-item{ display:block; width:100%; text-align:left; padding:11px 13px; font-size:13.5px; color:var(--ink-soft,#544a40); background:#fff; border:none; border-top:1px solid #f0e9dc; cursor:pointer; }
+      .geo-item:first-child{ border-top:none; } .geo-item:hover{ background:var(--verde-pale,#E7F5EC); }
+      .geo-map{ height:180px; border-radius:14px; overflow:hidden; margin:10px 0 4px; border:1px solid var(--bd,#E4DBCB); background:#eee; }
+      .geo-note{ font-size:12.5px; font-weight:600; color:var(--verde-deep,#15803D); margin-bottom:6px; min-height:16px; }
+      .geo-tip{ font-weight:400; font-size:12px; color:var(--muted,#796d5f); }
+    </style>
+    <div class="fl">Indirizzo <span class="geo-tip">— scrivi e scegli dal menù, finisci sulla mappa</span></div>
+    <div class="geo-wrap">
+      <input data-f="address" value="${esc(p.address)}" placeholder="Scrivi l'indirizzo…" autocomplete="off">
+      <div class="geo-sug" data-sug hidden></div>
+    </div>
+    <div class="geo-map" data-geomap hidden></div>
+    <div class="geo-note" data-geonote></div>
     <div class="fl">Orari / quando si può venire</div><input data-f="hours" value="${esc(p.hours)}" placeholder="Tutti i giorni 8–19, la domenica su chiamata">
     <div class="fl">Indicazioni utili (facoltativo)</div><input data-f="howToReach" value="${esc(p.howToReach)}" placeholder="Dopo il ponte, prima cascina a destra">
     <button class="save">Salva</button>`, (sh, close) => {
+    let lat = (p.lat != null ? p.lat : null), lng = (p.lng != null ? p.lng : null), picked = false;
+    const addrIn = sh.querySelector('[data-f=address]');
+    const sug = sh.querySelector('[data-sug]');
+    const mapDiv = sh.querySelector('[data-geomap]');
+    const note = sh.querySelector('[data-geonote]');
+    let pmap = null, marker = null, tmr = null;
+
+    const showMap = (la, ln) => {
+      mapDiv.hidden = false;
+      if (!pmap) {
+        pmap = initMap(mapDiv, [], { center: [ln, la], me: false });
+        if (pmap && window.maplibregl) pmap.on('load', () => { marker = new maplibregl.Marker({ color: '#16A34A' }).setLngLat([ln, la]).addTo(pmap); });
+      } else {
+        pmap.flyTo({ center: [ln, la], zoom: 14 });
+        if (marker) marker.setLngLat([ln, la]);
+        else if (window.maplibregl) marker = new maplibregl.Marker({ color: '#16A34A' }).setLngLat([ln, la]).addTo(pmap);
+      }
+      note.textContent = '📍 Posizione agganciata alla mappa';
+    };
+    if (lat != null && lng != null) showMap(lat, lng); // già geolocalizzato: mostra subito
+
+    addrIn.oninput = () => {
+      picked = false;
+      const q = addrIn.value.trim();
+      clearTimeout(tmr);
+      if (q.length < 4) { sug.hidden = true; return; }
+      tmr = setTimeout(async () => {
+        let res = [];
+        try { res = await geocode(q); } catch { sug.hidden = true; return; }
+        if (!res.length) { sug.hidden = true; return; }
+        sug.innerHTML = res.map((r, i) => `<button type="button" class="geo-item" data-i="${i}">${esc(r.label)}</button>`).join('');
+        sug.hidden = false;
+        sug.querySelectorAll('.geo-item').forEach((b) => b.onclick = () => {
+          const r = res[+b.getAttribute('data-i')];
+          addrIn.value = r.label; lat = r.lat; lng = r.lng; picked = true;
+          sug.hidden = true; showMap(lat, lng);
+        });
+      }, 320);
+    };
+    document.addEventListener('click', (e) => { if (!sh.querySelector('.geo-wrap').contains(e.target)) sug.hidden = true; });
+
     sh.querySelector('.save').onclick = async () => {
-      await patchMyProducer({
-        address: sh.querySelector('[data-f=address]').value.trim(),
+      const patch = {
+        address: addrIn.value.trim(),
         hours: sh.querySelector('[data-f=hours]').value.trim(),
         howToReach: sh.querySelector('[data-f=howToReach]').value.trim(),
-      });
+      };
+      if (picked && lat != null && lng != null) { patch.lat = lat; patch.lng = lng; } // aggancio mappa solo se scelto ora
+      await patchMyProducer(patch);
       close(); await refresh();
     };
   });
