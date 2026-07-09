@@ -142,6 +142,14 @@ export async function directUnlockProducer(userId, name) { return j('./api/produ
 export async function verifyProducer(producerId, date, next) { return j('./api/producer/verify', { method: 'POST', body: JSON.stringify({ producerId, date, next }) }); }
 export async function publishProducer(producerId) { return j('./api/producer/publish', { method: 'POST', body: JSON.stringify({ producerId }) }); }
 
+// ---- Gestione utenti & Inviti (admin via account, cookie gf_user → `ja`) ----
+export async function adminListUsers() { return ja('./api/admin/users'); } // { users, invites, owners }
+export async function adminSetLevel(userId, level) { return ja('./api/admin/users/level', { method: 'POST', body: JSON.stringify({ userId, level }) }); }
+export async function adminCreateInvite(email, level) { return ja('./api/admin/invites', { method: 'POST', body: JSON.stringify({ email, level }) }); }
+export async function adminRevokeInvite(token) { return ja('./api/admin/invites?token=' + encodeURIComponent(token), { method: 'DELETE' }); }
+export async function inviteInfo(token) { return ja('./api/invite/' + encodeURIComponent(token)); }
+export async function acceptInvite(token) { const d = await ja('./api/invite/' + encodeURIComponent(token) + '/accept', { method: 'POST' }); if (d.user) state.user = d.user; return d; }
+
 // ---- Produttore self-service "La mia azienda" (piano 13) ----
 // Endpoint utente-owner (cookie gf_user) via `ja` (credentials:'include'). Quando l'endpoint ritorna
 // {user}, aggiorniamo state.user così il router/UI vedono subito il nuovo producerStatus.

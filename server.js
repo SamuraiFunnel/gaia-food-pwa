@@ -104,6 +104,12 @@ function roleOf(req) { const s = verifySession(cookieVal(req, 'gf_sess'), STAFF_
 function staffOf(req) { const s = verifySession(cookieVal(req, 'gf_sess'), STAFF_MAXAGE); return (s && s.t === 'staff') ? { role: s.role, name: s.name || 'staff' } : null; }
 const canEdit = r => r === 'admin' || r === 'verificatore';
 
+// --- Admin come proprietà dell'ACCOUNT (nuovo modello, sostituisce la password condivisa) ---
+// Owner fissi = sempre admin, non declassabili: le mie email Google. Override/estensione via env CSV.
+const OWNER_EMAILS = (process.env.GF_OWNER_EMAILS || 'danielefunnelexpert@gmail.com')
+  .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+const isOwnerEmail = (email) => !!email && OWNER_EMAILS.includes(String(email).toLowerCase());
+
 // --- auth utente finale (Google / email / ospite), separata dallo staff ---
 const userTokenOf = (req) => cookieVal(req, 'gf_user');
 function userOf(req) { const s = verifySession(cookieVal(req, 'gf_user'), USER_MAXAGE); if (!s || s.t !== 'user') return null; return readUsers().users.find(u => u.id === s.id) || null; }
@@ -116,9 +122,28 @@ function ownedProducer(req) {
   const p = store.producers.find(x => x.id === me.producerId && x.ownerId === me.id) || null;
   return { me, store, p };
 }
+// Ruolo staff EFFETTIVO dell'utente loggato (admin = proprietà dell'account).
+// Owner (mie email Google, via login Google verificato) = admin fisso; altrimenti users.staffRole.
+function userStaffRole(req) {
+  const me = userOf(req);
+  if (!me) return null;
+  if (me.provider === 'google' && isOwnerEmail(me.email)) return 'admin';
+  return me.staffRole || null;
+}
+// Porta unificata per TUTTI i gate staff: prima l'utente loggato (nuovo modello),
+// poi la vecchia sessione staff a password come fallback tecnico (spento in prod: nessuna password impostata).
+function staffRole(req) { return userStaffRole(req) || roleOf(req); }
+const isAdminReq = (req) => staffRole(req) === 'admin';
+// Identità di chi agisce (per audit): preferisci l'utente admin loggato, poi la sessione staff legacy.
+function actorOf(req) {
+  const me = userOf(req), ur = userStaffRole(req);
+  if (me && ur) return { role: ur, name: me.name || me.email || 'staff' };
+  return staffOf(req) || { role: roleOf(req) || 'staff', name: 'staff' };
+}
+
 // Audit-log per-scheda (obiettivo 1.3): chi · azione · quando. Interno (strippato dal pubblico). Ritorna lo staff.
 function auditPush(p, req, action) {
-  const st = staffOf(req) || { role: roleOf(req) || 'staff', name: 'staff' };
+  const st = actorOf(req);
   p.audit = Array.isArray(p.audit) ? p.audit : [];
   p.audit.push({ ts: new Date().toISOString(), who: st.name, role: st.role, action });
   if (p.audit.length > 50) p.audit = p.audit.slice(-50);
@@ -159,6 +184,48 @@ function publicProducer(p) {
   if (!p || typeof p !== 'object') return p;
   const { ownerId, consent, submittedAt, verifiedAt, publishedAt, audit, approvedBy, publishedBy, ...pub } = p;
   return pub; // verify.by resta (è pubblico: mostra CHI ha verificato → fiducia)
+}
+
+// Livello di accesso EFFETTIVO di un utente (per la Gestione utenti). Ordine di precedenza chiaro.
+function userLevel(u) {
+  if (!u) return 'cliente';
+  if (u.provider === 'google' && isOwnerEmail(u.email)) return 'admin';       // owner fisso
+  if (u.staffRole === 'admin') return 'admin';
+  if (u.staffRole === 'verificatore') return 'verificatore';
+  if (['approved', 'onboarding', 'in_review', 'published'].includes(u.producerStatus)) return 'produttore';
+  return 'cliente';
+}
+
+// Promuove un utente a PRODUTTORE: crea la scheda-bozza (semina dalla candidatura se presente), lega owner+stato.
+// Riusato da: azione staff /producer/approve, endpoint admin livelli, accettazione invito. Idempotente sul producerId.
+function promoteToProducer(req, target, opts = {}) {
+  if (!target) return { error: 'utente non trovato', code: 404 };
+  if (target.producerId) { // già sbloccato: idempotente
+    const store0 = readStore(); const existing = store0.producers.find(x => x.id === target.producerId) || null;
+    // riattiva lo stato se era stato declassato
+    const user = upsertUser({ id: target.id, role: 'producer', producerStatus: 'approved' });
+    return { ok: true, alreadyUnlocked: true, producer: existing, user: publicUser(user) };
+  }
+  const store = readStore();
+  const candDoc = readCand();
+  const c = candDoc.candidature.filter(x => x.userId === target.id).sort((a, b) => String(b.ts).localeCompare(String(a.ts)))[0] || null;
+  let nid = slugify(opts.name || (c && c.name) || target.name || (target.email || '').split('@')[0] || 'produttore'); let n = nid, i = 2;
+  while (store.producers.some(p => p.id === n)) n = nid + '-' + (i++);
+  const cc = (c && c.contact) || {};
+  const p = { id: n,
+    name: str(opts.name, 160) || (c && c.name) || str(target.name, 160) || '',
+    place: (c && str(c.place, 160)) || '',
+    categories: (c && Array.isArray(c.categories)) ? c.categories.slice(0, 20).map(x => str(x, 60)) : [],
+    primary: (c && Array.isArray(c.categories) && c.categories[0]) ? str(c.categories[0], 60) : '',
+    tone: 'pascolo', verify: { state: 'pending', date: '' }, seasonal: [], videos: [], products: [],
+    contact: { whatsapp: str(cc.whatsapp, 80), phone: str(cc.phone, 80), email: str(cc.email, 160) },
+    note: (c && str(c.note, 2000)) || '',
+    status: 'draft', ownerId: target.id, createdAt: new Date().toISOString() };
+  auditPush(p, req, 'approvata');
+  store.producers.push(p); writeStore(store);
+  const user = upsertUser({ id: target.id, role: 'producer', producerId: n, producerStatus: 'approved' });
+  try { if (c && c.state === 'todo') { c.state = 'visita'; writeCand(candDoc); } } catch {}
+  return { ok: true, producer: p, user: publicUser(user) };
 }
 
 // --- Referral "I Custodi di Gaia": ogni utente ha un "seme" (codice personale);
@@ -385,6 +452,110 @@ async function api(req, res, url) {
   const seg = url.split('/').filter(Boolean); // ['api','producers',':id', ...]
   const method = req.method;
 
+  // ============ GESTIONE UTENTI & INVITI (solo admin, via account utente) ============
+  // Elenco persone + livelli (per la schermata "Gestione").
+  if (url === '/api/admin/users' && method === 'GET') {
+    if (!isAdminReq(req)) return send(res, 403, { error: 'Accesso riservato' });
+    const users = readUsers().users.map(u => ({
+      id: u.id, email: u.email || u.id, name: u.name || '', picture: u.picture || '',
+      provider: u.provider || '', createdAt: u.createdAt || '',
+      level: userLevel(u), owner: isOwnerEmail(u.email || u.id),
+      producerStatus: u.producerStatus || null, producerId: u.producerId || null,
+    })).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const nowIso = new Date().toISOString();
+    const invites = ((readCrm('__invites') || {}).invites || [])
+      .filter(x => !x.usedAt && (!x.expiresAt || x.expiresAt > nowIso))
+      .map(x => ({ token: x.token, email: x.email, level: x.level, createdAt: x.createdAt, expiresAt: x.expiresAt }));
+    return send(res, 200, { users, invites, owners: OWNER_EMAILS });
+  }
+
+  // Cambia il livello di un utente esistente.
+  if (url === '/api/admin/users/level' && method === 'POST') {
+    if (!isAdminReq(req)) return send(res, 403, { error: 'Accesso riservato' });
+    const d = await body(req);
+    const uid = String(d.userId || d.email || '').trim().toLowerCase();
+    const level = String(d.level || '').trim();
+    if (!['cliente', 'produttore', 'verificatore', 'admin'].includes(level)) return send(res, 400, { error: 'livello non valido' });
+    if (isOwnerEmail(uid)) return send(res, 400, { error: "L'owner è admin fisso: non modificabile." });
+    const target = readUsers().users.find(u => u.id === uid);
+    if (!target) return send(res, 404, { error: 'utente non trovato' });
+    if (level === 'produttore') {
+      if (target.staffRole) upsertUser({ id: target.id, staffRole: null });
+      const r = promoteToProducer(req, readUsers().users.find(u => u.id === uid), {});
+      if (r.error) return send(res, r.code || 400, { error: r.error });
+      return send(res, 200, { ok: true, level, producer: r.producer || null });
+    }
+    if (level === 'admin' || level === 'verificatore') {
+      const u = upsertUser({ id: target.id, staffRole: level });
+      return send(res, 200, { ok: true, level, user: publicUser(u) });
+    }
+    // cliente: togli lo staff; se era produttore attivo → vetrina offline (non distruttivo, dati preservati).
+    upsertUser({ id: target.id, staffRole: null });
+    if (target.producerId) {
+      const store = readStore(); const p = store.producers.find(x => x.id === target.producerId);
+      if (p && p.status === 'published') { p.status = 'sospeso'; auditPush(p, req, 'declassata a cliente'); writeStore(store); }
+      upsertUser({ id: target.id, producerStatus: null });
+    }
+    return send(res, 200, { ok: true, level: 'cliente' });
+  }
+
+  // Crea un invito → link che porta a creazione account + onboarding col livello scelto.
+  if (url === '/api/admin/invites' && method === 'POST') {
+    if (!isAdminReq(req)) return send(res, 403, { error: 'Accesso riservato' });
+    const d = await body(req);
+    const email = String(d.email || '').trim().toLowerCase();
+    const level = String(d.level || 'produttore').trim();
+    if (!EMAIL_RE.test(email)) return send(res, 400, { error: 'Email non valida' });
+    if (!['produttore', 'verificatore', 'admin'].includes(level)) return send(res, 400, { error: 'livello non valido' });
+    if (isOwnerEmail(email)) return send(res, 400, { error: 'Email owner: è già admin, nessun invito serve.' });
+    const token = crypto.randomBytes(18).toString('base64url');
+    const nowIso = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 14 * 24 * 3600e3).toISOString(); // 14 giorni
+    const doc = readCrm('__invites') || {}; const list = Array.isArray(doc.invites) ? doc.invites : [];
+    const kept = list.filter(x => !(x.email === email && !x.usedAt)); // un solo invito attivo per email
+    kept.push({ token, email, level, by: actorOf(req).name, createdAt: nowIso, expiresAt, usedAt: null });
+    writeCrm('__invites', { ...doc, invites: kept });
+    return send(res, 200, { ok: true, token, email, level, expiresAt });
+  }
+
+  // Revoca un invito pendente.
+  if (url.split('?')[0] === '/api/admin/invites' && method === 'DELETE') {
+    if (!isAdminReq(req)) return send(res, 403, { error: 'Accesso riservato' });
+    const token = (url.split('?')[1] || '').match(/token=([^&]+)/); const tk = token ? decodeURIComponent(token[1]) : '';
+    const doc = readCrm('__invites') || {}; const list = (doc.invites || []).filter(x => x.token !== tk);
+    writeCrm('__invites', { ...doc, invites: list });
+    return send(res, 200, { ok: true });
+  }
+
+  // Info invito (pubblico) — per la schermata di accettazione.
+  if (seg[1] === 'invite' && seg[2] && !seg[3] && method === 'GET') {
+    const inv = ((readCrm('__invites') || {}).invites || []).find(x => x.token === seg[2]);
+    if (!inv) return send(res, 404, { error: 'invito non trovato' });
+    const expired = !!(inv.expiresAt && inv.expiresAt < new Date().toISOString());
+    return send(res, 200, { email: inv.email, level: inv.level, used: !!inv.usedAt, expired, valid: !inv.usedAt && !expired });
+  }
+
+  // Accetta invito (utente già loggato con la mail invitata) → applica il livello + segna usato.
+  if (seg[1] === 'invite' && seg[2] && seg[3] === 'accept' && method === 'POST') {
+    const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
+    const doc = readCrm('__invites') || {}; const list = doc.invites || [];
+    const inv = list.find(x => x.token === seg[2]);
+    if (!inv) return send(res, 404, { error: 'invito non trovato' });
+    if (inv.usedAt) return send(res, 409, { error: 'invito già usato' });
+    if (inv.expiresAt && inv.expiresAt < new Date().toISOString()) return send(res, 410, { error: 'invito scaduto' });
+    if (String(me.email || me.id).toLowerCase() !== inv.email) return send(res, 403, { error: `Questo invito è per ${inv.email}. Accedi con quella email.` });
+    let producer = null;
+    if (inv.level === 'produttore') {
+      const r = promoteToProducer(req, readUsers().users.find(u => u.id === me.id), {});
+      if (r.error) return send(res, r.code || 400, { error: r.error });
+      producer = r.producer || null;
+    } else if (inv.level === 'admin' || inv.level === 'verificatore') {
+      upsertUser({ id: me.id, staffRole: inv.level });
+    }
+    inv.usedAt = new Date().toISOString(); inv.usedBy = me.id; writeCrm('__invites', { ...doc, invites: list });
+    return send(res, 200, { ok: true, level: inv.level, producer });
+  }
+
   // --- auth ---
   if (url === '/api/login' && method === 'POST') {
     const t = loginThrottle(req);
@@ -404,7 +575,7 @@ async function api(req, res, url) {
   if (url === '/api/logout' && method === 'POST') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': 'gf_sess=; Path=/; Max-Age=0' }); return res.end('{}'); // stateless: basta cancellare il cookie
   }
-  if (url === '/api/me') return send(res, 200, { role: roleOf(req) });
+  if (url === '/api/me') return send(res, 200, { role: staffRole(req) });
 
   // --- auth utente finale (Google reale / email / ospite), namespace /api/auth/* ---
   // Google: il client invia l'idToken (Google Identity Services); lo verifichiamo lato server.
@@ -438,6 +609,9 @@ async function api(req, res, url) {
     const email = String(d.email || '').trim().toLowerCase();
     const pw = String(d.password || '');
     if (!EMAIL_RE.test(email)) return send(res, 400, { error: 'Email non valida' });
+    // Sicurezza: le email owner (admin fisso) NON possono registrarsi con password → solo Google (email verificata),
+    // così nessuno può "occupare" la tua email con un account password e ottenere l'admin.
+    if (isOwnerEmail(email)) return send(res, 403, { error: 'Questa email è riservata: accedi con Google.' });
     if (pw.length < PW_MIN) return send(res, 400, { error: `La password deve avere almeno ${PW_MIN} caratteri` });
     const existing = readUsers().users.find(x => x.id === email);
     if (existing && existing.passHash) return send(res, 409, { error: 'Esiste già un account con questa email. Accedi.' });
@@ -601,7 +775,7 @@ async function api(req, res, url) {
       return send(res, 200, { ok: true });
     }
     if (method === 'GET') {
-      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      if (!canEdit(staffRole(req))) return send(res, 403, { error: 'Accesso riservato' });
       return send(res, 200, readWait());
     }
   }
@@ -637,16 +811,16 @@ async function api(req, res, url) {
       return send(res, 200, { ok: true, id: cid, candidatura: entry });
     }
     if (method === 'GET' && id) { // dettaglio singola candidatura (staff)
-      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      if (!canEdit(staffRole(req))) return send(res, 403, { error: 'Accesso riservato' });
       const c = readCand().candidature.find(x => x.id === id);
       return c ? send(res, 200, c) : send(res, 404, { error: 'not found' });
     }
     if (method === 'GET' && !id) { // lista candidature (staff)
-      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      if (!canEdit(staffRole(req))) return send(res, 403, { error: 'Accesso riservato' });
       return send(res, 200, readCand());
     }
     if (id && (method === 'PUT' || method === 'PATCH')) { // aggiorna stato (staff)
-      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      if (!canEdit(staffRole(req))) return send(res, 403, { error: 'Accesso riservato' });
       const d = await body(req); const cand = readCand();
       const c = cand.candidature.find(x => x.id === id);
       if (!c) return send(res, 404, { error: 'not found' });
@@ -654,7 +828,7 @@ async function api(req, res, url) {
       writeCand(cand); return send(res, 200, c);
     }
     if (id && method === 'DELETE') { // rimuovi (staff)
-      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      if (!canEdit(staffRole(req))) return send(res, 403, { error: 'Accesso riservato' });
       const cand = readCand(); const i = cand.candidature.findIndex(x => x.id === id);
       if (i < 0) return send(res, 404, { error: 'not found' });
       cand.candidature.splice(i, 1); writeCand(cand); return send(res, 200, { ok: true });
@@ -667,41 +841,18 @@ async function api(req, res, url) {
 
     // ===== Azioni STAFF (browser admin, cookie gf_sess) =====
     if (['approve', 'direct-unlock', 'verify', 'publish', 'suspend'].includes(action)) {
-      if (!canEdit(roleOf(req))) return send(res, 403, { error: 'Accesso riservato' });
+      if (!canEdit(staffRole(req))) return send(res, 403, { error: 'Accesso riservato' });
       if (method !== 'POST') return send(res, 405, { error: 'metodo non consentito' });
       const d = await body(req);
 
       // approve / direct-unlock: sblocca l'area, crea la scheda-bozza, lega owner + stato utente.
+      // (logica estratta in promoteToProducer → riusata anche da Gestione livelli e accettazione invito)
       if (action === 'approve' || action === 'direct-unlock') {
         const uid = String(d.userId || '').trim().toLowerCase();
         const target = readUsers().users.find(u => u.id === uid);
-        if (!target) return send(res, 404, { error: 'utente non trovato' });
-        if (target.producerId) { // idempotente: già sbloccato
-          const store0 = readStore(); const existing = store0.producers.find(x => x.id === target.producerId) || null;
-          return send(res, 200, { ok: true, alreadyUnlocked: true, producer: existing, user: publicUser(target) });
-        }
-        const store = readStore();
-        // Semina la bozza dai dati del FORM "Diventa produttore" (candidatura collegata all'utente):
-        // così, appena sbloccata, la Vetrina parte già con nome/comune/categorie/contatti inseriti nella richiesta.
-        const candDoc = readCand();
-        const c = candDoc.candidature.filter(x => x.userId === target.id).sort((a, b) => String(b.ts).localeCompare(String(a.ts)))[0] || null;
-        let nid = slugify(d.name || (c && c.name) || target.name || (target.email || '').split('@')[0] || 'produttore'); let n = nid, i = 2;
-        while (store.producers.some(p => p.id === n)) n = nid + '-' + (i++);
-        const cc = (c && c.contact) || {};
-        const p = { id: n,
-          name: str(d.name, 160) || (c && c.name) || str(target.name, 160) || '',
-          place: (c && str(c.place, 160)) || '',
-          categories: (c && Array.isArray(c.categories)) ? c.categories.slice(0, 20).map(x => str(x, 60)) : [],
-          primary: (c && Array.isArray(c.categories) && c.categories[0]) ? str(c.categories[0], 60) : '',
-          tone: 'pascolo', verify: { state: 'pending', date: '' }, seasonal: [], videos: [], products: [],
-          contact: { whatsapp: str(cc.whatsapp, 80), phone: str(cc.phone, 80), email: str(cc.email, 160) },
-          note: (c && str(c.note, 2000)) || '',
-          status: 'draft', ownerId: target.id, createdAt: new Date().toISOString() };
-        auditPush(p, req, 'approvata');
-        store.producers.push(p); writeStore(store);
-        const user = upsertUser({ id: target.id, role: 'producer', producerId: n, producerStatus: 'approved' });
-        try { if (c && c.state === 'todo') { c.state = 'visita'; writeCand(candDoc); } } catch {}
-        return send(res, 200, { ok: true, producer: p, user: publicUser(user) });
+        const r = promoteToProducer(req, target, { name: d.name });
+        if (r.error) return send(res, r.code || 400, { error: r.error });
+        return send(res, 200, r);
       }
 
       // verify / publish / suspend operano su una scheda esistente (producerId nel body).
@@ -840,7 +991,7 @@ async function api(req, res, url) {
   if (seg[1] === 'producers') {
     const store = readStore();
     const id = seg[2];
-    const staff = canEdit(roleOf(req));
+    const staff = canEdit(staffRole(req));
     // GET list / one — pubblico, ma le schede NON pubblicate (bozza/in-verifica) sono visibili solo allo staff.
     if (method === 'GET' && !id) {
       const producers = staff ? store.producers : store.producers.filter(isPublished).map(publicProducer);
@@ -853,7 +1004,7 @@ async function api(req, res, url) {
     }
 
     // mutazioni: serve ruolo
-    const role = roleOf(req);
+    const role = staffRole(req);
     if (!canEdit(role)) return send(res, 403, { error: 'Accesso riservato' });
 
     if (method === 'POST' && !id) { // crea

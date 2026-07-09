@@ -43,6 +43,8 @@ function userToRow(u) {
     referred_at: u.referredAt || null, created_at: u.createdAt || null,
     // stato "produttore" (self-service): ruolo, scheda posseduta, stato del ciclo di onboarding.
     role: u.role || null, producer_id: u.producerId || null, producer_status: u.producerStatus || null,
+    // livello di accesso staff (gestione app): 'admin' | 'verificatore' | null. Distinto da `role` (produttore).
+    staff_role: u.staffRole || null,
   };
 }
 function rowToUser(r) {
@@ -63,6 +65,7 @@ function rowToUser(r) {
   if (r.role) u.role = r.role;
   if (r.producer_id) u.producerId = r.producer_id;
   if (r.producer_status) u.producerStatus = r.producer_status;
+  if (r.staff_role) u.staffRole = r.staff_role;
   u.createdAt = toIso(r.created_at) || u.createdAt;
   return u;
 }
@@ -110,12 +113,13 @@ CREATE TABLE IF NOT EXISTS users (
   id text PRIMARY KEY, email text, provider text, pass_hash text,
   name text, picture text, city text, phone text, lang text, notif boolean DEFAULT false,
   zone jsonb, seed text UNIQUE, referred_by text, referred_at timestamptz, created_at timestamptz DEFAULT now(),
-  role text, producer_id text, producer_status text
+  role text, producer_id text, producer_status text, staff_role text
 );
 -- Colonne produttore aggiunte a posteriori: ALTER idempotente per i DB già creati prima di questa feature.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS producer_id text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS producer_status text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS staff_role text;
 CREATE INDEX IF NOT EXISTS idx_users_created ON users (created_at);
 CREATE INDEX IF NOT EXISTS idx_users_provider ON users (provider);
 CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users (referred_by);
@@ -147,9 +151,9 @@ async function persistUsers(d) {
     for (const u of d.users) {
       const r = userToRow(u);
       await c.query(
-        `INSERT INTO users (id,email,provider,pass_hash,name,picture,city,phone,lang,notif,zone,seed,referred_by,referred_at,created_at,role,producer_id,producer_status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
-        [r.id, r.email, r.provider, r.pass_hash, r.name, r.picture, r.city, r.phone, r.lang, r.notif, r.zone, r.seed, r.referred_by, r.referred_at, r.created_at, r.role, r.producer_id, r.producer_status]);
+        `INSERT INTO users (id,email,provider,pass_hash,name,picture,city,phone,lang,notif,zone,seed,referred_by,referred_at,created_at,role,producer_id,producer_status,staff_role)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+        [r.id, r.email, r.provider, r.pass_hash, r.name, r.picture, r.city, r.phone, r.lang, r.notif, r.zone, r.seed, r.referred_by, r.referred_at, r.created_at, r.role, r.producer_id, r.producer_status, r.staff_role]);
     }
   });
 }

@@ -67,6 +67,7 @@ export const VideoBlock = (v) => {
 export const BottomNav = (active) => `
   <nav class="bottomnav">
     <a href="#/home" data-link class="${active === 'scopri' ? 'active' : ''}">${Icon('compass', { size: 22 })}${t('nav.scopri')}</a>
+    <a href="#/mappa" data-link class="${active === 'mappa' ? 'active' : ''}">${Icon('map-pin', { size: 22 })}${t('rail.map')}</a>
     <a href="#/salvati" data-link class="${active === 'salvati' ? 'active' : ''}">${Icon('bookmark', { size: 22 })}${t('nav.salvati')}</a>
     <a href="#/profilo" data-link class="${active === 'tu' ? 'active' : ''}">${Icon('user', { size: 22 })}${t('nav.tu')}</a>
   </nav>`;

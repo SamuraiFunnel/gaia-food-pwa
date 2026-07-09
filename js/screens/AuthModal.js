@@ -47,7 +47,7 @@ const googleLogoSvg = `<svg class="glogo" viewBox="0 0 24 24" aria-hidden="true"
 
 let openEl = null; // un solo modale per volta
 
-export function openAuthModal({ step = 'auth' } = {}) {
+export function openAuthModal({ step = 'auth', redirect = '' } = {}) {
   if (openEl) return;
   const logged = !!currentUser();
   const startZone = step === 'zone' || logged; // se già loggato, il modale serve solo per la zona
@@ -221,7 +221,7 @@ export function openAuthModal({ step = 'auth' } = {}) {
     wrap.classList.add('step-zone');
     const q = wrap.querySelector('[data-zq]'); if (q) setTimeout(() => q.focus(), 60);
   };
-  const enterApp = () => { close(); location.hash = '#/home'; setTimeout(() => window.dispatchEvent(new Event('hashchange')), 30); };
+  const enterApp = () => { close(); location.hash = redirect || '#/home'; setTimeout(() => window.dispatchEvent(new Event('hashchange')), 30); };
 
   const msgEl = wrap.querySelector('[data-msg]');
   const setMsg = (t, ok = false) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.style.color = ok ? 'var(--verde-deep)' : 'var(--red-alert)'; } };

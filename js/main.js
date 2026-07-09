@@ -28,50 +28,57 @@ import { Stati } from './screens/Stati.js';
 // Riepilogo/Tracking restano in repo, pronti da riattivare quando la consegna sarà scoped.
 import { DlvNonDisp } from './screens/DlvNonDisp.js';
 import { Admin } from './screens/Admin.js';
+import { Gestione } from './screens/Gestione.js';
+import { Invito } from './screens/Invito.js';
 import { Azienda } from './screens/Azienda.js';
 import { Hub } from './screens/Hub.js';
 
 const app = document.getElementById('app');
 
 /* ---- Rail laterale (solo desktop, via CSS) ---- */
+// Barra base (uguale a tutti): Scopri · Mappa · Salvati. Le tab di ruolo (Area personale,
+// Verifica, Gestione) e il Profilo stanno sotto il separatore e compaiono solo a chi servono.
 const RAIL = [
   { ic: 'home', key: 'nav.scopri', href: '#/home', match: ['#/home', '#/', '#/mappa', '#/ricerca', '#/filtri'] },
   { ic: 'map-pin', key: 'rail.map', href: '#/mappa', match: ['#/mappa'] },
-  { ic: 'play', key: 'rail.ciboVero', href: '#/cibovero', match: ['#/cibovero', '#/video'] },
   { ic: 'bookmark', key: 'nav.salvati', href: '#/salvati', match: ['#/salvati'] },
-  { ic: 'leaf', key: 'rail.becomeProducer', href: '#/azienda', match: ['#/azienda', '#/candidati'] },
 ];
 function buildRail() {
   const r = document.createElement('aside'); r.id = 'rail';
   const link = (href, ic, key) => `<a class="rl" href="${href}">${Icon(ic, { size: 20 })} <span class="rl-t" data-k="${key}">${t(key)}</span></a>`;
+  // Etichette ruolo in chiaro (IT): evita di toccare i file i18n / il test locali.
+  const roleLink = (href, ic, label) => `<a class="rl rl-role" href="${href}">${Icon(ic, { size: 20 })} <span class="rl-t">${label}</span></a>`;
   r.innerHTML = `
     <a class="rl-logo" href="#/home">${Lockup('')}</a>
     ${RAIL.map(i => link(i.href, i.ic, i.key)).join('')}
     <div class="rl-spacer"></div>
     <div class="rl-sep"></div>
+    ${roleLink('#/azienda', 'leaf', 'Area personale')}
+    ${roleLink('#/sasha', 'check-circle', 'Verifica')}
+    ${roleLink('#/admin', 'sliders', 'Gestione')}
     ${link('#/profilo', 'user', 'nav.tu')}
-    ${link('#/sasha', 'check-circle', 'rail.verifier')}
-    ${link('#/admin', 'sliders', 'rail.admin')}
     <div class="rl-foot" data-k="rail.tagline">${t('rail.tagline')}</div>`;
   document.body.insertBefore(r, app);
 }
 // Ridisegna le etichette del rail nella lingua attiva (a ogni render / cambio lingua).
 function refreshRail() {
   document.querySelectorAll('#rail [data-k]').forEach(el => { el.textContent = t(el.getAttribute('data-k')); });
-  // Etichetta dinamica dell'ingresso produttore: "Diventa produttore" → "La mia area" quando sbloccato.
+  // "Area personale": tab del produttore. Compare SOLO se l'utente ha uno stato produttore
+  // attivo (i clienti la promozione la trovano nel Profilo → "Diventa produttore").
   const azLink = document.querySelector('#rail a[href="#/azienda"]');
   if (azLink) {
     const s = (currentUser() || {}).producerStatus;
+    const active = ['requested', 'approved', 'onboarding', 'in_review', 'published'].includes(s);
+    azLink.style.display = active ? '' : 'none';
     const az = azLink.querySelector('.rl-t');
-    if (az) az.textContent = !s ? t('rail.becomeProducer') : (s === 'requested' ? 'Richiesta in corso' : 'La mia area');
+    if (az) az.textContent = (s === 'requested') ? 'Richiesta in corso' : 'Area personale';
     // pallino di notifica quando c'è una novità di stato non ancora vista
     const notice = producerStatusNotice();
     let dot = azLink.querySelector('.rl-dot');
     if (notice && !dot) { dot = document.createElement('span'); dot.className = 'rl-dot'; dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:var(--verde);margin-left:6px;flex:none'; azLink.appendChild(dot); }
     else if (!notice && dot) dot.remove();
   }
-  // RBAC (audit B1): Gestione visibile solo ad admin, Area verificatore ad admin+verificatore.
-  // Ai clienti/produttori questi ingressi staff sono nascosti del tutto.
+  // RBAC: Gestione solo admin · Verifica ad admin+verificatore. Nascosti del tutto a cliente/produttore.
   const role = getState().role;
   const sashaLink = document.querySelector('#rail a[href="#/sasha"]');
   const adminLink = document.querySelector('#rail a[href="#/admin"]');
@@ -142,7 +149,9 @@ const routes = [
   { re: /^#\/sasha\/pianifica$/, view: () => SashaPianifica() },
   { re: /^#\/sasha\/revoca$/, view: () => SashaRevoca() },
   { re: /^#\/sasha$/, view: () => SashaCoda() },
-  { re: /^#\/admin$/, view: () => Admin() },
+  { re: /^#\/admin$/, view: () => Gestione() },                 // NUOVO: gestione persone/livelli/inviti
+  { re: /^#\/admin\/pipeline$/, view: () => Admin() },          // vecchia pipeline verifiche/pubblicazione produttori
+  { re: /^#\/invito\/(.+)$/, view: (m) => Invito(m[1]) },       // accettazione invito → account + onboarding
   { re: /^#\/stati$/, view: () => Stati() },
   { re: /^#\/consegna\/non-disponibile$/, view: () => DlvNonDisp() }, // teaser "in arrivo" (Hub) — l'unico attivo
 ];
@@ -150,7 +159,7 @@ const routes = [
 // Rotte pubbliche (raggiungibili senza login): solo lo splash. L'accesso avviene nel POP-UP (openAuthModal),
 // non più in una pagina dedicata. Tutto il resto è gated.
 const PUBLIC_ROUTES = ['#/', '', '#/termini', '#/privacy'];
-function isPublic(h) { return PUBLIC_ROUTES.includes(h); }
+function isPublic(h) { return PUBLIC_ROUTES.includes(h) || h.startsWith('#/invito/'); } // l'invito si apre da sloggati
 
 function render() {
   const h = location.hash || '#/';

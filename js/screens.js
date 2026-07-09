@@ -449,11 +449,8 @@ export function Profilo() {
             <button type="button" role="switch" aria-checked="${notifOn}" aria-label="${t('settings.notifications')}" data-notif class="p5-toggle" style="background:${notifOn ? 'var(--verde)' : 'var(--bd3,#d8cdb8)'}"><i style="left:${notifOn ? '21px' : '3px'}"></i></button></div>
         </div>
 
-        <div class="p5-sect">${t('settings.community')}</div>
         <div class="p5-card">
-          <a class="p5-row" href="#/custodi" data-link>${rowIc('var(--celeste-pale)', 'var(--celeste-deep)', Icon('share', { size: 18 }))}<span class="p5-lb">${t('settings.invite')}</span>${chevr}</a>
-          <a class="p5-row" href="#/custodi/produttore" data-link>${rowIc('var(--verde-pale)', 'var(--verde-deep)', Icon('sprout', { size: 18 }))}<span class="p5-lb">${t('settings.custodi')}</span>${chevr}</a>
-          <a class="p5-row" href="#/azienda" data-link>${rowIc('var(--terra-pale)', 'var(--terra-deep)', Icon('leaf', { size: 18 }))}<span class="p5-lb">${prodLabel}</span>${producerStatusNotice() ? '<span style="width:9px;height:9px;border-radius:50%;background:var(--verde);flex:none;margin-right:6px"></span>' : ''}${chevr}</a>
+          <a class="p5-row" href="#/azienda" data-link>${rowIc('var(--verde-pale)', 'var(--verde-deep)', Icon('leaf', { size: 18 }))}<span class="p5-lb">${prodLabel}</span>${producerStatusNotice() ? '<span style="width:9px;height:9px;border-radius:50%;background:var(--verde);flex:none;margin-right:6px"></span>' : ''}${chevr}</a>
         </div>
 
         ${(() => {
