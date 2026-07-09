@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A2 · Hub "In arrivo" — varianti</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --carta:#F4F1EB; --bianco:#FBF9F5; --canvas:#E7DECF; --ink:#1F1812; --ink-soft:#544a40;
+    --muted:#796d5f; --faint:#a89b8a; --verde:#16A34A; --verde-deep:#15803D; --verde-light:#4ade80;
+    --celeste:#0EA5E9; --terra:#C2A07A; --bd2:#E4DBCB;
+    --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+    --sh-card:0 1px 2px rgba(31,24,18,.03),0 12px 30px -18px rgba(31,24,18,.28);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{ font-family:var(--sans); color:var(--ink); background:var(--canvas); line-height:1.55; -webkit-font-smoothing:antialiased; padding:34px 18px 80px; }
+  .lab-head{ max-width:1180px; margin:0 auto 8px; }
+  .lab-head .eye{ font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--verde-deep); }
+  .lab-head h1{ font-family:var(--serif); font-weight:600; font-size:30px; margin:8px 0 4px; letter-spacing:-.01em; }
+  .lab-head p{ color:var(--muted); font-size:14px; max-width:70ch; }
+  .grid{ max-width:1180px; margin:26px auto 0; display:grid; grid-template-columns:repeat(3,1fr); gap:22px; align-items:start; }
+  @media(max-width:900px){ .grid{ grid-template-columns:1fr; max-width:440px; } }
+  .col{ background:var(--carta); border:1px solid var(--bd2); border-radius:22px; padding:18px 16px 22px; box-shadow:var(--sh-card); }
+  .col.reco{ border-color:rgba(22,163,74,.4); box-shadow:0 1px 2px rgba(31,24,18,.03),0 18px 40px -20px rgba(22,163,74,.35); }
+  .col .vh{ display:flex; align-items:center; gap:9px; margin-bottom:14px; }
+  .col .vn{ font-size:12px; font-weight:800; color:#fff; background:var(--muted); width:22px; height:22px; border-radius:7px; display:flex; align-items:center; justify-content:center; }
+  .col.reco .vn{ background:var(--verde); }
+  .col .vt{ font-family:var(--serif); font-weight:600; font-size:16px; }
+  .col .vb{ font-size:12px; color:var(--muted); margin-left:auto; }
+  .badge-reco{ font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--verde-deep); background:rgba(22,163,74,.1); border:1px solid rgba(22,163,74,.22); padding:3px 8px; border-radius:100px; }
+
+  /* ---- pezzi Hub reali (scope .hubx) ---- */
+  .hubx .hcard{ position:relative; border-radius:22px; overflow:hidden; isolation:isolate; min-height:190px; display:flex; flex-direction:column; justify-content:flex-end; box-shadow:var(--sh-card); border:1px solid rgba(31,24,18,.06); }
+  .hubx .hcard .bg{ position:absolute; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; display:block; }
+  .hubx .hcard .body{ position:relative; z-index:3; padding:16px; color:#fff; }
+  .hubx .hcard .row{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
+  .hubx .hcard h2{ font-family:var(--serif); font-weight:600; letter-spacing:-.015em; line-height:1.12; font-size:21px; color:#fff; text-shadow:0 1px 18px rgba(0,0,0,.45); }
+  .hubx .hcard p{ font-size:12.5px; line-height:1.42; color:rgba(255,255,255,.94); margin-top:5px; max-width:30ch; text-shadow:0 1px 14px rgba(0,0,0,.4); }
+  .hubx .hcard .tag{ position:absolute; z-index:3; top:12px; left:12px; display:inline-flex; align-items:center; gap:6px; padding:6px 11px 6px 8px; border-radius:100px; background:rgba(255,255,255,.18); -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px); border:1px solid rgba(255,255,255,.28); font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#fff; }
+  .hubx .hcard.active{ min-height:210px; }
+  .hubx .hcard.active .scrim{ position:absolute; inset:0; z-index:1; background:linear-gradient(180deg, rgba(20,30,18,0) 30%, rgba(18,26,16,.32) 60%, rgba(14,20,12,.82) 100%), linear-gradient(105deg, rgba(22,163,74,.16), rgba(14,165,233,.05) 60%, transparent); }
+  .hubx .hcard.active .tag{ background:rgba(22,163,74,.34); border-color:rgba(255,255,255,.36); }
+  .hubx .go{ flex:none; width:46px; height:46px; border-radius:50%; background:#fff; color:var(--verde-deep); display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px -10px rgba(0,0,0,.6); }
+  .hubx .pickline{ display:inline-flex; align-items:center; gap:7px; margin-top:10px; font-size:11px; font-weight:700; color:#fff; }
+  .hubx .pickline .dot{ width:6px; height:6px; border-radius:50%; background:var(--verde-light); box-shadow:0 0 0 4px rgba(34,197,94,.3); }
+  .hubx .hcard.locked .bg{ filter:saturate(.82) brightness(.96); }
+  .hubx .hcard.locked .veil{ position:absolute; inset:0; z-index:1; background:radial-gradient(120% 90% at 50% 30%, rgba(10,14,9,.42), rgba(8,12,7,.66) 100%), linear-gradient(180deg, rgba(10,14,9,.5), rgba(8,11,7,.66)); }
+  .hubx .hcard.locked h2{ color:rgba(255,255,255,.94); }
+  .hubx .hcard.locked p{ color:rgba(255,255,255,.78); }
+  .hubx .lockwrap{ position:absolute; z-index:3; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; }
+  .hubx .lockwrap .lock{ width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; background:rgba(255,255,255,.12); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.28); box-shadow:0 14px 34px -16px rgba(0,0,0,.8); }
+  .hubx .hcard.locked .tag{ left:auto; right:12px; background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.3); }
+  .hubx .hcard.locked .tag .spark{ color:var(--celeste); }
+  .hubx .soonline{ display:inline-flex; align-items:center; gap:6px; margin-top:9px; font-size:10.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:rgba(255,255,255,.8); }
+  .stack{ display:flex; flex-direction:column; gap:12px; }
+
+  /* ---- A · striscia slim ---- */
+  .soon-strip{ margin-top:15px; display:flex; align-items:center; flex-wrap:wrap; gap:9px; padding:2px; }
+  .soon-strip .soon-lbl{ display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+  .soon-chip{ display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:var(--ink-soft); background:var(--bianco); border:1px solid var(--bd2); border-radius:100px; padding:9px 15px; box-shadow:var(--sh-card); text-decoration:none; }
+  .soon-chip::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--celeste); flex:none; }
+
+  /* ---- B · mini-card affiancate ---- */
+  .mini-row{ margin-top:14px; display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+  .hubx .hcard.mini{ min-height:118px; border-radius:18px; }
+  .hubx .hcard.mini h2{ font-size:15px; }
+  .hubx .hcard.mini .body{ padding:12px; }
+  .hubx .hcard.mini .lockwrap .lock{ width:38px; height:38px; }
+  .hubx .hcard.mini .tag{ top:9px; right:9px; left:auto; font-size:9px; padding:4px 8px; }
+
+  .note{ margin-top:14px; font-size:12px; color:var(--muted); line-height:1.5; border-top:1px dashed var(--bd2); padding-top:12px; }
+  .note b{ color:var(--ink); }
+  .tick{ color:var(--verde-deep); font-weight:700; } .cross{ color:#b23b2e; font-weight:700; }
+  .foot{ max-width:1180px; margin:30px auto 0; font-size:12px; color:var(--muted); text-align:center; }
+</style>
+</head>
+<body>
+  <div class="lab-head">
+    <div class="eye">Gaia Food · Hub · Decisione A2</div>
+    <h1>Le funzioni "in arrivo" — 3 trattamenti</h1>
+    <p>La card viva <b>«Trova un produttore»</b> resta protagonista in tutte. Cambia solo come mostriamo <i>Ricevi a casa</i> e <i>Lungo il percorso</i>, che oggi sono <b>bloccate</b>. Stessa foto, stessa grafica dell'app reale.</p>
+  </div>
+
+  <div class="grid hubx">
+
+    <!-- A · SLIM (reco) -->
+    <div class="col reco">
+      <div class="vh"><span class="vn">A</span><span class="vt">Striscia slim</span><span class="badge-reco">Consiglio</span></div>
+      <a class="hcard active">
+        <img class="bg" src="../../assets/hub/trova.jpg" alt="">
+        <div class="scrim"></div>
+        <span class="tag">📍 Attivo ora</span>
+        <div class="body"><div class="row"><div>
+          <h2>Trova un produttore</h2>
+          <p>Scopri chi coltiva e alleva vicino a te.</p>
+          <span class="pickline"><span class="dot"></span>Inizia qui</span>
+        </div><span class="go">→</span></div></div>
+      </a>
+      <div class="soon-strip">
+        <span class="soon-lbl">◷ In arrivo</span>
+        <span class="soon-chip">Ricevi a casa</span>
+        <span class="soon-chip">Lungo il percorso</span>
+      </div>
+      <div class="note"><span class="tick">✓</span> Una sola cosa "accesa" = zero frustrazione, focus totale sull'azione viva. <span class="tick">✓</span> Hub più corto, arrivi prima alla mappa. <span class="cross">✗</span> Si perde il racconto visivo della visione.</div>
+    </div>
+
+    <!-- B · MINI CARDS -->
+    <div class="col">
+      <div class="vh"><span class="vn">B</span><span class="vt">Mini-card affiancate</span></div>
+      <a class="hcard active">
+        <img class="bg" src="../../assets/hub/trova.jpg" alt="">
+        <div class="scrim"></div>
+        <span class="tag">📍 Attivo ora</span>
+        <div class="body"><div class="row"><div>
+          <h2>Trova un produttore</h2>
+          <p>Scopri chi coltiva e alleva vicino a te.</p>
+          <span class="pickline"><span class="dot"></span>Inizia qui</span>
+        </div><span class="go">→</span></div></div>
+      </a>
+      <div class="mini-row">
+        <div class="hcard locked mini">
+          <img class="bg" src="../../assets/hub/ricevi.jpg" alt="">
+          <div class="veil"></div>
+          <div class="lockwrap"><span class="lock">🔒</span></div>
+          <span class="tag"><span class="spark">✦</span> Presto</span>
+          <div class="body"><h2>Ricevi a casa</h2></div>
+        </div>
+        <div class="hcard locked mini">
+          <img class="bg" src="../../assets/hub/percorso.jpg" alt="">
+          <div class="veil"></div>
+          <div class="lockwrap"><span class="lock">🔒</span></div>
+          <span class="tag"><span class="spark">✦</span> Presto</span>
+          <div class="body"><h2>Lungo il percorso</h2></div>
+        </div>
+      </div>
+      <div class="note"><span class="tick">✓</span> Tiene il racconto visivo ma le rende chiaramente <b>secondarie</b>. <span class="tick">✓</span> Gerarchia onesta: 1 grande + 2 piccole. <span class="cross">✗</span> Restano 2 tessere non cliccabili.</div>
+    </div>
+
+    <!-- C · ATTUALE -->
+    <div class="col">
+      <div class="vh"><span class="vn">C</span><span class="vt">Attuale (3 hero)</span><span class="vb">oggi live</span></div>
+      <div class="stack">
+        <a class="hcard active">
+          <img class="bg" src="../../assets/hub/trova.jpg" alt="">
+          <div class="scrim"></div>
+          <span class="tag">📍 Attivo ora</span>
+          <div class="body"><div class="row"><div>
+            <h2>Trova un produttore</h2>
+            <p>Scopri chi coltiva e alleva vicino a te.</p>
+            <span class="pickline"><span class="dot"></span>Inizia qui</span>
+          </div><span class="go">→</span></div></div>
+        </a>
+        <div class="hcard locked">
+          <img class="bg" src="../../assets/hub/ricevi.jpg" alt="">
+          <div class="veil"></div>
+          <div class="lockwrap"><span class="lock">🔒</span></div>
+          <span class="tag"><span class="spark">✦</span> In arrivo</span>
+          <div class="body"><h2>Ricevi a casa</h2><p>Il cibo dei tuoi produttori, consegnato.</p><span class="soonline">◷ Presto</span></div>
+        </div>
+        <div class="hcard locked">
+          <img class="bg" src="../../assets/hub/percorso.jpg" alt="">
+          <div class="veil"></div>
+          <div class="lockwrap"><span class="lock">🔒</span></div>
+          <span class="tag"><span class="spark">✦</span> In arrivo</span>
+          <div class="body"><h2>Lungo il percorso</h2><p>Mangia bene anche in viaggio.</p><span class="soonline">◷ Presto</span></div>
+        </div>
+      </div>
+      <div class="note"><span class="tick">✓</span> Racconto visivo pieno della visione. <span class="cross">✗</span> Due grandi tessere "morte": prometto tanto, mantengo poco → frustrazione. <span class="cross">✗</span> Hub lungo, l'azione vera è più in basso.</div>
+    </div>
+
+  </div>
+
+  <div class="foot">Le emoji 📍🔒✦→ qui sono segnaposto: nell'app reali sono icone SVG. Dimmi <b>A</b>, <b>B</b> o <b>C</b> e la applico sul live.</div>
+</body>
+</html>

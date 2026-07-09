@@ -6,11 +6,14 @@ import { t } from '../i18n.js';
 /* ---------------- HUB D'INGRESSO — "Cosa vuoi fare?" ----------------
    Look = design-lab/hub/V1-velo-scuro.html ("velo scuro").
    Tre pilastri del prodotto come CARD HERO con foto:
-     1) "Trova un produttore" — ATTIVA, protagonista, CTA freccia → #/home
-     2) "Ricevi a casa"     — BLOCCATA (velo scuro + lucchetto + "In arrivo") → #/consegna/non-disponibile
-     3) "Lungo il Percorso" — BLOCCATA (stesso trattamento) → #/percorso
-   Desktop (≥1024): layout largo (1ª grande a sinistra, le 2 bloccate impilate
-   a destra). Mobile: colonna. Niente blocco "scarica app" (rimosso da V1).
+     1) "Trova un produttore" — ATTIVA, protagonista (CARD HERO grande), CTA freccia → #/home
+     2) "Ricevi a casa"     — IN ARRIVO, MINI-CARD (velo scuro + lucchetto) → #/consegna/non-disponibile
+     3) "Lungo il Percorso" — IN ARRIVO, MINI-CARD (stesso trattamento) → #/percorso
+   Layout (A2 var. B): la card viva è protagonista sopra; le due "in arrivo"
+   sono mini-card affiancate (2 colonne) sotto — chiaramente secondarie, così
+   non promettiamo due grandi tessere che non si possono ancora usare.
+   Desktop (≥1024): hero a piena larghezza + riga mini sotto. Mobile: identico,
+   scalato. Niente blocco "scarica app" (rimosso da V1).
 
    LOGICA PRESERVATA — la scelta di una voce (o "Salta") segna l'Hub come
    "visto" via markHubSeen: agli avvii successivi si salta direttamente.
@@ -136,6 +139,14 @@ export function Hub() {
       }
       .hub-screen .soonline svg{ flex:none; opacity:.85; }
 
+      /* ===== MINI-CARD affiancate (2ª+3ª "in arrivo") ===== */
+      .hub-screen .mini-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+      .hub-screen .hcard.mini{ min-height:122px; border-radius:18px; }
+      .hub-screen .hcard.mini h2{ font-size:16px; }
+      .hub-screen .hcard.mini .body{ padding:13px; }
+      .hub-screen .hcard.mini .lockwrap .lock{ width:40px; height:40px; }
+      .hub-screen .hcard.mini .tag{ top:10px; right:10px; left:auto; font-size:9.5px; padding:5px 9px 5px 7px; }
+
       /* ---------- "salta" in fondo ---------- */
       .hub-screen .skip{ margin-top:22px; text-align:center; }
       .hub-screen .skip a{
@@ -163,20 +174,20 @@ export function Hub() {
         .hub-screen .title{ font-size:46px; }
         .hub-screen .subtitle{ font-size:16px; max-width:42ch; }
         .hub-screen .cards{
-          grid-area:cards; display:grid;
-          grid-template-columns:1.35fr 1fr; grid-template-rows:auto auto; gap:18px;
+          grid-area:cards; display:flex; flex-direction:column; gap:18px; max-width:900px;
         }
-        .hub-screen .hcard.active{ grid-row:1 / span 2; min-height:420px; }
+        .hub-screen .hcard.active{ min-height:400px; }
         .hub-screen .hcard.active h2{ font-size:30px; }
         .hub-screen .hcard.active p{ font-size:15px; max-width:34ch; }
         .hub-screen .hcard.active .body{ padding:24px; }
-        .hub-screen .hcard.locked{ min-height:201px; }
-        .hub-screen .hcard.locked h2{ font-size:21px; }
+        .hub-screen .mini-row{ gap:18px; }
+        .hub-screen .hcard.mini{ min-height:168px; }
+        .hub-screen .hcard.mini h2{ font-size:20px; }
         .hub-screen .skip{ grid-area:skip; text-align:left; margin-top:22px; }
       }
       @media(min-width:1360px){
-        .hub-screen .hcard.locked{ min-height:222px; }
-        .hub-screen .hcard.active{ min-height:462px; }
+        .hub-screen .hcard.mini{ min-height:190px; }
+        .hub-screen .hcard.active{ min-height:452px; }
       }
       @media(prefers-reduced-motion:reduce){
         .hub-screen *{ transition:none !important; animation:none !important; }
@@ -212,35 +223,29 @@ export function Hub() {
               </div>
             </a>
 
-            <!-- 2 · BLOCCATA → #/consegna/non-disponibile -->
-            <a class="hcard locked" href="#/consegna/non-disponibile" data-link data-fn
-               aria-label="${t('hub.card2Aria')}">
-              <img class="bg" src="./assets/hub/ricevi.jpg" loading="lazy" decoding="async"
-                   alt="${t('hub.card2Alt')}">
-              <div class="veil" aria-hidden="true"></div>
-              <div class="lockwrap" aria-hidden="true"><span class="lock">${svgLock}</span></div>
-              <span class="tag">${svgSpark}${t('common.comingSoon')}</span>
-              <div class="body">
-                <h2>${t('hub.card2Title')}</h2>
-                <p>${t('hub.card2Desc')}</p>
-                <span class="soonline">${svgClock}${t('hub.soon')}</span>
-              </div>
-            </a>
+            <!-- 2+3 · IN ARRIVO — mini-card affiancate (A2 var. B): protagonista
+                 la card viva sopra, queste due chiaramente secondarie sotto. -->
+            <div class="mini-row">
+              <a class="hcard locked mini" href="#/consegna/non-disponibile" data-link data-fn
+                 aria-label="${t('hub.card2Aria')}">
+                <img class="bg" src="./assets/hub/ricevi.jpg" loading="lazy" decoding="async"
+                     alt="${t('hub.card2Alt')}">
+                <div class="veil" aria-hidden="true"></div>
+                <div class="lockwrap" aria-hidden="true"><span class="lock">${svgLock}</span></div>
+                <span class="tag">${svgSpark}${t('common.comingSoon')}</span>
+                <div class="body"><h2>${t('hub.card2Title')}</h2></div>
+              </a>
 
-            <!-- 3 · BLOCCATA → #/percorso -->
-            <a class="hcard locked" href="#/percorso" data-link data-fn
-               aria-label="${t('hub.card3Aria')}">
-              <img class="bg" src="./assets/hub/percorso.jpg" loading="lazy" decoding="async"
-                   alt="${t('hub.card3Alt')}">
-              <div class="veil" aria-hidden="true"></div>
-              <div class="lockwrap" aria-hidden="true"><span class="lock">${svgLock}</span></div>
-              <span class="tag">${svgSpark}${t('common.comingSoon')}</span>
-              <div class="body">
-                <h2>${t('hub.card3Title')}</h2>
-                <p>${t('hub.card3Desc')}</p>
-                <span class="soonline">${svgClock}${t('hub.soon')}</span>
-              </div>
-            </a>
+              <a class="hcard locked mini" href="#/percorso" data-link data-fn
+                 aria-label="${t('hub.card3Aria')}">
+                <img class="bg" src="./assets/hub/percorso.jpg" loading="lazy" decoding="async"
+                     alt="${t('hub.card3Alt')}">
+                <div class="veil" aria-hidden="true"></div>
+                <div class="lockwrap" aria-hidden="true"><span class="lock">${svgLock}</span></div>
+                <span class="tag">${svgSpark}${t('common.comingSoon')}</span>
+                <div class="body"><h2>${t('hub.card3Title')}</h2></div>
+              </a>
+            </div>
 
           </section>
 
