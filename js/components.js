@@ -20,8 +20,8 @@ export const Lockup = (variant = '') => `<span class="gf-lockup${variant === 'da
   <img class="gf-pin" src="./assets/brand/gaia-food-pin.webp" alt="" decoding="async" onerror="this.remove()">
   <span class="gf-word">GAIA<span class="food">FOOD</span></span></span>`;
 
-export const Photo = (tone = 'paesaggio', label = '', cls = '', src = '') => `
-  <div class="photo ${cls}" data-tone="${tone}"${src ? ` style="background:#1f1812 url('${src}') center/cover"` : ''}><div class="pgrain"></div>${label ? `<span class="plabel">${label}</span>` : ''}</div>`;
+export const Photo = (tone = 'paesaggio', label = '', cls = '', src = '', pos = 'center') => `
+  <div class="photo ${cls}" data-tone="${tone}"${src ? ` style="background:#1f1812 url('${src}') ${pos}/cover"` : ''}><div class="pgrain"></div>${label ? `<span class="plabel">${label}</span>` : ''}</div>`;
 
 export const VerifyBadge = (v, { compact = false, onphoto = false } = {}) => {
   // Copy/icone allineate all'handoff (VerifyBadge.dc.html), con le sole icone presenti in icons.js:

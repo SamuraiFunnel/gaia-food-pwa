@@ -198,7 +198,7 @@ export function Producer(id) {
   const chev = (d) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M${d === 'l' ? '15 6l-6 6 6 6' : '9 6l6 6-6 6'}"/></svg>`;
   const slide = ({ v, i }) => `
         <a class="pv3-slide" href="#/video/${p.id}/${i}" data-link aria-label="${t('producer.watchAria', { title: v.title || 'video' })}">
-          ${Photo(v.tone, '', '', i === mainIdx ? p.photo : '')}
+          ${Photo(v.tone, '', '', i === mainIdx ? p.photo : '', p.photoPos || 'center')}
           <span class="pv3-scr"></span>
           <span class="pv-cat ${VCLS[v.type] || 'pre'}">${VCHIP[v.type] || t('producer.videoGeneric')}</span>
           ${v.state === 'coming'
@@ -210,7 +210,7 @@ export function Producer(id) {
   // Capitolo (lista laterale su desktop — variante 02): miniatura + tipo + titolo + durata.
   const chapterRow = ({ v, i }, k) => `
         <button class="pv3-ch ${k === 0 ? 'on' : ''}" type="button" data-pv3-goto="${k}">
-          <span class="pv3-ch-th">${Photo(v.tone, '', '', i === mainIdx ? p.photo : '')}<span class="pv3-ch-pl">${Icon(v.state === 'coming' ? 'clock' : 'play', { size: 13, color: '#fff' })}</span></span>
+          <span class="pv3-ch-th">${Photo(v.tone, '', '', i === mainIdx ? p.photo : '', p.photoPos || 'center')}<span class="pv3-ch-pl">${Icon(v.state === 'coming' ? 'clock' : 'play', { size: 13, color: '#fff' })}</span></span>
           <span class="pv3-ch-meta"><span class="pv3-ch-k">${VCHIP[v.type] || t('producer.videoGeneric')}</span><span class="pv3-ch-t">${v.title || t('producer.chapter')}</span>
             <span class="pv3-ch-d">${v.state === 'coming' ? t('producer.notAvailableYet') : (v.duration || '')}</span></span>
         </button>`;
@@ -235,7 +235,7 @@ export function Producer(id) {
     html: `<div class="screen no-nav prod">
       <div class="scroll">
         <div class="hero">
-          ${Photo(p.tone, '', '', p.photo)}
+          ${Photo(p.tone, '', '', p.photo, p.photoPos || 'center')}
           <div class="hero-top">
             <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 18 })}</button>
             <button class="iconbtn" data-save aria-label="${t('producer.saveAria')}" aria-pressed="${p.saved ? 'true' : 'false'}">${Icon(p.saved ? 'heart' : 'bookmark', { size: 18, color: p.saved ? 'var(--verde)' : 'var(--ink)', fill: p.saved ? 'var(--verde)' : 'none' })}</button>

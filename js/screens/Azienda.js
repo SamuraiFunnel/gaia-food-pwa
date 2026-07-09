@@ -51,6 +51,76 @@ function pickImage(onData) {
   inp.click();
 }
 
+// Selezione MULTIPLA di immagini → array di dataURL (per la galleria prodotto). Limite 8MB l'una.
+function pickImages(onAll, { max = 20 } = {}) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
+  inp.onchange = async () => {
+    let files = Array.from(inp.files || []);
+    const big = files.filter((f) => f.size > 8 * 1024 * 1024).length;
+    if (big) toast(`${big} foto oltre 8MB: saltate.`, 'error');
+    files = files.filter((f) => f.size <= 8 * 1024 * 1024).slice(0, max);
+    if (!files.length) return;
+    const urls = await Promise.all(files.map((f) => new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(f); })));
+    onAll(urls.filter(Boolean));
+  };
+  inp.click();
+}
+
+// Riposiziona la copertina (focal point) trascinando l'immagine, stile Facebook.
+// Ritorna una Promise con "x% y%" (background-position) o null se annullato.
+function repositionCover(dataUrl) {
+  return new Promise((resolve) => {
+    let px = 50, py = 50, sx = 0, sy = 0, bx = 50, by = 50, drag = false;
+    const ov = document.createElement('div');
+    ov.className = 'az-rp-ov';
+    ov.innerHTML = `<style>
+      .az-rp-ov{ position:fixed; inset:0; z-index:1300; display:flex; align-items:center; justify-content:center; background:rgba(20,14,8,.6); opacity:0; transition:opacity .2s; padding:18px }
+      .az-rp-ov.in{ opacity:1 }
+      .az-rp{ background:var(--bianco,#FBF9F5); width:100%; max-width:460px; border-radius:20px; padding:18px; box-shadow:0 30px 70px -20px rgba(0,0,0,.5) }
+      .az-rp h3{ font-family:var(--serif,Georgia); font-size:19px; font-weight:600; margin-bottom:3px }
+      .az-rp .sub{ font-size:13px; color:var(--muted,#796d5f); margin-bottom:12px }
+      .az-rp-frame{ width:100%; aspect-ratio:39/22; border-radius:14px; background-size:cover; background-repeat:no-repeat; cursor:grab; touch-action:none; position:relative; overflow:hidden; box-shadow:inset 0 0 0 1px rgba(0,0,0,.1) }
+      .az-rp-frame:active{ cursor:grabbing }
+      .az-rp-frame .hint{ position:absolute; left:50%; bottom:10px; transform:translateX(-50%); background:rgba(0,0,0,.55); color:#fff; font-size:11px; font-weight:600; padding:5px 11px; border-radius:100px; pointer-events:none }
+      .az-rp-act{ display:flex; gap:10px; margin-top:16px }
+      .az-rp-act button{ flex:1; padding:13px; border-radius:12px; font-size:14.5px; font-weight:700; cursor:pointer; border:1px solid var(--bd,#E4DBCB) }
+      .az-rp-cancel{ background:#fff; color:var(--ink-soft,#544a40) }
+      .az-rp-ok{ background:var(--verde,#16A34A); color:#fff; border-color:var(--verde,#16A34A) }
+    </style>
+    <div class="az-rp">
+      <h3>Posiziona la copertina</h3>
+      <div class="sub">Trascina l'immagine per scegliere cosa mostrare.</div>
+      <div class="az-rp-frame" style="background-image:url('${dataUrl}')"><span class="hint">✥ trascina</span></div>
+      <div class="az-rp-act"><button class="az-rp-cancel">Annulla</button><button class="az-rp-ok">Conferma</button></div>
+    </div>`;
+    document.body.appendChild(ov);
+    requestAnimationFrame(() => ov.classList.add('in'));
+    const frame = ov.querySelector('.az-rp-frame');
+    const paint = () => { frame.style.backgroundPosition = `${px}% ${py}%`; };
+    paint();
+    const pt = (e) => (e.touches && e.touches[0]) || e;
+    const down = (e) => { drag = true; const p = pt(e); sx = p.clientX; sy = p.clientY; bx = px; by = py; e.preventDefault(); };
+    const move = (e) => {
+      if (!drag) return; const p = pt(e); const r = frame.getBoundingClientRect();
+      px = Math.max(0, Math.min(100, bx - (p.clientX - sx) / r.width * 100));
+      py = Math.max(0, Math.min(100, by - (p.clientY - sy) / r.height * 100));
+      paint(); e.preventDefault();
+    };
+    const up = () => { drag = false; };
+    frame.addEventListener('mousedown', down); frame.addEventListener('touchstart', down, { passive: false });
+    window.addEventListener('mousemove', move); window.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('mouseup', up); window.addEventListener('touchend', up);
+    const done = (val) => {
+      window.removeEventListener('mousemove', move); window.removeEventListener('touchmove', move);
+      window.removeEventListener('mouseup', up); window.removeEventListener('touchend', up);
+      ov.classList.remove('in'); setTimeout(() => ov.remove(), 200); resolve(val);
+    };
+    ov.querySelector('.az-rp-cancel').onclick = () => done(null);
+    ov.querySelector('.az-rp-ok').onclick = () => done(`${Math.round(px)}% ${Math.round(py)}%`);
+    ov.addEventListener('click', (e) => { if (e.target === ov) done(null); });
+  });
+}
+
 export function Azienda() {
   return {
     html: `<div class="screen no-nav az">
@@ -304,7 +374,7 @@ function renderVetrina(host, data, refresh) {
     ? `<span class="pill live">${IC.check('#fff', 13)} Live</span>`
     : inReview ? `<span class="pill rev">${IC.clock('#fff', 13)} In verifica</span>`
       : `<span class="pill draft">● In bozza</span>`;
-  const cover = p.photo ? `<div class="cover" style="background-image:url('${esc(p.photo)}')"></div>` : '';
+  const cover = p.photo ? `<div class="cover" style="background-image:url('${esc(p.photo)}');background-position:${esc(p.photoPos) || 'center'}"></div>` : '';
   const secH = (t) => `<div class="sec"><span class="ln"></span><span class="tt">${t}</span><span class="ln r"></span></div>`;
   const editLink = (action, label = 'Modifica') => `<div class="cen"><button class="editlink" data-edit-${action}>${pencil('var(--verde-deep)')} ${label}</button></div>`;
 
@@ -395,8 +465,10 @@ function renderVetrina(host, data, refresh) {
   q('[data-back]').onclick = () => history.back();
   const coverBtn = q('[data-cover]');
   if (coverBtn) coverBtn.onclick = () => pickImage(async (dataUrl) => {
+    const pos = await repositionCover(dataUrl); // trascinamento focal point → "x% y%" o null se annullato
+    if (pos === null) return;
     coverBtn.textContent = 'Carico…';
-    try { const url = await uploadProducerMedia(dataUrl); await patchMyProducer({ photo: url }); await refresh(); }
+    try { const url = await uploadProducerMedia(dataUrl); await patchMyProducer({ photo: url, photoPos: pos }); await refresh(); }
     catch (e) { toast('Upload non riuscito. Riprova.', 'error'); await refresh(); }
   });
   q('[data-edit-head]').onclick = () => editHead(p, refresh);
@@ -522,11 +594,15 @@ function editProduct(existing, cats, refresh) {
       thumbsEl.innerHTML = photos.map((u, i) => `<div class="thumb" style="background-image:url('${esc(u)}')"><button class="rm" data-rm="${i}">×</button></div>`).join('')
         + (photos.length < 7 ? `<div class="thumb add" data-addphoto>${IC.plus('var(--terra-deep)', 20)}</div>` : '');
       const add = thumbsEl.querySelector('[data-addphoto]');
-      if (add) add.onclick = () => pickImage(async (dataUrl) => {
+      if (add) add.onclick = () => pickImages(async (dataUrls) => {
         add.innerHTML = '<span class="az-spin"></span>'; add.style.pointerEvents = 'none';
-        try { const url = await uploadProducerMedia(dataUrl); photos.push(url); paintThumbs(); }
-        catch (e) { toast('Upload non riuscito.', 'error'); paintThumbs(); }
-      });
+        for (const dataUrl of dataUrls) {
+          if (photos.length >= 7) { toast('Massimo 7 foto per prodotto.', 'info'); break; }
+          try { const url = await uploadProducerMedia(dataUrl); photos.push(url); paintThumbs(); }
+          catch (e) { toast('Una foto non è stata caricata.', 'error'); }
+        }
+        paintThumbs();
+      }, { max: 7 });
       thumbsEl.querySelectorAll('[data-rm]').forEach((b) => b.onclick = () => { photos.splice(+b.getAttribute('data-rm'), 1); paintThumbs(); });
     };
     paintThumbs();

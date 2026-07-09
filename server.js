@@ -932,6 +932,7 @@ async function api(req, res, url) {
         if ('categories' in d) p.categories = Array.isArray(d.categories) ? d.categories.map(c => str(c, 60)) : [];
         if ('primary' in d) p.primary = str(d.primary, 60);
         if ('photo' in d) p.photo = str(d.photo, 1200);
+        if ('photoPos' in d) p.photoPos = str(d.photoPos, 40); // focal point copertina, es. "50% 30%"
         if ('hours' in d) p.hours = str(d.hours, 200);
         if ('address' in d) p.address = str(d.address, 240);
         if ('howToReach' in d) p.howToReach = str(d.howToReach, 600);
