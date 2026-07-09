@@ -166,28 +166,28 @@ export function Hub() {
       @media(min-width:1024px){
         #app:has(.hub-screen){ max-width:none; background:var(--carta); }
         .hub-screen .hub-wrap{
-          max-width:1240px; padding:18px 40px 64px;
+          max-width:1180px; padding:18px 40px 64px;
           display:grid; grid-template-columns:minmax(0,1fr);
           grid-template-areas:"intro" "cards" "skip"; align-content:start;
         }
         .hub-screen .intro{ grid-area:intro; padding:24px 0 26px; max-width:560px; }
         .hub-screen .title{ font-size:46px; }
         .hub-screen .subtitle{ font-size:16px; max-width:42ch; }
+        /* Variante B su PC: card viva GRANDE a sinistra, le due "in arrivo" impilate a destra → usa la larghezza. */
         .hub-screen .cards{
-          grid-area:cards; display:flex; flex-direction:column; gap:18px; max-width:900px;
+          grid-area:cards; display:grid; grid-template-columns:1.5fr 1fr; gap:18px; align-items:stretch;
         }
-        .hub-screen .hcard.active{ min-height:400px; }
+        .hub-screen .hcard.active{ min-height:440px; }
         .hub-screen .hcard.active h2{ font-size:30px; }
         .hub-screen .hcard.active p{ font-size:15px; max-width:34ch; }
         .hub-screen .hcard.active .body{ padding:24px; }
-        .hub-screen .mini-row{ gap:18px; }
-        .hub-screen .hcard.mini{ min-height:168px; }
-        .hub-screen .hcard.mini h2{ font-size:20px; }
+        .hub-screen .mini-row{ display:grid; grid-template-columns:1fr; grid-template-rows:1fr 1fr; gap:18px; }
+        .hub-screen .hcard.mini{ min-height:0; }
+        .hub-screen .hcard.mini h2{ font-size:21px; }
         .hub-screen .skip{ grid-area:skip; text-align:left; margin-top:22px; }
       }
       @media(min-width:1360px){
-        .hub-screen .hcard.mini{ min-height:190px; }
-        .hub-screen .hcard.active{ min-height:452px; }
+        .hub-screen .hcard.active{ min-height:480px; }
       }
       @media(prefers-reduced-motion:reduce){
         .hub-screen *{ transition:none !important; animation:none !important; }
