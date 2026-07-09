@@ -24,8 +24,9 @@ fs.mkdirSync(VIDEODIR, { recursive: true });
 fs.mkdirSync(CANDPHOTODIR, { recursive: true });
 fs.mkdirSync(PRODMEDIADIR, { recursive: true });
 
-// Limiti payload: JSON normale 12MB, upload media (foto/video base64) fino a 80MB.
-const BODY_MAX_JSON = 12e6, BODY_MAX_MEDIA = 80e6;
+// Limiti payload: JSON normale 12MB, upload media (foto/video base64) fino a 25MB (audit S3: era 80MB → DoS).
+// 25MB base64 copre foto da telefono e clip brevi; abbatte la pressione RAM per richiesta. Il body() tronca oltre soglia.
+const BODY_MAX_JSON = 12e6, BODY_MAX_MEDIA = 25e6;
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml',
@@ -95,6 +96,8 @@ function verifySession(token, maxAgeMs) {
   return obj;
 }
 const cookieVal = (req, name) => { const m = (req.headers.cookie || '').match(new RegExp(name + '=([^;]+)')); return m ? m[1] : null; };
+// Cookie Secure solo dietro HTTPS (audit S2): in prod (Render) x-forwarded-proto=https → Secure; in locale (http) assente → i cookie funzionano anche in dev.
+const secureFlag = (req) => (req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '');
 const STAFF_MAXAGE = 86400e3, USER_MAXAGE = 2592000e3; // 1 giorno staff · 30 giorni utente
 function roleOf(req) { const s = verifySession(cookieVal(req, 'gf_sess'), STAFF_MAXAGE); return (s && s.t === 'staff') ? s.role : null; }
 // Identità staff dalla sessione (ruolo + nome digitato al login) — per attribuzione e audit-log (obiettivo 1.3).
@@ -122,8 +125,8 @@ function auditPush(p, req, action) {
   return st;
 }
 // Crea sessione utente + cookie httpOnly; ritorna l'header Set-Cookie.
-function startUserSession(res, userId) {
-  return `gf_user=${signSession({ t: 'user', id: userId, iat: Date.now() })}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`; // 30 giorni
+function startUserSession(req, userId) {
+  return `gf_user=${signSession({ t: 'user', id: userId, iat: Date.now() })}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secureFlag(req)}`; // 30 giorni
 }
 // Upsert utente in users.json: aggiorna i campi noti, preserva createdAt.
 function upsertUser(fields) {
@@ -395,7 +398,7 @@ async function api(req, res, url) {
     else if (password && password === verifierPass(cfg)) role = 'verificatore';
     if (!role) return send(res, 401, { error: 'Password errata' });
     const tok = signSession({ t: 'staff', role, name: str(name, 60).trim() || (role === 'admin' ? 'Admin' : 'Verificatore'), iat: Date.now() });
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `gf_sess=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400` });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': `gf_sess=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400${secureFlag(req)}` });
     return res.end(JSON.stringify({ role }));
   }
   if (url === '/api/logout' && method === 'POST') {
@@ -425,7 +428,7 @@ async function api(req, res, url) {
     const isNew = !readUsers().users.some(x => x.id === email);
     const user = upsertUser({ id: email, email, name: str(info.name, 160), picture: str(info.picture, 1200), provider: 'google' });
     if (isNew) linkReferral(user, gbody.seme);
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(res, user.id) });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(req, user.id) });
     return res.end(JSON.stringify({ user: publicUser(user) }));
   }
   // Registrazione: email + password (min PW_MIN). Se esiste già un account CON password → 409.
@@ -441,7 +444,7 @@ async function api(req, res, url) {
     const isNew = !existing;
     const user = upsertUser({ id: email, email, provider: 'email', passHash: hashPassword(pw) });
     if (isNew) linkReferral(user, d.seme);
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(res, user.id) });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(req, user.id) });
     return res.end(JSON.stringify({ user: publicUser(user) }));
   }
   // Login: email + password. Errore GENERICO (non riveliamo se l'email esiste).
@@ -453,7 +456,7 @@ async function api(req, res, url) {
     if (!EMAIL_RE.test(email) || !pw) return send(res, 400, { error: 'Email o password mancanti' });
     const user = readUsers().users.find(x => x.id === email);
     if (!user || !user.passHash || !verifyPassword(pw, user.passHash)) return send(res, 401, { error: 'Email o password non corretti' });
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(res, user.id) });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(req, user.id) });
     return res.end(JSON.stringify({ user: publicUser(user) }));
   }
   // Config pubblica per il client: espone SOLO il Google client id (non è un segreto)
@@ -900,6 +903,9 @@ async function api(req, res, url) {
 function requestHandler(req, res) {
   const url = decodeURIComponent(req.url.split('?')[0]);
   if (url.startsWith('/api/')) {
+    // CORS (audit S4, rivisto): `*` è sicuro qui. L'app è same-origin (server serve UI+API), quindi non usa CORS;
+    // per le richieste CREDENZIALATE cross-origin il browser blocca comunque `*` (non si può usare con i cookie),
+    // quindi il `*` espone solo i GET GIÀ pubblici (es. lista produttori). Nessun dato auth trapela. Lasciato apposta.
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

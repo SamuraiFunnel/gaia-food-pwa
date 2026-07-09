@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Identità staff + audit (1.3)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --carta:#F4F1EB;--bianco:#FBF9F5;--canvas:#E7DECF;--ink:#1F1812;--muted:#796d5f;--muted2:#8f8271;--faint:#b0a48f;
+    --verde:#16A34A;--verde-deep:#15803D;--verde-pale:#E7F5EC;--celeste:#0EA5E9;--terra-deep:#8C6838;--bd:#E8E0D3;--bd2:#E1D8C9;--bd3:#D8CDBB;
+    --grad:linear-gradient(135deg,#16A34A,#0EA5E9);--serif:'Fraunces',Georgia,serif;--sans:'Inter',system-ui,sans-serif; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{ font-family:var(--sans);color:var(--ink);background:var(--canvas);padding:44px 24px 70px;line-height:1.6 }
+  .wrap{ max-width:840px;margin:0 auto }
+  .eyebrow{ display:inline-flex;gap:8px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--verde-deep);padding:6px 12px;border-radius:999px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.16) }
+  h1{ font-family:var(--serif);font-weight:600;font-size:32px;margin:14px 0 4px }
+  .lead{ color:var(--muted);font-size:14.5px;max-width:620px }
+  .lbl{ font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:28px 0 10px }
+  .grid{ display:grid;grid-template-columns:1fr 1fr;gap:22px } @media(max-width:720px){ .grid{grid-template-columns:1fr} }
+  .box{ background:var(--carta);border-radius:16px;box-shadow:0 20px 50px -30px rgba(20,14,8,.45),0 0 0 1px rgba(31,24,18,.05);padding:20px }
+  /* login card */
+  .login{ max-width:340px;margin:0 auto;background:#fff;border:1px solid var(--bd);border-radius:16px;padding:22px }
+  .login h3{ font-size:18px;text-align:center;margin-bottom:14px }
+  .field{ margin-bottom:12px } .field label{ display:block;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);margin-bottom:5px }
+  .field input{ width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:12px;font-family:inherit;font-size:14px;background:#fff }
+  .field .new{ border-color:var(--verde);box-shadow:0 0 0 1px var(--verde) }
+  .btn{ width:100%;height:44px;border:none;border-radius:12px;background:var(--grad);color:#fff;font-family:inherit;font-weight:600;font-size:15px;margin-top:4px }
+  .tag{ display:inline-block;font-size:10px;font-weight:700;color:var(--verde-deep);background:var(--verde-pale);padding:2px 7px;border-radius:100px;margin-left:6px;vertical-align:middle }
+  /* trust line scheda pubblica */
+  .trust{ font-size:14px;color:var(--muted) } .trust b{ color:var(--verde-deep) }
+  /* storico admin */
+  .storico{ background:#fff;border:1px solid var(--bd);border-radius:12px;padding:12px 14px }
+  .storico .h{ font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2) }
+  .storico .r{ font-size:13px;color:var(--muted);margin-top:5px } .storico .r b{ color:var(--ink) }
+  /* coda */
+  .arow{ display:flex;align-items:center;gap:12px;padding:11px;border:1px solid var(--bd);border-radius:14px;background:#fff }
+  .arow .th{ width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#F3E9D9,#e6d3b0);flex:none }
+  .arow .nm{ font-family:var(--serif);font-weight:600;font-size:15px } .arow .mt{ font-size:12px;color:var(--muted) }
+  .arow .mini{ font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:10px;border:none;background:var(--verde);color:#fff;margin-left:auto }
+  .foot{ margin-top:32px;color:var(--muted);font-size:12.5px }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="eyebrow">Gaia Food · Blocco 1 · 1.3</span>
+  <h1>Identità staff + audit-log</h1>
+  <p class="lead">Ora si sa <b>chi</b> approva, verifica e pubblica ogni scheda — requisito della fiducia del badge. Via leggera: password condivisa + <b>nome al login</b> + registro.</p>
+
+  <div class="lbl">Login staff — ora chiede il nome</div>
+  <div class="login">
+    <h3>Area riservata</h3>
+    <div class="field"><label>Il tuo nome <span class="tag">nuovo</span></label><input class="new" value="Sasha"></div>
+    <div class="field"><label>Password</label><input value="••••••" style="-webkit-text-security:disc"></div>
+    <button class="btn">Entra</button>
+  </div>
+
+  <div class="grid" style="margin-top:26px">
+    <div>
+      <div class="lbl">Scheda pubblica — chi ha verificato</div>
+      <div class="box">
+        <div class="trust">Ancora nessuna recensione. <b>Verificato dal tecnico · 12 giugno 2026 — Sasha</b>.</div>
+      </div>
+    </div>
+    <div>
+      <div class="lbl">Admin — storico della scheda</div>
+      <div class="box">
+        <div class="storico">
+          <div class="h">Storico</div>
+          <div class="r">pubblicata da <b>Daniele</b> · 2026-07-09</div>
+          <div class="r">verificata da <b>Sasha</b> · 2026-07-08</div>
+          <div class="r">approvata da <b>Daniele</b> · 2026-07-06</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lbl">Admin — coda "da verificare/pubblicare"</div>
+  <div class="box">
+    <div class="arow"><div class="th"></div><div><div class="nm">Cascina di Claudio</div><div class="mt">Villetta Barrea · 2 prodotti · verificato da <b>Sasha</b></div></div><button class="mini">Pubblica</button></div>
+  </div>
+
+  <div class="foot">Anteprima statica. Interno (chi/azione/quando) resta privato; solo "verificato da &lt;nome&gt;" è pubblico (fiducia). Live su gaia-food-pwa.onrender.com.</div>
+</div>
+</body>
+</html>
