@@ -127,7 +127,8 @@ function ownedProducer(req) {
 function userStaffRole(req) {
   const me = userOf(req);
   if (!me) return null;
-  if (me.provider === 'google' && isOwnerEmail(me.email)) return 'admin';
+  // Owner = admin fisso (la registrazione password dell'email owner è bloccata → nessun hijack futuro).
+  if (isOwnerEmail(me.email || me.id)) return 'admin';
   return me.staffRole || null;
 }
 // Porta unificata per TUTTI i gate staff: prima l'utente loggato (nuovo modello),

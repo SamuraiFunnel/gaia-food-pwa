@@ -77,16 +77,19 @@ try {
 } catch (_) {}
 export const getSeed = () => { try { return localStorage.getItem('gf_seed') || ''; } catch { return ''; } };
 
-export async function signInWithGoogle(idToken) { const d = await ja('./api/auth/google', { method: 'POST', body: JSON.stringify({ idToken, seme: getSeed() }) }); state.user = d.user; return d.user; }
+// Dopo OGNI login va riletto lo staff-role (l'utente potrebbe essere admin/verificatore):
+// altrimenti la tab "Gestione"/"Verifica" non compare finché non si ricarica la pagina.
+async function syncRole() { try { const m = await j('./api/me'); state.role = m.role; } catch { state.role = null; } return state.role; }
+export async function signInWithGoogle(idToken) { const d = await ja('./api/auth/google', { method: 'POST', body: JSON.stringify({ idToken, seme: getSeed() }) }); state.user = d.user; await syncRole(); return d.user; }
 // Email + password: login e registrazione (auth v2).
-export async function loginPassword(email, password) { const d = await ja('./api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); state.user = d.user; return d.user; }
-export async function registerPassword(email, password) { const d = await ja('./api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, seme: getSeed() }) }); state.user = d.user; return d.user; }
+export async function loginPassword(email, password) { const d = await ja('./api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); state.user = d.user; await syncRole(); return d.user; }
+export async function registerPassword(email, password) { const d = await ja('./api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, seme: getSeed() }) }); state.user = d.user; await syncRole(); return d.user; }
 // Dati della sezione "I Custodi di Gaia" (seme, persone portate, credito, livello) dell'utente loggato.
 export async function custodiMe() { return ja('./api/custodi/me'); }
 export async function authMe() { try { const d = await ja('./api/auth/me'); state.user = d.user; return d.user; } catch (e) { state.user = null; return null; } }
 // Google client id dal server (env GF_GOOGLE_CLIENT_ID). Vuoto = login Google non configurato.
 export async function authConfig() { try { return await ja('./api/auth/config'); } catch (e) { return { googleClientId: '' }; } }
-export async function signOut() { try { await ja('./api/auth/logout', { method: 'POST' }); } catch (e) {} state.user = null; }
+export async function signOut() { try { await ja('./api/auth/logout', { method: 'POST' }); } catch (e) {} state.user = null; state.role = null; }
 export const currentUser = () => state.user;
 
 // ---- Regione/Zona dell'utente (onboarding "alla Glovo") ----
@@ -148,7 +151,7 @@ export async function adminSetLevel(userId, level) { return ja('./api/admin/user
 export async function adminCreateInvite(email, level) { return ja('./api/admin/invites', { method: 'POST', body: JSON.stringify({ email, level }) }); }
 export async function adminRevokeInvite(token) { return ja('./api/admin/invites?token=' + encodeURIComponent(token), { method: 'DELETE' }); }
 export async function inviteInfo(token) { return ja('./api/invite/' + encodeURIComponent(token)); }
-export async function acceptInvite(token) { const d = await ja('./api/invite/' + encodeURIComponent(token) + '/accept', { method: 'POST' }); if (d.user) state.user = d.user; return d; }
+export async function acceptInvite(token) { const d = await ja('./api/invite/' + encodeURIComponent(token) + '/accept', { method: 'POST' }); if (d.user) state.user = d.user; await syncRole(); return d; }
 
 // ---- Produttore self-service "La mia azienda" (piano 13) ----
 // Endpoint utente-owner (cookie gf_user) via `ja` (credentials:'include'). Quando l'endpoint ritorna
