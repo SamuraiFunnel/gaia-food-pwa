@@ -148,6 +148,7 @@ export async function publishProducer(producerId) { return j('./api/producer/pub
 // ---- Gestione utenti & Inviti (admin via account, cookie gf_user → `ja`) ----
 export async function adminListUsers() { return ja('./api/admin/users'); } // { users, invites, owners }
 export async function adminSetLevel(userId, level) { return ja('./api/admin/users/level', { method: 'POST', body: JSON.stringify({ userId, level }) }); }
+export async function adminDeleteUser(userId) { return ja('./api/admin/users?id=' + encodeURIComponent(userId), { method: 'DELETE' }); }
 export async function adminCreateInvite(email, level) { return ja('./api/admin/invites', { method: 'POST', body: JSON.stringify({ email, level }) }); }
 export async function adminRevokeInvite(token) { return ja('./api/admin/invites?token=' + encodeURIComponent(token), { method: 'DELETE' }); }
 export async function inviteInfo(token) { return ja('./api/invite/' + encodeURIComponent(token)); }

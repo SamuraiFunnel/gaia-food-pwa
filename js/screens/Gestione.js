@@ -1,6 +1,6 @@
 import { Icon } from '../icons.js';
 import { StatusBar, toast, confirmSheet } from '../components.js';
-import { getState, adminListUsers, adminSetLevel, adminCreateInvite, adminRevokeInvite } from '../store.js';
+import { getState, adminListUsers, adminSetLevel, adminDeleteUser, adminCreateInvite, adminRevokeInvite } from '../store.js';
 
 // Gestione utenti & inviti — home dell'admin (nuovo modello: admin = proprietà dell'account).
 // Elenco persone + livelli (Cliente/Produttore/Verificatore/Admin) + "Invita" (link → account + onboarding).
@@ -13,6 +13,7 @@ const LEVELS = [
   { k: 'admin', lb: 'Admin', c: 'adm' },
 ];
 const lvl = k => (LEVELS.find(l => l.k === k) || { lb: k, c: 'cli' });
+const trashSvg = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6"/><path d="M10 11v6M14 11v6"/></svg>`;
 
 const CSS = `
   .gst{padding:12px 18px 46px;max-width:720px;margin:0 auto}
@@ -43,6 +44,12 @@ const CSS = `
   .gst-inv .x{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;padding:6px}
   .gst-err{padding:40px 10px;text-align:center;color:#C0392B}
   .gst-empty{padding:24px;text-align:center;color:var(--muted);font-size:13.5px}
+  .gst-tabs{display:flex;gap:5px;margin:18px 0 12px;background:var(--carta);border:1px solid var(--bd);border-radius:100px;padding:4px}
+  .gst-tab{flex:1;text-align:center;font-size:13px;font-weight:700;padding:9px 6px;border-radius:100px;border:none;background:none;color:var(--muted);cursor:pointer;white-space:nowrap}
+  .gst-tab.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(31,24,18,.12)}
+  .gst-tab .n{font-weight:800;opacity:.55;margin-left:4px}
+  .gst-u .gst-del{margin-left:auto;background:none;border:none;color:var(--faint);cursor:pointer;padding:6px;flex:none;border-radius:8px}
+  .gst-u .gst-del:hover{color:#C0392B;background:#FBEAE7}
   /* overlay invito */
   .gst-ov{position:fixed;inset:0;z-index:1200;display:flex;align-items:flex-end;justify-content:center;background:rgba(20,16,12,.42);opacity:0;transition:opacity .2s}
   .gst-ov.in{opacity:1}
@@ -98,10 +105,11 @@ function userRow(u) {
     : LEVELS.map(l => `<button class="gst-chip ${l.c} ${cur === l.k ? 'on' : ''}" data-uid="${esc(u.id)}" data-level="${l.k}"${cur === l.k ? ' disabled' : ''}>${l.lb}</button>`).join('');
   const pstat = (cur === 'produttore' && u.producerStatus && u.producerStatus !== 'approved')
     ? `<div class="gst-pstat">Vetrina: ${esc(u.producerStatus)}</div>` : '';
+  const del = u.owner ? '' : `<button class="gst-del" data-del="${esc(u.id)}" title="Elimina account" aria-label="Elimina account">${trashSvg}</button>`;
   return `<div class="gst-card">
     <div class="gst-u">${av}
       <div class="gst-meta"><div class="gst-nm">${esc(u.name || u.email)}</div><div class="gst-em">${esc(u.email)}</div></div>
-      <span class="gst-prov">${esc(u.provider || '—')}</span>
+      <span class="gst-prov">${esc(u.provider || '—')}</span>${del}
     </div>
     <div class="gst-chips">${chips}</div>${pstat}
   </div>`;
@@ -118,8 +126,19 @@ function inviteRow(inv) {
 
 function inviteLink(token) { return location.origin + location.pathname + '#/invito/' + token; }
 
+let activeTab = 'produttore'; // tab correntemente aperta (persiste tra i re-render)
+let lastData = null;
+
 function render(host, data) {
+  lastData = data;
   const users = data.users || [], invites = data.invites || [];
+  const groups = { produttore: [], cliente: [], verificatore: [], admin: [] };
+  users.forEach(u => (groups[u.level] || groups.cliente).push(u));
+  // Tab: Produttori · Clienti · Admin sempre; Verificatori solo se ce ne sono.
+  const tabDefs = [{ k: 'produttore', lb: 'Produttori' }, { k: 'cliente', lb: 'Clienti' }, { k: 'admin', lb: 'Admin' }];
+  if (groups.verificatore.length) tabDefs.splice(2, 0, { k: 'verificatore', lb: 'Verificatori' });
+  if (!tabDefs.some(t => t.k === activeTab)) activeTab = 'produttore';
+  const list = groups[activeTab] || [];
   host.innerHTML = `
     <div class="gst-head">
       <div><h1>Gestione</h1><p>${users.length} persone · ${invites.length} inviti attivi</p></div>
@@ -127,14 +146,26 @@ function render(host, data) {
     </div>
     <a class="gst-link" href="#/admin/pipeline" data-link>${Icon('check-circle', { size: 16 })} Verifiche e pubblicazione produttori<span class="sp">${Icon('chevron-right', { size: 16 })}</span></a>
     ${invites.length ? `<div class="gst-sect">Inviti in attesa</div>${invites.map(inviteRow).join('')}` : ''}
-    <div class="gst-sect">Persone</div>
-    ${users.length ? users.map(userRow).join('') : '<div class="gst-empty">Ancora nessuno. Usa "Invita" per il primo produttore.</div>'}
+    <div class="gst-tabs">${tabDefs.map(tb => `<button class="gst-tab ${activeTab === tb.k ? 'on' : ''}" data-tab="${tb.k}">${tb.lb}<span class="n">${(groups[tb.k] || []).length}</span></button>`).join('')}</div>
+    ${list.length ? list.map(userRow).join('') : '<div class="gst-empty">Nessuno in questa categoria.</div>'}
   `;
   bind(host, data);
 }
 
 function bind(host, data) {
   host.querySelector('[data-invite]').onclick = () => openInvite(host);
+
+  host.querySelectorAll('.gst-tab[data-tab]').forEach(b => b.onclick = () => { activeTab = b.getAttribute('data-tab'); render(host, lastData); });
+
+  host.querySelectorAll('.gst-del[data-del]').forEach(b => b.onclick = async () => {
+    const uid = b.getAttribute('data-del');
+    const u = (data.users || []).find(x => x.id === uid);
+    const extra = (u && u.level === 'produttore') ? ' Verrà rimossa anche la sua scheda produttore.' : '';
+    const ok = await confirmSheet('Eliminare questo account?', { body: `${u ? (u.name || u.email) : uid}.${extra} L'azione è definitiva.`, okLabel: 'Elimina', danger: true });
+    if (!ok) return;
+    try { await adminDeleteUser(uid); toast('Account eliminato', 'success'); await load(host); }
+    catch (e) { toast('Errore: ' + e.message, 'error'); }
+  });
 
   host.querySelectorAll('.gst-chip[data-level]').forEach(b => b.onclick = async () => {
     const uid = b.getAttribute('data-uid'), level = b.getAttribute('data-level');

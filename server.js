@@ -500,6 +500,24 @@ async function api(req, res, url) {
     return send(res, 200, { ok: true, level: 'cliente' });
   }
 
+  // Elimina un account utente (admin). Cascata: se possiede una scheda produttore, la rimuove.
+  if (url.split('?')[0] === '/api/admin/users' && method === 'DELETE') {
+    if (!isAdminReq(req)) return send(res, 403, { error: 'Accesso riservato' });
+    const m = (url.split('?')[1] || '').match(/id=([^&]+)/);
+    const id = m ? decodeURIComponent(m[1]).trim().toLowerCase() : '';
+    if (!id) return send(res, 400, { error: 'id mancante' });
+    if (isOwnerEmail(id)) return send(res, 400, { error: 'Non puoi eliminare un owner.' });
+    const db = readUsers(); const i = db.users.findIndex((u) => u.id === id);
+    if (i < 0) return send(res, 404, { error: 'utente non trovato' });
+    const target = db.users[i];
+    if (target.producerId) { // cascata: via anche la scheda produttore orfana
+      const store = readStore(); const pi = store.producers.findIndex((p) => p.id === target.producerId);
+      if (pi >= 0) { store.producers.splice(pi, 1); writeStore(store); }
+    }
+    db.users.splice(i, 1); writeUsers(db);
+    return send(res, 200, { ok: true });
+  }
+
   // Crea un invito → link che porta a creazione account + onboarding col livello scelto.
   if (url === '/api/admin/invites' && method === 'POST') {
     if (!isAdminReq(req)) return send(res, 403, { error: 'Accesso riservato' });
