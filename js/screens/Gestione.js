@@ -48,6 +48,15 @@ const CSS = `
   .gst-tab{flex:1;text-align:center;font-size:13px;font-weight:700;padding:9px 6px;border-radius:100px;border:none;background:none;color:var(--muted);cursor:pointer;white-space:nowrap}
   .gst-tab.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(31,24,18,.12)}
   .gst-tab .n{font-weight:800;opacity:.55;margin-left:4px}
+  .gst-tab .tdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle;background:var(--faint)}
+  .gst-tab.tb-produttore .tdot{background:var(--verde)}
+  .gst-tab.tb-cliente .tdot{background:var(--terra)}
+  .gst-tab.tb-verificatore .tdot{background:var(--celeste)}
+  .gst-tab.tb-admin .tdot{background:#C0392B}
+  .gst-tab.on.tb-produttore{background:var(--verde-pale);color:var(--verde-deep);box-shadow:none}
+  .gst-tab.on.tb-cliente{background:#F1E9DC;color:#8C6838;box-shadow:none}
+  .gst-tab.on.tb-verificatore{background:var(--celeste-pale,#E3F4FC);color:var(--celeste-deep);box-shadow:none}
+  .gst-tab.on.tb-admin{background:#FBEAE7;color:#C0392B;box-shadow:none}
   .gst-u .gst-del{margin-left:auto;background:none;border:none;color:var(--faint);cursor:pointer;padding:6px;flex:none;border-radius:8px}
   .gst-u .gst-del:hover{color:#C0392B;background:#FBEAE7}
   /* overlay invito */
@@ -146,7 +155,7 @@ function render(host, data) {
     </div>
     <a class="gst-link" href="#/admin/pipeline" data-link>${Icon('check-circle', { size: 16 })} Verifiche e pubblicazione produttori<span class="sp">${Icon('chevron-right', { size: 16 })}</span></a>
     ${invites.length ? `<div class="gst-sect">Inviti in attesa</div>${invites.map(inviteRow).join('')}` : ''}
-    <div class="gst-tabs">${tabDefs.map(tb => `<button class="gst-tab ${activeTab === tb.k ? 'on' : ''}" data-tab="${tb.k}">${tb.lb}<span class="n">${(groups[tb.k] || []).length}</span></button>`).join('')}</div>
+    <div class="gst-tabs">${tabDefs.map(tb => `<button class="gst-tab tb-${tb.k} ${activeTab === tb.k ? 'on' : ''}" data-tab="${tb.k}"><span class="tdot"></span>${tb.lb}<span class="n">${(groups[tb.k] || []).length}</span></button>`).join('')}</div>
     ${list.length ? list.map(userRow).join('') : '<div class="gst-empty">Nessuno in questa categoria.</div>'}
   `;
   bind(host, data);

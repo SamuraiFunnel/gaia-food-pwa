@@ -503,8 +503,8 @@ async function api(req, res, url) {
   // Elimina un account utente (admin). Cascata: se possiede una scheda produttore, la rimuove.
   if (url.split('?')[0] === '/api/admin/users' && method === 'DELETE') {
     if (!isAdminReq(req)) return send(res, 403, { error: 'Accesso riservato' });
-    const m = (url.split('?')[1] || '').match(/id=([^&]+)/);
-    const id = m ? decodeURIComponent(m[1]).trim().toLowerCase() : '';
+    // NB: `url` è già senza query string (vedi requestHandler) → il parametro va letto da req.url.
+    const id = (new URLSearchParams(req.url.split('?')[1] || '').get('id') || '').trim().toLowerCase();
     if (!id) return send(res, 400, { error: 'id mancante' });
     if (isOwnerEmail(id)) return send(res, 400, { error: 'Non puoi eliminare un owner.' });
     const db = readUsers(); const i = db.users.findIndex((u) => u.id === id);
@@ -540,7 +540,7 @@ async function api(req, res, url) {
   // Revoca un invito pendente.
   if (url.split('?')[0] === '/api/admin/invites' && method === 'DELETE') {
     if (!isAdminReq(req)) return send(res, 403, { error: 'Accesso riservato' });
-    const token = (url.split('?')[1] || '').match(/token=([^&]+)/); const tk = token ? decodeURIComponent(token[1]) : '';
+    const tk = (new URLSearchParams(req.url.split('?')[1] || '').get('token') || '').trim();
     const doc = readCrm('__invites') || {}; const list = (doc.invites || []).filter(x => x.token !== tk);
     writeCrm('__invites', { ...doc, invites: list });
     return send(res, 200, { ok: true });

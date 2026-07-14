@@ -140,3 +140,21 @@ test("invito legato all'email: chi ha un'altra mail non lo può usare → 403", 
   const r = await api('POST', '/api/invite/' + token + '/accept', { cookie: otherCookie });
   assert.equal(r.status, 403);
 });
+
+test("elimina account: id dal query, cascata produttore, owner protetto, id mancante → 400", async () => {
+  const admin = await adminCookie('10.0.0.8');
+  await signIn('del1@test.com', '10.0.0.8');
+  await api('POST', '/api/admin/users/level', { cookie: admin, body: { userId: 'del1@test.com', level: 'produttore' } });
+  let list = (await api('GET', '/api/admin/users', { cookie: admin })).json.users;
+  assert.ok(list.find(u => u.id === 'del1@test.com'), 'esiste prima');
+  const del = await api('DELETE', '/api/admin/users?id=' + encodeURIComponent('del1@test.com'), { cookie: admin });
+  assert.equal(del.status, 200, `delete → ${del.status} ${JSON.stringify(del.json)}`);
+  list = (await api('GET', '/api/admin/users', { cookie: admin })).json.users;
+  assert.ok(!list.find(u => u.id === 'del1@test.com'), 'eliminato');
+  // owner non eliminabile
+  const own = await api('DELETE', '/api/admin/users?id=' + encodeURIComponent('owner@test.com'), { cookie: admin });
+  assert.equal(own.status, 400);
+  // id mancante → 400 (regressione del bug "id mancante")
+  const noid = await api('DELETE', '/api/admin/users', { cookie: admin });
+  assert.equal(noid.status, 400);
+});
