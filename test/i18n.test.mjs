@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { t, detectLang, setLang, getLang, SUPPORTED, LANGS } from '../js/i18n.js';
+import { t, detectLang, setLang, getLang, initI18n, SUPPORTED, LANGS } from '../js/i18n.js';
 import IT from '../js/i18n/it.js';
 import EN from '../js/i18n/en.js';
 import DE from '../js/i18n/de.js';
@@ -43,6 +43,16 @@ test('setLang(): lingua non supportata → ripiega su EN', async () => {
   await setLang('xx', { persist: false });
   assert.equal(getLang(), 'en');
   await setLang('it', { persist: false });
+});
+
+test('setLang(): il bootstrap può caricare la lingua senza render anticipato', async () => {
+  let renders = 0;
+  initI18n(() => { renders += 1; });
+  await setLang('en', { persist: false, notify: false });
+  assert.equal(renders, 0, 'il caricamento iniziale deve attendere authMe prima del primo render');
+  await setLang('it', { persist: false });
+  assert.equal(renders, 1, 'i cambi lingua interattivi continuano a ridisegnare la UI');
+  initI18n(() => {});
 });
 
 // detectLang() legge localStorage e navigator. In Node 25 questi sono globali NATIVI con getter

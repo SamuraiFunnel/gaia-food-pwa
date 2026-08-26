@@ -1,19 +1,14 @@
 import { Icon } from '../icons.js';
-import { StatusBar, Photo } from '../components.js';
+import { StatusBar } from '../components.js';
 import { markHubSeen } from '../store.js';
 import { t } from '../i18n.js';
 
 /* ---------------- HUB D'INGRESSO — "Cosa vuoi fare?" ----------------
    Look = design-lab/hub/V1-velo-scuro.html ("velo scuro").
-   Tre pilastri del prodotto come CARD HERO con foto:
-     1) "Trova un produttore" — ATTIVA, protagonista (CARD HERO grande), CTA freccia → #/home
-     2) "Ricevi a casa"     — IN ARRIVO, MINI-CARD (velo scuro + lucchetto) → #/consegna/non-disponibile
-     3) "Lungo il Percorso" — IN ARRIVO, MINI-CARD (stesso trattamento) → #/percorso
-   Layout (A2 var. B): la card viva è protagonista sopra; le due "in arrivo"
-   sono mini-card affiancate (2 colonne) sotto — chiaramente secondarie, così
-   non promettiamo due grandi tessere che non si possono ancora usare.
-   Desktop (≥1024): hero a piena larghezza + riga mini sotto. Mobile: identico,
-   scalato. Niente blocco "scarica app" (rimosso da V1).
+   La prima esperienza presenta i due pilastri attivi della nuova Gaia Food:
+     1) "Rete Gaia"          — piazza locale di persone e produttori → #/comunita
+     2) "Trova un produttore" — esplorazione separata di mappa e schede → #/home
+   Consegna e percorso restano teaser secondari, chiaramente non disponibili.
 
    LOGICA PRESERVATA — la scelta di una voce (o "Salta") segna l'Hub come
    "visto" via markHubSeen: agli avvii successivi si salta direttamente.
@@ -26,7 +21,12 @@ const svgGo = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" strok
 const svgLock = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>`;
 const svgPinTag = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21c4-3.5 7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 3 7.5 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>`;
 const svgSpark = `<svg class="spark" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.6 4.8L18.5 8l-4.9 1.2L12 14l-1.6-4.8L5.5 8l4.9-1.2L12 2Z"/></svg>`;
-const svgClock = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>`;
+const svgNetwork = `<svg viewBox="0 0 420 280" aria-hidden="true" focusable="false">
+  <path d="M48 196C112 92 188 218 270 112S386 86 410 42"/>
+  <path d="M18 88C96 144 150 42 226 96s112 118 184 72"/>
+  <circle cx="49" cy="196" r="8"/><circle cx="126" cy="135" r="7"/><circle cx="224" cy="96" r="9"/>
+  <circle cx="270" cy="112" r="7"/><circle cx="356" cy="76" r="10"/><circle cx="405" cy="168" r="7"/>
+</svg>`;
 
 export function Hub() {
   return {
@@ -90,6 +90,19 @@ export function Hub() {
           linear-gradient(105deg, rgba(22,163,74,.16), rgba(14,165,233,.05) 60%, transparent);
       }
       .hub-screen .hcard.active .tag{ background:rgba(22,163,74,.34); border-color:rgba(255,255,255,.36); }
+      .hub-screen .hcard.network-card{
+        min-height:252px; background:
+          radial-gradient(circle at 84% 12%, rgba(181,220,154,.2), transparent 34%),
+          linear-gradient(145deg, #102d22 0%, #1d583a 54%, #b65f3a 150%);
+      }
+      .hub-screen .network-card .network-art{ position:absolute; z-index:0; inset:-5% -10% auto 20%; opacity:.58; }
+      .hub-screen .network-card .network-art svg{ width:100%; height:auto; overflow:visible; }
+      .hub-screen .network-card .network-art path{ fill:none; stroke:rgba(238,244,220,.3); stroke-width:1.7; stroke-dasharray:3 6; }
+      .hub-screen .network-card .network-art circle{ fill:#e9f2d1; stroke:rgba(255,255,255,.5); stroke-width:5; }
+      .hub-screen .network-card .scrim{
+        background:linear-gradient(180deg, rgba(8,30,20,.02) 20%, rgba(8,28,18,.26) 54%, rgba(9,25,16,.9) 100%);
+      }
+      .hub-screen .hcard.find-card{ min-height:196px; }
       .hub-screen .go{
         flex:none; width:52px; height:52px; border-radius:50%;
         background:#fff; color:var(--verde-deep);
@@ -173,21 +186,23 @@ export function Hub() {
         .hub-screen .intro{ grid-area:intro; padding:24px 0 26px; max-width:560px; }
         .hub-screen .title{ font-size:46px; }
         .hub-screen .subtitle{ font-size:16px; max-width:42ch; }
-        /* Variante B su PC: card viva GRANDE a sinistra, le due "in arrivo" impilate a destra → usa la larghezza. */
+        /* La Rete è il nuovo ingresso principale; ricerca e funzioni future restano distinte a destra. */
         .hub-screen .cards{
-          grid-area:cards; display:grid; grid-template-columns:1.5fr 1fr; gap:18px; align-items:stretch;
+          grid-area:cards; display:grid; grid-template-columns:minmax(0,1.45fr) minmax(330px,1fr);
+          grid-template-areas:"network find" "network minis"; gap:18px; align-items:stretch;
         }
-        .hub-screen .hcard.active{ min-height:440px; }
+        .hub-screen .hcard.network-card{ grid-area:network; min-height:458px; }
+        .hub-screen .hcard.find-card{ grid-area:find; min-height:220px; }
         .hub-screen .hcard.active h2{ font-size:30px; }
         .hub-screen .hcard.active p{ font-size:15px; max-width:34ch; }
         .hub-screen .hcard.active .body{ padding:24px; }
-        .hub-screen .mini-row{ display:grid; grid-template-columns:1fr; grid-template-rows:1fr 1fr; gap:18px; }
+        .hub-screen .mini-row{ grid-area:minis; display:grid; grid-template-columns:1fr 1fr; gap:18px; }
         .hub-screen .hcard.mini{ min-height:0; }
-        .hub-screen .hcard.mini h2{ font-size:21px; }
+        .hub-screen .hcard.mini h2{ font-size:18px; }
         .hub-screen .skip{ grid-area:skip; text-align:left; margin-top:22px; }
       }
       @media(min-width:1360px){
-        .hub-screen .hcard.active{ min-height:480px; }
+        .hub-screen .hcard.network-card{ min-height:480px; }
       }
       @media(prefers-reduced-motion:reduce){
         .hub-screen *{ transition:none !important; animation:none !important; }
@@ -205,8 +220,25 @@ export function Hub() {
 
           <section class="cards">
 
-            <!-- 1 · ATTIVA → #/home -->
-            <a class="hcard active" href="#/home" data-link data-fn="#/home" aria-label="${t('hub.card1Aria')}">
+            <!-- 1 · RETE GAIA — nuovo pilastro attivo -->
+            <a class="hcard active network-card" href="#/comunita" data-link data-fn="#/comunita" aria-label="${t('hub.networkAria')}">
+              <span class="network-art">${svgNetwork}</span>
+              <div class="scrim" aria-hidden="true"></div>
+              <span class="tag">${Icon('message-circle', { size: 14 })}${t('hub.tagActive')}</span>
+              <div class="body">
+                <div class="row">
+                  <div>
+                    <h2>${t('hub.networkTitle')}</h2>
+                    <p>${t('hub.networkDesc')}</p>
+                    <span class="pickline"><span class="dot" aria-hidden="true"></span>${t('hub.networkCta')}</span>
+                  </div>
+                  <span class="go" aria-hidden="true">${svgGo}</span>
+                </div>
+              </div>
+            </a>
+
+            <!-- 2 · TROVA — attiva e distinta dalla Rete -->
+            <a class="hcard active find-card" href="#/home" data-link data-fn="#/home" aria-label="${t('hub.card1Aria')}">
               <img class="bg" src="./assets/hub/trova.jpg" loading="lazy" decoding="async"
                    alt="${t('hub.card1Alt')}">
               <div class="scrim" aria-hidden="true"></div>
@@ -223,8 +255,7 @@ export function Hub() {
               </div>
             </a>
 
-            <!-- 2+3 · IN ARRIVO — mini-card affiancate (A2 var. B): protagonista
-                 la card viva sopra, queste due chiaramente secondarie sotto. -->
+            <!-- 3+4 · IN ARRIVO — teaser secondari -->
             <div class="mini-row">
               <a class="hcard locked mini" href="#/consegna/non-disponibile" data-link data-fn
                  aria-label="${t('hub.card2Aria')}">

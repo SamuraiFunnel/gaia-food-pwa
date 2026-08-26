@@ -1,7 +1,7 @@
 {
   "name": "Gaia Food — il cibo vero, vicino a te",
   "short_name": "Gaia Food",
-  "description": "Trova produttori veri di cibo, verificati di persona sul campo, vicino a casa.",
+  "description": "Trova produttori veri e incontra persone che hanno a cuore il cibo sano, a partire dal tuo territorio.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#F4F1EB",
@@ -19,6 +19,7 @@
   "shortcuts": [
     { "name": "Cerca", "short_name": "Cerca", "url": "./#/home", "description": "Trova produttori vicino a te" },
     { "name": "Mappa", "short_name": "Mappa", "url": "./#/mappa", "description": "Apri la mappa dei produttori" },
+    { "name": "Rete Gaia", "short_name": "Rete", "url": "./#/comunita", "description": "Partecipa alla comunità locale del cibo vero" },
     { "name": "Salvati", "short_name": "Salvati", "url": "./#/salvati", "description": "I produttori che hai salvato" }
   ],
   "_TODO_screenshots": "DA FARE (Daniele): generare screenshot reali e popolare 'screenshots[]'. Servono per la scheda Play Store e per l'install-prompt 'rich' di Chrome. Requisiti: 1 mobile (es. 1080x1920, form_factor 'narrow') + 1 desktop/tablet (es. 1920x1080, form_factor 'wide'). Catturare schermate vere dell'app (Home, Scheda produttore, Mappa) — NON immagini inventate.",

@@ -11,6 +11,8 @@ process.env.GF_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-unit-'));
 const {
   custodiSummary, slugify, num, str, cleanVideo, cleanSeasonal, normalizePatch, throttle, EMAIL_RE,
   hashPassword, verifyPassword, publicUser,
+  cleanSocialText, cleanSocialKind, socialPageParams, socialPublicId, socialLocation, socialLocality,
+  diversifySocialTier, rankSocialPosts, revalidateSocialAuthors, projectSocialPost,
 } = await import('../server.js');
 
 // ---------------------------------------------------------------- password (scrypt)
@@ -129,6 +131,153 @@ test('throttle: IP diversi = bucket indipendenti', () => {
   assert.equal(throttle(bucket, a, 1).limited, false);
   assert.equal(throttle(bucket, a, 1).limited, true);
   assert.equal(throttle(bucket, b, 1).limited, false); // b non è influenzato da a
+});
+
+// ---------------------------------------------------------------- social (testo, privacy, ranking territoriale)
+test('social: testo ripulito/limitato e kind IT normalizzati agli enum canonici', () => {
+  assert.equal(cleanSocialText('  ciao\u0000\r\nmondo  '), 'ciao\nmondo');
+  assert.equal(Array.from(cleanSocialText('🍅'.repeat(710), 700)).length, 700);
+  assert.equal(cleanSocialKind('domanda'), 'question');
+  assert.equal(cleanSocialKind('Consiglio'), 'tip');
+  assert.equal(cleanSocialKind('dal campo'), 'field');
+  assert.equal(cleanSocialKind('disponibilità'), 'availability');
+  assert.equal(cleanSocialKind('storia'), 'story');
+  assert.equal(cleanSocialKind('valore-inventato'), 'story');
+});
+
+test('socialPublicId: HMAC stabile, opaco e separato per segreto', () => {
+  const raw = 'persona-segreta@example.test';
+  const a = socialPublicId(raw, 'segreto-a');
+  assert.equal(a, socialPublicId(raw, 'segreto-a'));
+  assert.notEqual(a, socialPublicId(raw, 'segreto-b'));
+  assert.match(a, /^gf_[A-Za-z0-9_-]{22}$/);
+  assert.ok(!a.includes(raw));
+});
+
+test('socialPageParams: default sicuri, limit max 50 e offset bounded', () => {
+  assert.deepEqual(socialPageParams(null, null), { limit: 20, offset: 0 });
+  assert.deepEqual(socialPageParams('999', '999999'), { limit: 50, offset: 2000 });
+  assert.deepEqual(socialPageParams('0', '-3'), { limit: 1, offset: 0 });
+  assert.deepEqual(socialPageParams('12x', 'boh'), { limit: 20, offset: 0 });
+});
+
+test('socialLocation/locality: snapshot senza coordinate e precedenza città > zona > regione > resto', () => {
+  const viewer = socialLocation({ city: 'Terni', lat: 42.5, lng: 12.6, zone: { id: 'tr', label: 'Conca ternana', region: 'Umbria', comuni: ['Terni'] } });
+  assert.deepEqual(viewer, { city: 'Terni', zoneId: 'tr', zoneLabel: 'Conca ternana', region: 'Umbria' });
+  assert.equal(socialLocality({ city: 'tèrni', zoneId: 'x', region: 'Lazio' }, viewer), 'city');
+  assert.equal(socialLocality({ city: 'Narni', zoneId: 'TR', region: 'Umbria' }, viewer), 'zone');
+  assert.equal(socialLocality({ city: 'Perugia', zoneId: 'pg', region: 'UMBRIA' }, viewer), 'region');
+  assert.equal(socialLocality({ city: 'Roma', zoneId: 'rm', region: 'Lazio' }, viewer), 'other');
+});
+
+test('rankSocialPosts: prossimità poi newest; engagement ignorato; scope nearby/producers', () => {
+  const viewer = { city: 'Terni', zoneId: 'tr', zoneLabel: 'Conca ternana', region: 'Umbria' };
+  const posts = [
+    { id: 'other', createdAt: '2030-01-01T00:00:00Z', authorType: 'producer', location: { city: 'Roma', zoneId: 'rm', region: 'Lazio' }, likes: Array(999).fill('x') },
+    { id: 'region', createdAt: '2029-01-01T00:00:00Z', authorType: 'person', location: { city: 'Perugia', zoneId: 'pg', region: 'Umbria' } },
+    { id: 'zone', createdAt: '2028-01-01T00:00:00Z', authorType: 'producer', location: { city: 'Narni', zoneId: 'tr', region: 'Umbria' } },
+    { id: 'city-old', createdAt: '2026-01-01T00:00:00Z', authorType: 'person', location: { city: 'Terni', zoneId: 'tr', region: 'Umbria' } },
+    { id: 'city-new', createdAt: '2027-01-01T00:00:00Z', authorType: 'producer', location: { city: 'Terni', zoneId: 'tr', region: 'Umbria' } },
+  ];
+  assert.deepEqual(rankSocialPosts(posts, viewer, 'for-you').map((p) => p.id), ['city-new', 'city-old', 'zone', 'region', 'other']);
+  assert.deepEqual(rankSocialPosts(posts, viewer, 'nearby').map((p) => p.id), ['city-new', 'city-old', 'zone', 'region']);
+  assert.deepEqual(rankSocialPosts(posts, viewer, 'producers').map((p) => p.id), ['city-new', 'zone', 'other']);
+});
+
+test('diversificazione autore: round-robin nel tier, newest per autore e nessun monopolio iniziale', () => {
+  const location = { city: 'Terni', zoneId: 'tr', region: 'Umbria' };
+  const post = (id, authorId, createdAt, likes = []) => ({ id, authorId, authorType: 'person', createdAt, location, likes });
+  const posts = [
+    post('a1', 'a', '2026-08-26T10:00:00Z'),
+    post('a2', 'a', '2026-08-26T09:00:00Z'),
+    post('a3', 'a', '2026-08-26T08:00:00Z'),
+    post('a4', 'a', '2026-08-26T07:00:00Z'),
+    post('b1', 'b', '2026-08-26T08:30:00Z'),
+    post('b2', 'b', '2026-08-26T06:30:00Z'),
+    post('c1', 'c', '2026-08-26T08:15:00Z', Array(500).fill('engagement-ignorato')),
+  ];
+  const direct = diversifySocialTier(posts).map((p) => p.id);
+  assert.deepEqual(direct, ['a1', 'b1', 'c1', 'a2', 'b2', 'a3', 'a4']);
+  assert.deepEqual(rankSocialPosts(posts, location, 'for-you').map((p) => p.id), direct);
+  assert.deepEqual(direct.filter((id) => id.startsWith('a')), ['a1', 'a2', 'a3', 'a4']); // newest preservato per autore
+  assert.equal(new Set(direct).size, posts.length); // più contenuti = più occasioni totali, nessun post perso
+});
+
+test('revalidateSocialAuthors: produttore live resta verified; scheda sospesa demote a persona corrente', () => {
+  const stored = [{
+    id: 'sp_prod', authorId: 'u1@example.test', authorType: 'producer', authorVerified: true,
+    authorName: 'Nome vecchio', authorPicture: 'vecchia.jpg', producerId: 'p1',
+    location: { city: 'Roma', zoneId: 'rm', zoneLabel: 'Area romana', region: 'Lazio' },
+  }];
+  const users = [{ id: 'u1@example.test', name: 'Profilo attuale', picture: 'utente.jpg', producerId: 'p1', producerStatus: 'published' }];
+  const published = [{
+    id: 'p1', ownerId: 'u1@example.test', status: 'published', name: 'Azienda attuale', photo: 'azienda.jpg',
+    socialLocation: { city: 'Narni', zoneId: 'tr', zoneLabel: 'Conca ternana', region: 'Umbria' },
+  }];
+  const live = revalidateSocialAuthors(stored, users, published)[0];
+  assert.equal(live.authorType, 'producer');
+  assert.equal(live.authorVerified, true);
+  assert.equal(live.authorName, 'Azienda attuale');
+  assert.equal(live.authorPicture, 'azienda.jpg');
+  assert.deepEqual(live.location, published[0].socialLocation); // profilo/post non possono spoofare lo snapshot verificato
+
+  const { socialLocation: _legacyMissing, ...legacyProducer } = published[0];
+  const legacy = revalidateSocialAuthors(stored, users, [legacyProducer])[0];
+  assert.equal(legacy.authorType, 'person');
+  assert.equal(legacy.authorVerified, false);
+  assert.equal(legacy.producerId, null); // una scheda legacy deve essere riverificata, nessun fallback producer
+
+  const emptyAnchor = revalidateSocialAuthors(stored, users, [{ ...published[0], socialLocation: {} }])[0];
+  assert.equal(emptyAnchor.authorType, 'producer'); // proprietà presente anche se vuota = attestato verificato
+  assert.deepEqual(emptyAnchor.location, { city: '', zoneId: '', zoneLabel: '', region: '' });
+
+  const changedProducer = [{ ...published[0], id: 'p2' }, published[0]];
+  const changedUser = [{ ...users[0], producerId: 'p2' }];
+  const exactLink = revalidateSocialAuthors(stored, changedUser, changedProducer)[0];
+  assert.equal(exactLink.authorType, 'person'); // il post p1 non può agganciarsi al nuovo producerId p2
+
+  const demoted = revalidateSocialAuthors(stored, users, [{ ...published[0], status: 'sospeso' }])[0];
+  assert.equal(demoted.authorType, 'person');
+  assert.equal(demoted.authorVerified, false);
+  assert.equal(demoted.producerId, null);
+  assert.equal(demoted.authorName, 'Profilo attuale');
+  assert.equal(demoted.authorPicture, 'utente.jpg');
+  assert.equal(stored[0].authorType, 'producer'); // rivalidazione non muta lo storico
+});
+
+test('projectSocialPost: nessun ID/email interno, counts e flag viewer corretti', () => {
+  const rawId = 'privato@example.test', secret = 'segreto-test';
+  const projected = projectSocialPost({
+    id: 'sp_1', text: '<b>testo UGC</b>', kind: 'question', createdAt: '2026-08-26T10:00:00Z',
+    authorId: rawId, authorName: 'Maria', authorPicture: '', authorType: 'person', authorVerified: false,
+    location: { city: 'Terni', zoneId: 'tr', zoneLabel: 'Conca', region: 'Umbria', lat: 42 }, locality: 'city',
+    likes: [rawId, rawId, 'altro@example.test'], saves: ['altro@example.test'],
+    comments: [{ id: 'sc_1', text: 'utile', createdAt: '2026-08-26T10:01:00Z', authorId: 'altro@example.test', authorName: 'Luca', authorType: 'person' }],
+  }, rawId, secret);
+  assert.equal(projected.author.id, socialPublicId(rawId, secret));
+  assert.deepEqual(projected.counts, { likes: 2, saves: 1, comments: 1 });
+  assert.deepEqual(projected.viewer, { liked: true, saved: false });
+  assert.equal(projected.locality, 'city');
+  assert.equal(projected.location.lat, undefined);
+  assert.equal(projected.text, '<b>testo UGC</b>'); // è testo: l'escape è responsabilità del renderer frontend
+  const json = JSON.stringify(projected);
+  assert.ok(!json.includes('privato@example.test'));
+  assert.ok(!json.includes('altro@example.test'));
+});
+
+test('projectSocialPost: count commenti totale ma incorpora soltanto gli ultimi 20', () => {
+  const comments = Array.from({ length: 25 }, (_, i) => ({
+    id: `sc_${i}`, text: `Commento ${i}`, createdAt: `2026-08-26T10:${String(i).padStart(2, '0')}:00Z`,
+    authorId: `u${i}@example.test`, authorName: `Utente ${i}`, authorType: 'person',
+  }));
+  const projected = projectSocialPost({
+    id: 'sp_many_comments', text: 'Discussione', kind: 'story', createdAt: '2026-08-26T10:00:00Z',
+    authorId: 'owner@example.test', authorName: 'Owner', authorType: 'person', comments,
+  }, null, 'secret');
+  assert.equal(projected.counts.comments, 25);
+  assert.equal(projected.comments.length, 20);
+  assert.equal(projected.comments[0].id, 'sc_5');
+  assert.equal(projected.comments.at(-1).id, 'sc_24');
 });
 
 // ---------------------------------------------------------------- custodiSummary (la matematica dei Custodi)

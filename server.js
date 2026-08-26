@@ -48,6 +48,9 @@ const LOGIN_WINDOW_MS = 60 * 1000;
 const loginHits = new Map();   // login staff
 const authHits = new Map();    // login utente finale (email/google)
 const publicHits = new Map();  // POST pubblici (waitlist, candidature)
+const socialPostHits = new Map();     // creazione/eliminazione post social (utente+IP)
+const socialCommentHits = new Map();  // commenti social (utente+IP)
+const socialReactionHits = new Map(); // like/save social (utente+IP)
 function clientIp(req) {
   const xff = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return xff || (req.socket && req.socket.remoteAddress) || 'unknown';
@@ -61,8 +64,13 @@ function throttle(bucket, req, max, windowMs = LOGIN_WINDOW_MS) {
   return { limited: false };
 }
 const loginThrottle = (req) => throttle(loginHits, req, 5);
-// Pulizia periodica delle voci scadute (evita crescita illimitata della mappa).
-setInterval(() => { const now = Date.now(); for (const [ip, e] of loginHits) if (now >= e.resetAt) loginHits.delete(ip); }, LOGIN_WINDOW_MS).unref();
+// Pulizia periodica delle voci scadute (evita crescita illimitata delle mappe).
+setInterval(() => {
+  const now = Date.now();
+  for (const bucket of [loginHits, authHits, publicHits, socialPostHits, socialCommentHits, socialReactionHits]) {
+    for (const [key, e] of bucket) if (now >= e.resetAt) bucket.delete(key);
+  }
+}, LOGIN_WINDOW_MS).unref();
 const slugify = s => (s || 'produttore').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 
 function send(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); }
@@ -449,6 +457,241 @@ function normalizePatch(patch) {
   return out;
 }
 
+// --- Social Gaia Food (MVP) -------------------------------------------------
+// Il social vive nello store documentale già esistente (`crm_doc/__social`): nessuna nuova tabella/file.
+// Gli ID account (oggi spesso email) restano SOLO nel documento interno. Ogni risposta usa un publicId
+// HMAC opaco, stabile finché resta stabile il segreto di sessione.
+const SOCIAL_KINDS = new Set(['question', 'tip', 'field', 'availability', 'story']);
+const SOCIAL_KIND_ALIASES = {
+  domanda: 'question', consiglio: 'tip', 'dal-campo': 'field', campo: 'field',
+  disponibilita: 'availability', storia: 'story',
+};
+const SOCIAL_EMAIL_IN_TEXT_RE = /[^@\s]+@[^@\s]+\.[^@\s]+/;
+
+function cleanSocialText(value, max = 700) {
+  const cleaned = (value == null ? '' : String(value))
+    .normalize('NFC')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
+  return Array.from(cleaned).slice(0, max).join('');
+}
+function cleanSocialKind(value) {
+  const key = cleanSocialText(value, 40).toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/[\s_]+/g, '-');
+  const canonical = SOCIAL_KIND_ALIASES[key] || key;
+  return SOCIAL_KINDS.has(canonical) ? canonical : 'story';
+}
+function socialPageParams(limitValue, offsetValue) {
+  const integer = (value, fallback) => {
+    const raw = String(value == null ? '' : value).trim();
+    return /^\d+$/.test(raw) ? Number(raw) : fallback;
+  };
+  return {
+    limit: Math.max(1, Math.min(50, integer(limitValue, 20))),
+    offset: Math.max(0, Math.min(2000, integer(offsetValue, 0))),
+  };
+}
+function socialPublicId(rawId, secret) {
+  const key = String(secret || 'gaia-food-public-id');
+  return 'gf_' + crypto.createHmac('sha256', key).update('social:' + String(rawId || '')).digest('base64url').slice(0, 22);
+}
+function socialDisplayName(value, fallback) {
+  const name = cleanSocialText(value, 80);
+  return (!name || SOCIAL_EMAIL_IN_TEXT_RE.test(name)) ? fallback : name;
+}
+// Snapshot volutamente grossolano: città + zona + regione. Coordinate e lista comuni non entrano mai nel social.
+function socialLocation(input) {
+  const src = (input && typeof input === 'object') ? input : {};
+  const zone = (src.zone && typeof src.zone === 'object') ? src.zone : {};
+  return {
+    city: cleanSocialText(src.city, 120),
+    zoneId: cleanSocialText(src.zoneId != null ? src.zoneId : zone.id, 80),
+    zoneLabel: cleanSocialText(src.zoneLabel != null ? src.zoneLabel : zone.label, 160),
+    region: cleanSocialText(src.region != null ? src.region : zone.region, 80),
+  };
+}
+const socialLocationKey = (v) => cleanSocialText(v, 160).toLocaleLowerCase('it').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function socialLocality(postLocation, viewerLocation) {
+  const p = socialLocation(postLocation), v = socialLocation(viewerLocation);
+  if (p.city && v.city && socialLocationKey(p.city) === socialLocationKey(v.city)) return 'city';
+  const sameZoneId = p.zoneId && v.zoneId && socialLocationKey(p.zoneId) === socialLocationKey(v.zoneId);
+  const sameZoneLabel = p.zoneLabel && v.zoneLabel && socialLocationKey(p.zoneLabel) === socialLocationKey(v.zoneLabel);
+  if (sameZoneId || sameZoneLabel) return 'zone';
+  if (p.region && v.region && socialLocationKey(p.region) === socialLocationKey(v.region)) return 'region';
+  return 'other';
+}
+const socialNewestFirst = (a, b) => ((Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0))
+  || String(a.id || '').localeCompare(String(b.id || ''));
+const socialAuthorKey = (post) => {
+  if (post && post.authorId) return 'account:' + post.authorId;
+  if (post && post.author && post.author.id) return 'public:' + post.author.id;
+  if (post && post.authorType === 'system') return 'system:gaia-food';
+  return 'post:' + String(post && post.id || '');
+};
+function diversifySocialTier(posts) {
+  const byAuthor = new Map();
+  for (const post of posts) {
+    const key = socialAuthorKey(post);
+    if (!byAuthor.has(key)) byAuthor.set(key, []);
+    byAuthor.get(key).push(post);
+  }
+  const authors = [...byAuthor.entries()].map(([key, authorPosts]) => ({ key, posts: authorPosts.sort(socialNewestFirst) }));
+  // L'autore col contenuto più recente apre il primo giro; poi un post per autore a ogni giro.
+  authors.sort((a, b) => socialNewestFirst(a.posts[0], b.posts[0]) || a.key.localeCompare(b.key));
+  const out = [];
+  for (let round = 0; ; round++) {
+    let added = false;
+    for (const author of authors) if (author.posts[round]) { out.push(author.posts[round]); added = true; }
+    if (!added) return out;
+  }
+}
+// Ranking puro: prossimità, diversificazione autore, poi newest per autore/tier.
+// Like/commenti/salvataggi non entrano mai nel punteggio.
+function rankSocialPosts(posts, viewerLocation, scope = 'for-you') {
+  const selectedScope = ['for-you', 'nearby', 'producers'].includes(scope) ? scope : 'for-you';
+  const located = (Array.isArray(posts) ? posts : [])
+    .map((post) => ({ ...post, locality: socialLocality(post && post.location, viewerLocation) }))
+    .filter((post) => selectedScope !== 'nearby' || post.locality !== 'other')
+    .filter((post) => selectedScope !== 'producers' || (post.authorType || (post.author && post.author.type)) === 'producer');
+  const ranked = [];
+  for (const locality of ['city', 'zone', 'region', 'other']) {
+    ranked.push(...diversifySocialTier(located.filter((post) => post.locality === locality)));
+  }
+  return ranked;
+}
+// Un post firmato come produttore mantiene quel ruolo in output SOLO finché account e scheda sono
+// ancora collegati, owned e pubblicati. La trasformazione è live e non muta lo storico salvato.
+function revalidateSocialAuthors(posts, users, producers) {
+  const userById = new Map((Array.isArray(users) ? users : []).map((user) => [user.id, user]));
+  const producerById = new Map((Array.isArray(producers) ? producers : []).map((producer) => [producer.id, producer]));
+  return (Array.isArray(posts) ? posts : []).map((post) => {
+    if (!post || post.authorType !== 'producer') return post && typeof post === 'object' ? { ...post } : post;
+    const user = userById.get(post.authorId) || null;
+    // Il legame storico è il producerId DEL POST: un nuovo producerId sul medesimo account
+    // non può riappropriarsi di contenuti firmati da una scheda precedente.
+    const producer = producerById.get(post.producerId) || null;
+    const hasProducerAnchor = !!(producer && Object.prototype.hasOwnProperty.call(producer, 'socialLocation'));
+    const valid = !!(user && producer
+      && user.producerId === producer.id
+      && user.producerStatus === 'published'
+      && producer.ownerId === user.id
+      && producer.status === 'published'
+      && hasProducerAnchor);
+    if (valid) return {
+      ...post,
+      authorName: socialDisplayName(producer.name, 'Produttore locale'),
+      authorPicture: cleanSocialText(producer.photo || user.picture, 1200),
+      authorType: 'producer', authorVerified: true, producerId: producer.id,
+      location: socialLocation(producer.socialLocation),
+    };
+    return {
+      ...post,
+      authorName: socialDisplayName(user && user.name, 'Membro Gaia'),
+      authorPicture: cleanSocialText(user && user.picture, 1200),
+      authorType: 'person', authorVerified: false, producerId: null,
+    };
+  });
+}
+const socialUniqueIds = (value) => [...new Set((Array.isArray(value) ? value : []).filter((x) => typeof x === 'string' && x))];
+function projectSocialPost(post, viewerId, secret) {
+  const type = ['person', 'producer', 'system'].includes(post && post.authorType) ? post.authorType : 'person';
+  const authorId = type === 'system' ? 'gaia-food' : socialPublicId(post && post.authorId, secret);
+  const likes = socialUniqueIds(post && post.likes), saves = socialUniqueIds(post && post.saves);
+  const allComments = Array.isArray(post && post.comments) ? post.comments : [];
+  const comments = allComments.slice(-20).map((comment) => {
+    const commentType = ['person', 'producer', 'system'].includes(comment.authorType) ? comment.authorType : 'person';
+    return {
+      id: cleanSocialText(comment.id, 80),
+      text: cleanSocialText(comment.text, 280),
+      createdAt: cleanSocialText(comment.createdAt, 40),
+      author: {
+        id: commentType === 'system' ? 'gaia-food' : socialPublicId(comment.authorId, secret),
+        name: socialDisplayName(comment.authorName, commentType === 'producer' ? 'Produttore locale' : 'Membro Gaia'),
+        picture: cleanSocialText(comment.authorPicture, 1200),
+        type: commentType,
+      },
+    };
+  });
+  const out = {
+    id: cleanSocialText(post && post.id, 80),
+    text: cleanSocialText(post && post.text, 700),
+    kind: cleanSocialKind(post && post.kind),
+    createdAt: cleanSocialText(post && post.createdAt, 40),
+    mediaUrl: '',
+    author: {
+      id: authorId,
+      name: socialDisplayName(post && post.authorName, type === 'producer' ? 'Produttore locale' : (type === 'system' ? 'Gaia Food' : 'Membro Gaia')),
+      picture: cleanSocialText(post && post.authorPicture, 1200),
+      type,
+      verified: type === 'system' || !!(post && post.authorVerified),
+    },
+    location: socialLocation(post && post.location),
+    locality: ['city', 'zone', 'region', 'other'].includes(post && post.locality) ? post.locality : 'other',
+    counts: { likes: likes.length, saves: saves.length, comments: allComments.length },
+    viewer: { liked: !!viewerId && likes.includes(viewerId), saved: !!viewerId && saves.includes(viewerId) },
+    comments,
+  };
+  if (type === 'producer' && post.producerId) out.author.producerId = cleanSocialText(post.producerId, 80);
+  if (post && post.isExample) out.isExample = true;
+  return out;
+}
+
+const SOCIAL_EXAMPLE_POST = {
+  id: 'social-welcome',
+  text: 'Questo spazio nasce per scambiarci domande, consigli ed esperienze sul cibo sano e sul territorio. I primi contenuti della comunità arriveranno qui.',
+  kind: 'story', createdAt: '2026-08-26T06:00:00.000Z', mediaUrl: '', isExample: true,
+  authorId: null, authorName: 'Gaia Food', authorPicture: '', authorType: 'system', authorVerified: true,
+  producerId: null, location: { city: '', zoneId: '', zoneLabel: '', region: '' }, likes: [], saves: [], comments: [],
+};
+function readSocialDoc() {
+  const raw = readCrm('__social') || {};
+  if (raw.socialVersion === 1 && Array.isArray(raw.posts)) return { socialVersion: 1, posts: raw.posts };
+  const posts = Array.isArray(raw.posts) ? raw.posts : [{ ...SOCIAL_EXAMPLE_POST, location: { ...SOCIAL_EXAMPLE_POST.location }, likes: [], saves: [], comments: [] }];
+  const doc = { socialVersion: 1, posts };
+  writeCrm('__social', doc);
+  return doc;
+}
+// Le mutazioni sono senza `await` fra read e write, quindi atomiche nel singolo event-loop. Il document
+// store replace-all resta volutamente last-write-wins fra più ISTANZE: sarà da migrare prima dello scale-out.
+function writeSocialDoc(doc) { writeCrm('__social', { socialVersion: 1, posts: Array.isArray(doc.posts) ? doc.posts : [] }); }
+function anchorProducerSocialLocation(producer) {
+  const owner = producer && producer.ownerId ? readUsers().users.find((user) => user.id === producer.ownerId) : null;
+  producer.socialLocation = socialLocation(owner);
+  return producer.socialLocation;
+}
+function socialAuthorSnapshot(me) {
+  let producer = null;
+  if (me && me.producerId && me.producerStatus === 'published') {
+    producer = readStore().producers.find((p) => p.id === me.producerId && p.ownerId === me.id
+      && p.status === 'published' && Object.prototype.hasOwnProperty.call(p, 'socialLocation')) || null;
+  }
+  if (producer) return {
+    authorId: me.id,
+    authorName: socialDisplayName(producer.name, 'Produttore locale'),
+    authorPicture: cleanSocialText(producer.photo || me.picture, 1200),
+    authorType: 'producer', authorVerified: true, producerId: producer.id,
+    location: socialLocation(producer.socialLocation),
+  };
+  return {
+    authorId: me.id,
+    authorName: socialDisplayName(me.name, 'Membro Gaia'),
+    authorPicture: cleanSocialText(me.picture, 1200),
+    authorType: 'person', authorVerified: false, producerId: null,
+    location: socialLocation(me),
+  };
+}
+function socialThrottle(bucket, req, me, max, windowMs) {
+  const accountKey = crypto.createHash('sha256').update(String(me.id)).digest('hex').slice(0, 16);
+  const keyedReq = { headers: { 'x-forwarded-for': clientIp(req) + '|' + accountKey }, socket: {} };
+  return throttle(bucket, keyedReq, max, windowMs);
+}
+function socialPostForViewer(post, me) {
+  const live = revalidateSocialAuthors([post], readUsers().users, readStore().producers)[0] || post;
+  const located = { ...live, locality: socialLocality(live.location, socialLocation(me)) };
+  return projectSocialPost(located, me && me.id, sessionSecret());
+}
+
 async function api(req, res, url) {
   const seg = url.split('/').filter(Boolean); // ['api','producers',':id', ...]
   const method = req.method;
@@ -694,6 +937,116 @@ async function api(req, res, url) {
     return send(res, 200, { user: publicUser(user) });
   }
 
+  // --- Social territoriale: area gated, feed e mutazioni richiedono un account utente. ---
+  if (seg[1] === 'social') {
+    // Feed: `for-you` ordina tutto per prossimità; `nearby` esclude il resto;
+    // `producers` mostra solo produttori pubblicati. Nessun engagement boost.
+    if (seg[2] === 'feed' && !seg[3] && method === 'GET') {
+      const me = userOf(req);
+      if (!me) return send(res, 401, { error: 'non_autenticato' });
+      const query = new URLSearchParams(req.url.split('?')[1] || '');
+      const requested = cleanSocialText(query.get('scope'), 24);
+      const scope = ['for-you', 'nearby', 'producers'].includes(requested) ? requested : 'for-you';
+      const { limit, offset } = socialPageParams(query.get('limit'), query.get('offset'));
+      const viewerLocation = socialLocation(me);
+      const livePosts = revalidateSocialAuthors(readSocialDoc().posts, readUsers().users, readStore().producers);
+      const ranked = rankSocialPosts(livePosts, viewerLocation, scope);
+      // Si proietta soltanto la pagina richiesta: commenti/HMAC non vengono calcolati per l'intero documento.
+      const page = ranked.slice(offset, offset + limit);
+      const posts = page.map((post) => projectSocialPost(post, me.id, sessionSecret()));
+      const hasMore = offset + page.length < ranked.length;
+      return send(res, 200, {
+        posts,
+        context: {
+          scope,
+          city: viewerLocation.city,
+          zone: { id: viewerLocation.zoneId, label: viewerLocation.zoneLabel },
+          region: viewerLocation.region,
+        },
+        hasMore,
+        nextOffset: hasMore ? offset + page.length : null,
+        pagination: { limit, offset },
+      });
+    }
+
+    if (seg[2] === 'posts') {
+      const postId = seg[3], action = seg[4];
+      const me = userOf(req), admin = isAdminReq(req);
+      // Il vecchio login staff è ammesso soltanto per la moderazione DELETE; per creare/interagire serve un account utente.
+      if (!me && !(method === 'DELETE' && postId && !action && admin)) return send(res, 401, { error: 'non_autenticato' });
+
+      // Nuovo post (max 8 ogni 10 minuti per account+IP).
+      if (!postId && method === 'POST') {
+        const t = socialThrottle(socialPostHits, req, me, 8, 10 * LOGIN_WINDOW_MS);
+        if (t.limited) { res.setHeader('Retry-After', String(t.retryAfter)); return send(res, 429, { error: 'Troppi post, riprova tra poco', retryAfter: t.retryAfter }); }
+        const d = await body(req), text = cleanSocialText(d.text, 700);
+        if (!text) return send(res, 400, { error: 'testo_mancante' });
+        const doc = readSocialDoc();
+        if (doc.posts.length >= 2000) return send(res, 409, { error: 'limite_post_raggiunto' });
+        const post = {
+          id: 'sp_' + crypto.randomBytes(10).toString('base64url'),
+          text, kind: cleanSocialKind(d.kind), createdAt: new Date().toISOString(), mediaUrl: '',
+          ...socialAuthorSnapshot(me), likes: [], saves: [], comments: [],
+        };
+        doc.posts.push(post); writeSocialDoc(doc);
+        return send(res, 201, { post: socialPostForViewer(post, me) });
+      }
+      if (!postId) return send(res, 405, { error: 'metodo_non_consentito' });
+
+      // Il body viene interamente ricevuto e validato PRIMA di leggere `__social`. Da qui al write non c'è
+      // alcun await: due commenti concorrenti nella stessa istanza si applicano entrambi allo stato più recente.
+      if (action === 'comments' && method === 'POST') {
+        const t = socialThrottle(socialCommentHits, req, me, 30, LOGIN_WINDOW_MS);
+        if (t.limited) { res.setHeader('Retry-After', String(t.retryAfter)); return send(res, 429, { error: 'Troppi commenti, riprova tra poco', retryAfter: t.retryAfter }); }
+        const d = await body(req), text = cleanSocialText(d.text, 280);
+        if (!text) return send(res, 400, { error: 'testo_mancante' });
+        const doc = readSocialDoc();
+        const index = doc.posts.findIndex((item) => item.id === postId);
+        if (index < 0) return send(res, 404, { error: 'post_non_trovato' });
+        const post = doc.posts[index];
+        post.comments = Array.isArray(post.comments) ? post.comments : [];
+        if (post.comments.length >= 200) return send(res, 409, { error: 'limite_commenti_raggiunto' });
+        const actor = socialAuthorSnapshot(me);
+        const comment = {
+          id: 'sc_' + crypto.randomBytes(9).toString('base64url'), text, createdAt: new Date().toISOString(),
+          authorId: actor.authorId, authorName: actor.authorName, authorPicture: actor.authorPicture, authorType: actor.authorType,
+        };
+        post.comments.push(comment); writeSocialDoc(doc);
+        const projectedPost = socialPostForViewer(post, me);
+        return send(res, 201, { post: projectedPost, comment: projectedPost.comments.find((item) => item.id === comment.id) });
+      }
+
+      const doc = readSocialDoc();
+      const index = doc.posts.findIndex((post) => post.id === postId);
+      if (index < 0) return send(res, 404, { error: 'post_non_trovato' });
+      const post = doc.posts[index];
+
+      // Eliminazione: autore oppure admin. Rimuove atomicamente anche reazioni e commenti del post.
+      if (!action && method === 'DELETE') {
+        if (!admin && (!me || post.authorId !== me.id)) return send(res, 403, { error: 'non_autorizzato' });
+        const limiterIdentity = me || { id: 'staff-admin' };
+        const t = socialThrottle(socialPostHits, req, limiterIdentity, 30, LOGIN_WINDOW_MS);
+        if (t.limited) { res.setHeader('Retry-After', String(t.retryAfter)); return send(res, 429, { error: 'Troppe richieste, riprova tra poco', retryAfter: t.retryAfter }); }
+        doc.posts.splice(index, 1); writeSocialDoc(doc);
+        return send(res, 200, { ok: true, id: postId });
+      }
+
+      // Like / save sono toggle idempotenti rispetto allo stato corrente del singolo viewer.
+      if ((action === 'like' || action === 'save') && method === 'POST') {
+        const t = socialThrottle(socialReactionHits, req, me, 120, LOGIN_WINDOW_MS);
+        if (t.limited) { res.setHeader('Retry-After', String(t.retryAfter)); return send(res, 429, { error: 'Troppe reazioni, riprova tra poco', retryAfter: t.retryAfter }); }
+        const key = action === 'like' ? 'likes' : 'saves';
+        const ids = socialUniqueIds(post[key]), at = ids.indexOf(me.id);
+        if (at >= 0) ids.splice(at, 1); else ids.push(me.id);
+        post[key] = ids; writeSocialDoc(doc);
+        return send(res, 200, { post: socialPostForViewer(post, me) });
+      }
+
+      return send(res, 405, { error: 'metodo_non_consentito' });
+    }
+    return send(res, 404, { error: 'route_social_inesistente' });
+  }
+
   // --- Custodi (referral): il "seme" dell'utente + persone portate + credito + livello ---
   if (url === '/api/custodi/me' && method === 'GET') {
     const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
@@ -883,12 +1236,18 @@ async function api(req, res, url) {
         const st = auditPush(p, req, 'verificata');
         p.verifiedAt = new Date().toISOString();
         p.verify = { state: 'valid', date: str(d.date, 60) || p.verifiedAt.slice(0, 10), next: str(d.next, 60), by: st.name };
+        anchorProducerSocialLocation(p);
         writeStore(store); return send(res, 200, { ok: true, producer: p });
       }
       if (action === 'publish') { // go-live col badge: richiede la verifica in sede
         if (!p.verifiedAt) return send(res, 400, { error: 'verifica in sede mancante: /verify prima di pubblicare' });
+        if (!Object.prototype.hasOwnProperty.call(p, 'socialLocation')) {
+          return send(res, 400, { error: 'località social non verificata: esegui nuovamente /verify prima di pubblicare' });
+        }
         const st = auditPush(p, req, 'pubblicata');
-        p.status = 'published'; p.publishedAt = new Date().toISOString(); p.publishedBy = st.name; writeStore(store);
+        p.status = 'published'; p.publishedAt = new Date().toISOString(); p.publishedBy = st.name;
+        // `socialLocation` è un attestato creato da /verify: publish lo preserva ESATTAMENTE, anche se vuoto.
+        writeStore(store);
         if (p.ownerId) upsertUser({ id: p.ownerId, producerStatus: 'published' });
         return send(res, 200, { ok: true, producer: p });
       }
@@ -1129,4 +1488,6 @@ module.exports = {
   custodiSummary, slugify, num, str, cleanVideo, cleanSeasonal, normalizePatch,
   throttle, EMAIL_RE, hashPassword, verifyPassword, publicUser,
   cleanProduct, cleanPriceBand, monthsOf, producerReadiness, isPublished,
+  cleanSocialText, cleanSocialKind, socialPageParams, socialPublicId, socialLocation, socialLocality,
+  diversifySocialTier, rankSocialPosts, revalidateSocialAuthors, projectSocialPost,
 };

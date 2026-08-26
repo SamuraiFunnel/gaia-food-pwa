@@ -1,7 +1,8 @@
 // E2E smoke — il flusso critico end-to-end, con Chrome headless via CDP.
 // Boota il server reale (requestHandler) su porta effimera + dati usa-e-getta, poi guida un
 // Chrome ISOLATO (proprio --user-data-dir: NON tocca il Chrome di Daniele) attraverso:
-//   Splash → apri pop-up login → email → step zona → scegli Abruzzo → Home con produttori.
+//   Splash → login → zona → Home (anche con 0 produttori) → Rete Gaia → pubblicazione locale
+//   → reload autenticato sulla stessa route → cambio lingua.
 // Fuori da test/ apposta: richiede un browser, quindi NON gira in `npm test`. Lancialo con `npm run test:e2e`.
 // Uscita 0 = tutto verde; 1 = qualcosa non va (salva uno screenshot di debug).
 import http from 'node:http';
@@ -114,21 +115,53 @@ async function main() {
   await waitFor(`document.querySelector('.auth-modal.step-zone')`, 'passo Zona dopo la registrazione');
   ok('Registrazione email+password riuscita → si apre il passo "Dove ti trovi?"');
 
-  // 4) scelgo Abruzzo → entro in HOME
+  // 4) scelgo Abruzzo → entro in HOME. Il dataset isolato può avere ZERO produttori:
+  // il gate corretto è la schermata Home funzionante, non la presenza di una scheda seed.
   await ev(`document.querySelector('.auth-modal [data-zname="Abruzzo"]').click()`);
   await waitFor(`location.hash === '#/home'`, 'navigazione in Home');
-  await waitFor(`document.querySelectorAll('a[href^="#/produttore/"]').length > 0`, 'schede produttore in Home');
-  const n = await ev(`document.querySelectorAll('a[href^="#/produttore/"]').length`);
+  await waitFor(`document.querySelector('.screen.home.home-directory') && document.querySelector('.bottomnav')`, 'Home Scopri pronta con navigazione');
+  const n = await ev(`document.querySelectorAll('[data-discover-list] a[href^="#/produttore/"]').length`);
   const nav = await ev(`!!document.querySelector('.bottomnav')`);
   if (!nav) throw new Error('bottom nav assente in Home');
-  ok(`Home raggiunta: ${n} schede produttore caricate + bottom nav presente`);
+  ok(`Home raggiunta e usabile con ${n} produttori nel dataset isolato + bottom nav presente`);
 
   // 5) la sessione è reale: /api/auth/me riconosce l'utente
   const me = await ev(`fetch('/api/auth/me').then(r=>r.json()).then(d=>d.user&&d.user.email)`, true);
   if (me !== 'e2e@test.it') throw new Error('sessione non riconosciuta dal backend, me=' + JSON.stringify(me));
   ok('Backend: /api/auth/me riconosce la sessione (e2e@test.it)');
 
-  // 6) cambio lingua → EN: l'interfaccia si traduce (nav + Home)
+  // 6) completa il profilo con una città reale. Usiamo lo store dell'app, così stato client e
+  // server cambiano insieme esattamente come nella schermata profilo.
+  const city = await ev(`import('./js/store.js').then(m=>m.updateProfile({city:'Terni'})).then(u=>u&&u.city)`, true);
+  if (city !== 'Terni') throw new Error('città profilo non salvata, city=' + JSON.stringify(city));
+  ok('Profilo test aggiornato con la città di Terni');
+
+  // 7) percorso primario: Home → Rete Gaia dalla bottom nav, quindi pubblicazione solo testo.
+  const postText = `E2E · consiglio sul cibo sano a Terni · ${Date.now()}`;
+  await ev(`document.querySelector('.bottomnav a[href="#/comunita"]').click()`);
+  await waitFor(`location.hash === '#/comunita' && document.querySelector('[data-social-draft]')`, 'Rete Gaia pronta');
+  await ev(`(()=>{const d=document.querySelector('[data-social-draft]');d.value=${JSON.stringify(postText)};d.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('[data-social-publish]').click();})()`);
+  await waitFor(`[...document.querySelectorAll('.social-post-text')].some(p=>p.textContent===${JSON.stringify(postText)})`, 'contenuto pubblicato nella Rete Gaia');
+
+  // La località è un comportamento di prodotto, non solo una label tradotta: il server deve
+  // proiettare il post come `city` e la card deve mostrare Terni nei metadati autore.
+  const localPost = await ev(`fetch('/api/social/feed?scope=for-you').then(r=>r.json()).then(d=>{const p=d.posts.find(x=>x.text===${JSON.stringify(postText)});return p&&{locality:p.locality,city:p.location&&p.location.city};})`, true);
+  const localMeta = await ev(`(()=>{const c=[...document.querySelectorAll('[data-social-post]')].find(x=>x.querySelector('.social-post-text')?.textContent===${JSON.stringify(postText)});return c&&c.querySelector('.social-author-meta')?.textContent;})()`);
+  if (!localPost || localPost.locality !== 'city' || localPost.city !== 'Terni' || !String(localMeta || '').includes('Terni')) {
+    throw new Error('contenuto non riconosciuto come locale: ' + JSON.stringify({ localPost, localMeta }));
+  }
+  ok('Rete Gaia: testo pubblicato e riconosciuto come contenuto locale di Terni');
+
+  // 8) regressione refresh: cookie/sessione e route profonda devono sopravvivere al full reload.
+  await rpc('Page.reload', { ignoreCache: false });
+  await waitFor(`location.hash === '#/comunita' && document.querySelector('.social-screen')`, 'Rete Gaia dopo il reload');
+  await waitFor(`[...document.querySelectorAll('.social-post-text')].some(p=>p.textContent===${JSON.stringify(postText)})`, 'contenuto persistito dopo il reload');
+  const meAfterReload = await ev(`fetch('/api/auth/me').then(r=>r.json()).then(d=>d.user&&d.user.email)`, true);
+  const authModal = await ev(`!!document.querySelector('.auth-modal')`);
+  if (meAfterReload !== 'e2e@test.it' || authModal) throw new Error('refresh non ha preservato la sessione: ' + JSON.stringify({ meAfterReload, authModal, hash: await ev('location.hash') }));
+  ok('Reload: route #/comunita, sessione e contenuto pubblicato preservati');
+
+  // 9) cambio lingua → EN: l'interfaccia si traduce (nav + Home)
   await rpc('Page.navigate', { url: APP + '/#/profilo' });
   await waitFor(`document.querySelector('[data-lang-open]')`, 'chip lingua in Profilo');
   await ev(`document.querySelector('[data-lang-open]').click()`);
@@ -136,7 +169,7 @@ async function main() {
   await ev(`[...document.querySelectorAll('[data-lang]')].find(b=>b.dataset.lang==='en').click()`);
   await waitFor(`[...document.querySelectorAll('.bottomnav a')].map(a=>a.textContent).join(' ').includes('Discover')`, 'nav tradotta in inglese');
   await rpc('Page.navigate', { url: APP + '/#/home' });
-  await waitFor(`document.querySelector('#q') && document.querySelector('#q').placeholder === 'where can I get milk?'`, 'Home in inglese');
+  await waitFor(`document.querySelector('.discover-title') && document.querySelector('.discover-title').textContent.includes('Producers in Abruzzo')`, 'Home Scopri in inglese');
   ok('Cambio lingua → EN: nav e Home tradotti');
   await shot(path.join(os.tmpdir(), 'gf-e2e-en-home.png')); // artefatto: Home in inglese (stato finale verde)
 }
@@ -144,7 +177,7 @@ async function main() {
 let code = 0;
 try {
   await main();
-  console.log('\nE2E SMOKE — flusso critico Splash → login → Home\n' + steps.join('\n') + '\n\n✔ TUTTO VERDE\n');
+  console.log('\nE2E SMOKE — Splash → login → Home → Rete Gaia → reload → lingua\n' + steps.join('\n') + '\n\n✔ TUTTO VERDE\n');
 } catch (e) {
   const png = await shot(path.join(os.tmpdir(), 'gf-e2e-fail.png'));
   console.error('\nE2E SMOKE — FALLITO\n' + steps.join('\n') + `\n  ✗ ${e.message}` + (png ? `\n  (screenshot: ${png})` : '') + '\n\n--- diagnostica ---\n' + logs.join('\n') + '\n');

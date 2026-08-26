@@ -107,11 +107,11 @@ export function Ricerca() {
         ${resultsBlock}
 
         <div class="pad mt22">
-          <a class="rs-cv" href="#/cibovero">
-            <span class="rs-cv-ic">${Icon('play', { size: 16, color: '#fff' })}</span>
+          <a class="rs-cv" href="#/comunita">
+            <span class="rs-cv-ic">${Icon('message-circle', { size: 17, color: '#fff' })}</span>
             <span class="rs-cv-b">
               <span class="rs-cv-t">${t('ricerca.searchOnCiboVero')}</span>
-              <span class="rs-cv-s">${t('ricerca.ciboVeroSub', { q: CORRECTION })}</span>
+              <span class="rs-cv-s">${t('ricerca.ciboVeroSub')}</span>
             </span>
             ${Icon('chevron-right', { size: 19, color: 'var(--faint2)' })}
           </a>

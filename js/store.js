@@ -6,6 +6,7 @@ const state = {
   query: '', category: null, radius: 15, role: null,
   user: null, // utente finale loggato (Google/email); null = nessuno (l'app è gated, niente ospite)
   saved: JSON.parse(localStorage.getItem('gf_saved') || '[]'),
+  social: { scope: 'for-you', posts: [], context: null, status: 'idle', error: null },
 };
 
 async function fetchData() {
@@ -39,11 +40,85 @@ export const lastFunction = () => localStorage.getItem('gf_lastFn') || '#/home';
 export function resetHub() { localStorage.removeItem('gf_hubSeen'); }
 export const producerById = (id) => state.producers.find(p => p.id === id);
 
+// ---- Catalogo regionale (Scopri) ----
+// Le schede pubblicate dopo una verifica hanno `socialLocation.region`, cioe' lo snapshot
+// territoriale attestato dallo staff. I fallback servono soltanto per i record storici creati
+// prima di quello snapshot; non assegnano mai un produttore alla regione scelta dal visitatore.
+const LEGACY_ZONE_REGIONS = { 'alta-val-di-sangro': 'Abruzzo' };
+const regionKey = (value) => String(value || '').trim().toLocaleLowerCase('it')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const ITALIAN_REGIONS = new Map([
+  'Abruzzo', 'Basilicata', 'Calabria', 'Campania', 'Emilia-Romagna', 'Friuli-Venezia Giulia',
+  'Lazio', 'Liguria', 'Lombardia', 'Marche', 'Molise', 'Piemonte', 'Puglia', 'Sardegna',
+  'Sicilia', 'Toscana', 'Trentino-Alto Adige', 'Umbria', "Valle d'Aosta", 'Veneto',
+].map(name => [regionKey(name), name]));
+const categoriesOf = (p) => Array.isArray(p && p.categories) ? p.categories : [];
+const distanceOf = (p) => {
+  const raw = p && p.km;
+  if (raw == null || raw === '') return Infinity;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : Infinity;
+};
+
+export function userRegion() {
+  const u = state.user || {};
+  const zone = u.zone;
+  if (zone && typeof zone === 'object') {
+    if (zone.region) return String(zone.region).trim();
+    const legacy = LEGACY_ZONE_REGIONS[zone.id || zone.zoneId];
+    if (legacy) return legacy;
+    const named = ITALIAN_REGIONS.get(regionKey(zone.id)) || ITALIAN_REGIONS.get(regionKey(zone.label || zone.name));
+    if (named) return named;
+    return u.region ? String(u.region).trim() : '';
+  }
+  if (typeof zone === 'string') {
+    return LEGACY_ZONE_REGIONS[zone] || ITALIAN_REGIONS.get(regionKey(zone)) || (u.region ? String(u.region).trim() : '');
+  }
+  return u.region ? String(u.region).trim() : '';
+}
+
+export function producerRegion(p) {
+  if (!p || typeof p !== 'object') return '';
+  const hasSnapshot = Object.prototype.hasOwnProperty.call(p, 'socialLocation');
+  const snapshotRegion = hasSnapshot && p.socialLocation && p.socialLocation.region;
+  if (snapshotRegion) return String(snapshotRegion).trim();
+  const explicit = p.region
+    || (p.territory && p.territory.region)
+    || (p.location && p.location.region)
+    || (p.zone && p.zone.region);
+  if (explicit) return String(explicit).trim();
+  // Uno snapshot presente ma senza regione non deve ereditare la vecchia zona seed.
+  if (hasSnapshot) return '';
+  const zoneId = p.zoneId || (p.location && p.location.zoneId) || (p.zone && (p.zone.id || p.zone.zoneId));
+  if (zoneId) return LEGACY_ZONE_REGIONS[zoneId] || '';
+  return LEGACY_ZONE_REGIONS[state.zone && state.zone.id] || '';
+}
+
+export function producersInUserRegion() {
+  const wanted = regionKey(userRegion());
+  if (!wanted) return [];
+  return state.producers.filter((p) => regionKey(producerRegion(p)) === wanted);
+}
+
+function filterProducerList(list) {
+  let r = list.slice();
+  if (state.category) r = r.filter(p => categoriesOf(p).includes(state.category));
+  if (state.query) {
+    const q = regionKey(state.query);
+    r = r.filter((p) => {
+      const products = Array.isArray(p.products) ? p.products.flatMap(x => [x && x.name, x && x.label, x && x.category]) : [];
+      const seasonal = Array.isArray(p.seasonal) ? p.seasonal.map(x => x && x.label) : [];
+      return regionKey([p.name, p.place, ...categoriesOf(p), ...products, ...seasonal].filter(Boolean).join(' ')).includes(q);
+    });
+  }
+  return r.sort((a, b) => distanceOf(a) - distanceOf(b)
+    || String(a.name || '').localeCompare(String(b.name || ''), 'it', { sensitivity: 'base' }));
+}
+
+export function regionalResults() { return filterProducerList(producersInUserRegion()); }
+
 export function results() {
-  let r = state.producers.slice();
-  if (state.category) r = r.filter(p => p.categories.includes(state.category));
-  if (state.query) { const q = state.query.toLowerCase(); r = r.filter(p => (p.name + ' ' + p.place + ' ' + p.categories.join(' ')).toLowerCase().includes(q)); }
-  return r.sort((a, b) => a.km - b.km);
+  return filterProducerList(state.producers);
 }
 export function toggleSaved(id) {
   const i = state.saved.indexOf(id);
@@ -67,6 +142,105 @@ export async function uploadPhoto(id, dataUrl) { const d = await j('./api/produc
 // credentials:'include' = il cookie httpOnly gf_user viaggia anche cross-origin (API su dominio separato in prod).
 const ja = (url, opts = {}) => fetch(url, { headers: { 'Content-Type': 'application/json' }, credentials: 'include', ...opts }).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) { const e = new Error(d.error || r.status); e.status = r.status; throw e; } return d; });
 
+// ---- Rete Gaia · feed sociale locale ----
+// Lo store conserva un solo feed alla volta: cambiando filtro la UI mostra subito lo skeleton e
+// scarta le risposte arrivate in ritardo. Le mutazioni ritornano sempre il post canonico dal server.
+const SOCIAL_SCOPES = new Set(['for-you', 'nearby', 'producers']);
+const SOCIAL_KINDS = new Set(['question', 'tip', 'field', 'availability', 'story']);
+let socialRequestSeq = 0;
+let socialContextSeq = 0;
+
+export const socialState = () => state.social;
+
+function socialScope(scope) { return SOCIAL_SCOPES.has(scope) ? scope : 'for-you'; }
+function socialIdentityOf(user) { return user ? String(user.id || user.email || '') : ''; }
+function socialLocationOf(user) {
+  if (!user) return '';
+  const zone = user.zone;
+  const zoneId = typeof zone === 'string' ? zone : (zone && (zone.id || zone.zoneId)) || '';
+  const zoneLabel = typeof zone === 'object' && zone ? (zone.label || zone.name || '') : '';
+  const zoneRegion = typeof zone === 'object' && zone ? (zone.region || '') : '';
+  return JSON.stringify([user.city || '', user.region || '', zoneId, zoneLabel, zoneRegion]);
+}
+
+// Invalida sia i dati visibili sia ogni risposta in volo. L'evento permette alla schermata
+// di cancellare bozze locali senza accoppiare lo store ai dettagli della UI.
+export function invalidateSocialState(reason = 'context') {
+  socialRequestSeq += 1;
+  socialContextSeq += 1;
+  const scope = socialScope(state.social && state.social.scope);
+  state.social = { scope, posts: [], context: null, status: 'idle', error: null };
+  try { window.dispatchEvent(new CustomEvent('gf:social-context-changed', { detail: { reason } })); } catch (_) {}
+  return state.social;
+}
+function assignUser(nextUser) {
+  const previous = state.user;
+  const next = nextUser || null;
+  const identityChanged = socialIdentityOf(previous) !== socialIdentityOf(next);
+  const locationChanged = socialLocationOf(previous) !== socialLocationOf(next);
+  state.user = next;
+  if (identityChanged || locationChanged) invalidateSocialState(identityChanged ? 'identity' : 'location');
+  return state.user;
+}
+function replaceSocialPost(post, { prepend = false } = {}) {
+  if (!post || post.id == null) return post;
+  const posts = state.social.posts || [];
+  const at = posts.findIndex(p => String(p.id) === String(post.id));
+  if (at >= 0) posts.splice(at, 1, post);
+  else if (prepend) {
+    const inScope = state.social.scope !== 'producers'
+      ? (state.social.scope !== 'nearby' || post.locality !== 'other')
+      : !!(post.author && post.author.type === 'producer');
+    if (inScope) posts.unshift(post);
+  }
+  return post;
+}
+
+export async function loadSocialFeed(scope = 'for-you', { force = false } = {}) {
+  scope = socialScope(scope);
+  if (!force && state.social.scope === scope && state.social.status === 'ready') return state.social;
+  const seq = ++socialRequestSeq;
+  const keepPosts = state.social.scope === scope ? state.social.posts : [];
+  state.social = { ...state.social, scope, posts: keepPosts, status: 'loading', error: null };
+  try {
+    const d = await ja('./api/social/feed?scope=' + encodeURIComponent(scope));
+    if (seq !== socialRequestSeq) return state.social;
+    state.social = {
+      scope,
+      posts: Array.isArray(d.posts) ? d.posts : [],
+      context: d.context || null,
+      status: 'ready',
+      error: null,
+    };
+    return state.social;
+  } catch (error) {
+    if (seq === socialRequestSeq) state.social = { ...state.social, scope, status: 'error', error };
+    throw error;
+  }
+}
+
+export async function createSocialPost({ text, kind = 'question' }) {
+  const contextSeq = socialContextSeq;
+  const cleanKind = SOCIAL_KINDS.has(kind) ? kind : 'question';
+  const d = await ja('./api/social/posts', { method: 'POST', body: JSON.stringify({ text, kind: cleanKind }) });
+  return contextSeq === socialContextSeq ? replaceSocialPost(d.post, { prepend: true }) : d.post;
+}
+export async function likeSocialPost(id) {
+  const contextSeq = socialContextSeq;
+  const d = await ja('./api/social/posts/' + encodeURIComponent(id) + '/like', { method: 'POST', body: '{}' });
+  return contextSeq === socialContextSeq ? replaceSocialPost(d.post) : d.post;
+}
+export async function saveSocialPost(id) {
+  const contextSeq = socialContextSeq;
+  const d = await ja('./api/social/posts/' + encodeURIComponent(id) + '/save', { method: 'POST', body: '{}' });
+  return contextSeq === socialContextSeq ? replaceSocialPost(d.post) : d.post;
+}
+export async function commentSocialPost(id, text) {
+  const contextSeq = socialContextSeq;
+  const d = await ja('./api/social/posts/' + encodeURIComponent(id) + '/comments', { method: 'POST', body: JSON.stringify({ text }) });
+  return contextSeq === socialContextSeq ? replaceSocialPost(d.post) : d.post;
+}
+
 // "Seme" del referral: se l'app è aperta con ?seme=<codice> (nell'URL o nell'hash), lo ricordiamo
 // per collegare l'iscrizione all'invitante (Custodi). Catturato una volta al caricamento del modulo.
 try {
@@ -80,16 +254,16 @@ export const getSeed = () => { try { return localStorage.getItem('gf_seed') || '
 // Dopo OGNI login va riletto lo staff-role (l'utente potrebbe essere admin/verificatore):
 // altrimenti la tab "Gestione"/"Verifica" non compare finché non si ricarica la pagina.
 async function syncRole() { try { const m = await j('./api/me'); state.role = m.role; } catch { state.role = null; } return state.role; }
-export async function signInWithGoogle(idToken) { const d = await ja('./api/auth/google', { method: 'POST', body: JSON.stringify({ idToken, seme: getSeed() }) }); state.user = d.user; await syncRole(); return d.user; }
+export async function signInWithGoogle(idToken) { const d = await ja('./api/auth/google', { method: 'POST', body: JSON.stringify({ idToken, seme: getSeed() }) }); assignUser(d.user); await syncRole(); return d.user; }
 // Email + password: login e registrazione (auth v2).
-export async function loginPassword(email, password) { const d = await ja('./api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); state.user = d.user; await syncRole(); return d.user; }
-export async function registerPassword(email, password) { const d = await ja('./api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, seme: getSeed() }) }); state.user = d.user; await syncRole(); return d.user; }
+export async function loginPassword(email, password) { const d = await ja('./api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); assignUser(d.user); await syncRole(); return d.user; }
+export async function registerPassword(email, password) { const d = await ja('./api/auth/register', { method: 'POST', body: JSON.stringify({ email, password, seme: getSeed() }) }); assignUser(d.user); await syncRole(); return d.user; }
 // Dati della sezione "I Custodi di Gaia" (seme, persone portate, credito, livello) dell'utente loggato.
 export async function custodiMe() { return ja('./api/custodi/me'); }
-export async function authMe() { try { const d = await ja('./api/auth/me'); state.user = d.user; return d.user; } catch (e) { state.user = null; return null; } }
+export async function authMe() { try { const d = await ja('./api/auth/me'); assignUser(d.user); return d.user; } catch (e) { assignUser(null); return null; } }
 // Google client id dal server (env GF_GOOGLE_CLIENT_ID). Vuoto = login Google non configurato.
 export async function authConfig() { try { return await ja('./api/auth/config'); } catch (e) { return { googleClientId: '' }; } }
-export async function signOut() { try { await ja('./api/auth/logout', { method: 'POST' }); } catch (e) {} state.user = null; state.role = null; }
+export async function signOut() { try { await ja('./api/auth/logout', { method: 'POST' }); } catch (e) {} assignUser(null); state.role = null; }
 export const currentUser = () => state.user;
 
 // ---- Regione/Zona dell'utente (onboarding "alla Glovo") ----
@@ -97,13 +271,13 @@ export const currentUser = () => state.user;
 // è aggiunto a parte lato server; qui lo ASSUMIAMO esistente. Usa API_BASE per essere pronto al deploy.
 export async function setZone(zone) {
   const d = await ja(`${API_BASE}/api/auth/profile`, { method: 'PUT', body: JSON.stringify({ zone }) });
-  state.user = d.user || { ...(state.user || {}), zone };
+  assignUser(d.user || { ...(state.user || {}), zone });
   return state.user;
 }
 // Aggiorna i dati del profilo (nome, città, lingua, notifiche): solo i campi passati.
 export async function updateProfile(fields) {
   const d = await ja(`${API_BASE}/api/auth/profile`, { method: 'PATCH', body: JSON.stringify(fields) });
-  state.user = d.user; return state.user;
+  assignUser(d.user); return state.user;
 }
 // Carica un avatar (dataURL base64) per l'utente loggato → aggiorna user.picture.
 export async function uploadAvatar(dataUrl) {
@@ -152,7 +326,7 @@ export async function adminDeleteUser(userId) { return ja('./api/admin/users?id=
 export async function adminCreateInvite(email, level) { return ja('./api/admin/invites', { method: 'POST', body: JSON.stringify({ email, level }) }); }
 export async function adminRevokeInvite(token) { return ja('./api/admin/invites?token=' + encodeURIComponent(token), { method: 'DELETE' }); }
 export async function inviteInfo(token) { return ja('./api/invite/' + encodeURIComponent(token)); }
-export async function acceptInvite(token) { const d = await ja('./api/invite/' + encodeURIComponent(token) + '/accept', { method: 'POST' }); if (d.user) state.user = d.user; await syncRole(); return d; }
+export async function acceptInvite(token) { const d = await ja('./api/invite/' + encodeURIComponent(token) + '/accept', { method: 'POST' }); if (d.user) assignUser(d.user); await syncRole(); return d; }
 
 // ---- Produttore self-service "La mia azienda" (piano 13) ----
 // Endpoint utente-owner (cookie gf_user) via `ja` (credentials:'include'). Quando l'endpoint ritorna

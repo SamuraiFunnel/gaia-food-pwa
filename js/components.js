@@ -64,13 +64,16 @@ export const VideoBlock = (v) => {
   </div>`;
 };
 
-export const BottomNav = (active) => `
-  <nav class="bottomnav">
-    <a href="#/home" data-link class="${active === 'scopri' ? 'active' : ''}">${Icon('compass', { size: 22 })}${t('nav.scopri')}</a>
-    <a href="#/mappa" data-link class="${active === 'mappa' ? 'active' : ''}">${Icon('map-pin', { size: 22 })}${t('rail.map')}</a>
-    <a href="#/salvati" data-link class="${active === 'salvati' ? 'active' : ''}">${Icon('bookmark', { size: 22 })}${t('nav.salvati')}</a>
-    <a href="#/profilo" data-link class="${active === 'tu' ? 'active' : ''}">${Icon('user', { size: 22 })}${t('nav.tu')}</a>
+export const BottomNav = (active) => {
+  const item = (href, key, icon, label) => `<a href="${href}" data-link class="${active === key ? 'active' : ''}"${active === key ? ' aria-current="page"' : ''}>${Icon(icon, { size: 22 })}${label}</a>`;
+  return `<nav class="bottomnav" aria-label="${t('nav.primary')}">
+    ${item('#/home', 'scopri', 'compass', t('nav.scopri'))}
+    ${item('#/mappa', 'mappa', 'map-pin', t('rail.map'))}
+    ${item('#/comunita', 'comunita', 'message-circle', t('nav.rete'))}
+    ${item('#/salvati', 'salvati', 'bookmark', t('nav.salvati'))}
+    ${item('#/profilo', 'tu', 'user', t('nav.tu'))}
   </nav>`;
+};
 
 export const catGlyph = { latte: 'droplet', uova: 'egg', olio: 'leaf', grano: 'wheat', formaggio: 'cheese', miele: 'honey', carne: 'carne', 'frutta-verdura': 'frutta-verdura' };
 

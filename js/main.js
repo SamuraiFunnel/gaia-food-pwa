@@ -13,7 +13,6 @@ import { Zona } from './screens/Zona.js';
 import { Ricerca } from './screens/Ricerca.js';
 import { Filtri } from './screens/Filtri.js';
 import { Percorso } from './screens/Percorso.js';
-import { CiboVero } from './screens/CiboVero.js';
 import { Player } from './screens/Player.js';
 import { Candidati } from './screens/Candidati.js';
 import { Form } from './screens/Form.js';
@@ -36,11 +35,12 @@ import { Hub } from './screens/Hub.js';
 const app = document.getElementById('app');
 
 /* ---- Rail laterale (solo desktop, via CSS) ---- */
-// Barra base (uguale a tutti): Scopri · Mappa · Salvati. Le tab di ruolo (Area personale,
+// Barra base (uguale a tutti): Scopri · Mappa · Rete · Salvati. Le tab di ruolo (Area personale,
 // Verifica, Gestione) e il Profilo stanno sotto il separatore e compaiono solo a chi servono.
 const RAIL = [
-  { ic: 'home', key: 'nav.scopri', href: '#/home', match: ['#/home', '#/', '#/mappa', '#/ricerca', '#/filtri'] },
+  { ic: 'home', key: 'nav.scopri', href: '#/home', match: ['#/home', '#/', '#/ricerca', '#/filtri'] },
   { ic: 'map-pin', key: 'rail.map', href: '#/mappa', match: ['#/mappa'] },
+  { ic: 'message-circle', key: 'nav.rete', href: '#/comunita', match: ['#/comunita', '#/cibovero'] },
   { ic: 'bookmark', key: 'nav.salvati', href: '#/salvati', match: ['#/salvati'] },
 ];
 function buildRail() {
@@ -130,7 +130,8 @@ const routes = [
   { re: /^#\/ricerca$/, view: () => Ricerca() },
   { re: /^#\/filtri$/, view: () => Filtri() },
   { re: /^#\/percorso$/, view: () => Percorso() },
-  { re: /^#\/cibovero$/, view: () => CiboVero() },
+  { re: /^#\/comunita$/, view: () => S.Comunita() },
+  { re: /^#\/cibovero$/, view: () => S.Comunita() }, // alias storico → nuova Rete Gaia
   { re: /^#\/video\/([^/]+)\/(\d+)$/, view: (m) => Player(m[1], +m[2]) },
   { re: /^#\/video\/(.+)$/, view: (m) => Player(m[1]) },
   { re: /^#\/produttore\/(.+)$/, view: (m) => S.Producer(m[1]) },
@@ -201,6 +202,8 @@ try { window.matchMedia('(min-width: 1024px)').addEventListener('change', render
 // Bootstrap: prima risolviamo la sessione (cookie httpOnly) così il GATE sa subito se l'utente è loggato,
 // poi carichiamo i dati. authMe() non fallisce mai (ritorna null se non loggato).
 // setLang(detectLang()) carica il dizionario giusto (lingua salvata o del dispositivo) PRIMA del primo render.
-Promise.all([authMe().catch(() => null), adminMe().catch(() => null), loadData(), setLang(detectLang(), { persist: false })]).then(render).catch(err => {
+// Il primo setLang non deve ridisegnare da solo: authMe potrebbe essere ancora in volo e il gate
+// scambierebbe per ospite una sessione valida, perdendo la route profonda al refresh.
+Promise.all([authMe().catch(() => null), adminMe().catch(() => null), loadData(), setLang(detectLang(), { persist: false, notify: false })]).then(render).catch(err => {
   app.innerHTML = `<div class="pad" style="padding:40px">Errore nel caricare i dati: ${err.message}</div>`;
 });

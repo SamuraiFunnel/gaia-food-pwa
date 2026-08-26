@@ -40,13 +40,13 @@ export function detectLang() {
   return DEFAULT_UNSUPPORTED;
 }
 
-export async function setLang(code, { persist = true } = {}) {
+export async function setLang(code, { persist = true, notify = true } = {}) {
   if (!SUPPORTED.includes(code)) code = DEFAULT_UNSUPPORTED;
   const mod = await LOADERS[code]();
   dict = mod.default; lang = code;
   try { document.documentElement.lang = code; document.documentElement.dir = RTL.includes(code) ? 'rtl' : 'ltr'; } catch (_) {}
   if (persist) { try { localStorage.setItem('gf_lang', code); } catch (_) {} }
-  onChange();
+  if (notify) onChange();
 }
 
 export function initI18n(rerender) { onChange = typeof rerender === 'function' ? rerender : (() => {}); }
