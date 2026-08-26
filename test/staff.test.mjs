@@ -37,7 +37,7 @@ function api(method, p, { body, cookie, ip } = {}) {
 }
 const staffCookie = (res) => ((res.headers['set-cookie'] || []).map((s) => s.split(';')[0]).find((s) => s.startsWith('gf_sess=')) || '');
 // 1×1 PNG e uno spezzone mp4 fittizio (il server valida solo il data-URL, non decodifica il media).
-const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 const MP4 = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAAAAA==';
 
 async function loginAdmin(ip = 'staff-main') {

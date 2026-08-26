@@ -12,8 +12,14 @@ const {
   custodiSummary, slugify, num, str, cleanVideo, cleanSeasonal, normalizePatch, throttle, EMAIL_RE,
   hashPassword, verifyPassword, publicUser,
   cleanSocialText, cleanSocialKind, socialPageParams, socialPublicId, socialLocation, socialLocality,
-  diversifySocialTier, rankSocialPosts, revalidateSocialAuthors, projectSocialPost,
+  diversifySocialTier, rankSocialPosts, revalidateSocialAuthors, projectSocialPost, projectSocialStory,
+  socialPostVirality, socialProducerScores, normalizeSocialDoc, signSocialMediaRef, verifySocialMediaRef,
+  socialThrottle, acquireSocialUploadSlot,
 } = await import('../server.js');
+const {
+  inspectDataUrl, stripJpegMetadata, stripPngMetadata, stripWebpMetadata,
+  hasSensitiveVideoMetadata, diskDirectoryBytes, ensureDiskCapacity,
+} = await import('../media.js');
 
 // ---------------------------------------------------------------- password (scrypt)
 test('hashPassword/verifyPassword: roundtrip + password errata + salt casuale', () => {
@@ -133,6 +139,33 @@ test('throttle: IP diversi = bucket indipendenti', () => {
   assert.equal(throttle(bucket, b, 1).limited, false); // b non è influenzato da a
 });
 
+test('socialThrottle: limite account resiste al cambio IP e limite IP al cambio account', () => {
+  const accountBucket = new Map(), request = (ip) => ({ headers: { 'x-forwarded-for': ip }, socket: {} });
+  assert.equal(socialThrottle(accountBucket, request('1.1.1.1'), { id: 'a' }, 2, 60000).limited, false);
+  assert.equal(socialThrottle(accountBucket, request('2.2.2.2'), { id: 'a' }, 2, 60000).limited, false);
+  const accountOver = socialThrottle(accountBucket, request('3.3.3.3'), { id: 'a' }, 2, 60000);
+  assert.equal(accountOver.limited, true); assert.equal(accountOver.accountLimited, true);
+
+  const ipBucket = new Map();
+  assert.equal(socialThrottle(ipBucket, request('9.9.9.9'), { id: 'a' }, 2, 60000).limited, false);
+  assert.equal(socialThrottle(ipBucket, request('9.9.9.9'), { id: 'b' }, 2, 60000).limited, false);
+  const ipOver = socialThrottle(ipBucket, request('9.9.9.9'), { id: 'c' }, 2, 60000);
+  assert.equal(ipOver.limited, true); assert.equal(ipOver.ipLimited, true);
+});
+
+test('upload semaphore: massimo uno per account, due globali e release idempotente', () => {
+  const releaseA = acquireSocialUploadSlot('slot-a');
+  assert.equal(typeof releaseA, 'function');
+  assert.equal(acquireSocialUploadSlot('slot-a'), null);
+  const releaseB = acquireSocialUploadSlot('slot-b');
+  assert.equal(typeof releaseB, 'function');
+  assert.equal(acquireSocialUploadSlot('slot-c'), null);
+  releaseA(); releaseA();
+  const releaseC = acquireSocialUploadSlot('slot-c');
+  assert.equal(typeof releaseC, 'function');
+  releaseB(); releaseC();
+});
+
 // ---------------------------------------------------------------- social (testo, privacy, ranking territoriale)
 test('social: testo ripulito/limitato e kind IT normalizzati agli enum canonici', () => {
   assert.equal(cleanSocialText('  ciao\u0000\r\nmondo  '), 'ciao\nmondo');
@@ -170,18 +203,30 @@ test('socialLocation/locality: snapshot senza coordinate e precedenza città > z
   assert.equal(socialLocality({ city: 'Roma', zoneId: 'rm', region: 'Lazio' }, viewer), 'other');
 });
 
-test('rankSocialPosts: prossimità poi newest; engagement ignorato; scope nearby/producers', () => {
+test('rankSocialPosts: prossimità per Per te/Vicino; viralità primaria per Produttori', () => {
   const viewer = { city: 'Terni', zoneId: 'tr', zoneLabel: 'Conca ternana', region: 'Umbria' };
   const posts = [
-    { id: 'other', createdAt: '2030-01-01T00:00:00Z', authorType: 'producer', location: { city: 'Roma', zoneId: 'rm', region: 'Lazio' }, likes: Array(999).fill('x') },
-    { id: 'region', createdAt: '2029-01-01T00:00:00Z', authorType: 'person', location: { city: 'Perugia', zoneId: 'pg', region: 'Umbria' } },
-    { id: 'zone', createdAt: '2028-01-01T00:00:00Z', authorType: 'producer', location: { city: 'Narni', zoneId: 'tr', region: 'Umbria' } },
-    { id: 'city-old', createdAt: '2026-01-01T00:00:00Z', authorType: 'person', location: { city: 'Terni', zoneId: 'tr', region: 'Umbria' } },
-    { id: 'city-new', createdAt: '2027-01-01T00:00:00Z', authorType: 'producer', location: { city: 'Terni', zoneId: 'tr', region: 'Umbria' } },
+    { id: 'other', authorId: 'p-roma', producerId: 'roma', createdAt: '2030-01-01T00:00:00Z', authorType: 'producer', location: { city: 'Roma', zoneId: 'rm', region: 'Lazio' }, likes: ['a', 'b', 'c'] },
+    { id: 'region', authorId: 'persona-pg', createdAt: '2029-01-01T00:00:00Z', authorType: 'person', location: { city: 'Perugia', zoneId: 'pg', region: 'Umbria' } },
+    { id: 'zone', authorId: 'p-narni', producerId: 'narni', createdAt: '2028-01-01T00:00:00Z', authorType: 'producer', location: { city: 'Narni', zoneId: 'tr', region: 'Umbria' } },
+    { id: 'city-old', authorId: 'persona-tr', createdAt: '2026-01-01T00:00:00Z', authorType: 'person', location: { city: 'Terni', zoneId: 'tr', region: 'Umbria' } },
+    { id: 'city-new', authorId: 'p-terni', producerId: 'terni', createdAt: '2027-01-01T00:00:00Z', authorType: 'producer', location: { city: 'Terni', zoneId: 'tr', region: 'Umbria' } },
   ];
   assert.deepEqual(rankSocialPosts(posts, viewer, 'for-you').map((p) => p.id), ['city-new', 'city-old', 'zone', 'region', 'other']);
   assert.deepEqual(rankSocialPosts(posts, viewer, 'nearby').map((p) => p.id), ['city-new', 'city-old', 'zone', 'region']);
-  assert.deepEqual(rankSocialPosts(posts, viewer, 'producers').map((p) => p.id), ['city-new', 'zone', 'other']);
+  assert.deepEqual(rankSocialPosts(posts, viewer, 'producers', { now: Date.parse('2030-01-01T01:00:00Z') }).map((p) => p.id), ['other', 'city-new', 'zone']);
+});
+
+test('rankSocialPosts: Seguiti solo followed newest; Vicino esclude self e seguiti', () => {
+  const viewer = { city: 'Terni', zoneId: 'tr', region: 'Umbria' }, following = new Set(['seguito']);
+  const posts = [
+    { id: 'self', authorId: 'me', createdAt: '2026-08-26T12:00:00Z', location: viewer },
+    { id: 'followed', authorId: 'seguito', createdAt: '2026-08-26T11:00:00Z', location: viewer },
+    { id: 'near', authorId: 'nuovo', createdAt: '2026-08-26T10:00:00Z', location: viewer },
+    { id: 'far', authorId: 'lontano', createdAt: '2026-08-26T13:00:00Z', location: { city: 'Roma', zoneId: 'rm', region: 'Lazio' } },
+  ];
+  assert.deepEqual(rankSocialPosts(posts, viewer, 'following', { viewerId: 'me', following }).map((p) => p.id), ['followed']);
+  assert.deepEqual(rankSocialPosts(posts, viewer, 'nearby', { viewerId: 'me', following }).map((p) => p.id), ['near']);
 });
 
 test('diversificazione autore: round-robin nel tier, newest per autore e nessun monopolio iniziale', () => {
@@ -255,14 +300,120 @@ test('projectSocialPost: nessun ID/email interno, counts e flag viewer corretti'
     comments: [{ id: 'sc_1', text: 'utile', createdAt: '2026-08-26T10:01:00Z', authorId: 'altro@example.test', authorName: 'Luca', authorType: 'person' }],
   }, rawId, secret);
   assert.equal(projected.author.id, socialPublicId(rawId, secret));
-  assert.deepEqual(projected.counts, { likes: 2, saves: 1, comments: 1 });
-  assert.deepEqual(projected.viewer, { liked: true, saved: false });
+  assert.deepEqual(projected.counts, { likes: 2, saves: 1, comments: 1, shares: 0 });
+  assert.deepEqual(projected.viewer, { liked: true, saved: false, shared: false, followingAuthor: false, ownAuthor: true, reported: false });
   assert.equal(projected.locality, 'city');
   assert.equal(projected.location.lat, undefined);
   assert.equal(projected.text, '<b>testo UGC</b>'); // è testo: l'escape è responsabilità del renderer frontend
   const json = JSON.stringify(projected);
   assert.ok(!json.includes('privato@example.test'));
   assert.ok(!json.includes('altro@example.test'));
+});
+
+test('social v2: migra il documento v1 preservando i post e inizializza stories/follows', () => {
+  const legacyPost = { id: 'legacy', text: 'Preservato' };
+  const migrated = normalizeSocialDoc({ socialVersion: 1, posts: [legacyPost] });
+  assert.equal(migrated.socialVersion, 2);
+  assert.equal(migrated.posts[0], legacyPost);
+  assert.deepEqual(migrated.stories, []);
+  assert.deepEqual(migrated.follows, []);
+});
+
+test('mediaRef: HMAC account-bound, scadenza 60m e manomissione rifiutata', () => {
+  const now = Date.parse('2026-08-26T12:00:00Z'), secret = 'social-media-secret';
+  const ref = signSocialMediaRef({ type: 'image', mime: 'image/png', url: 'assets/media/social/a.png' }, 'owner@example.test', now, secret);
+  assert.deepEqual(verifySocialMediaRef(ref, 'owner@example.test', now + 3599e3, secret),
+    { type: 'image', mime: 'image/png', url: 'assets/media/social/a.png' });
+  assert.equal(verifySocialMediaRef(ref, 'other@example.test', now, secret), null);
+  assert.equal(verifySocialMediaRef(ref, 'owner@example.test', now + 3600e3 + 1, secret), null);
+  assert.equal(verifySocialMediaRef(ref.slice(0, -1) + (ref.endsWith('a') ? 'b' : 'a'), 'owner@example.test', now, secret), null);
+  assert.ok(!ref.includes('owner@example.test'));
+});
+
+test('media: magic bytes coerenti e limiti distinti immagine/video', () => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  const mp4 = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAAAAA==';
+  assert.equal(inspectDataUrl(png, { maxImageBytes: 100 }).type, 'image');
+  assert.equal(inspectDataUrl(mp4, { maxVideoBytes: 30 }).type, 'video');
+  assert.throws(() => inspectDataUrl('data:image/png;base64,ZmFrZQ==', { maxImageBytes: 20 }), /non coerente/);
+  assert.throws(() => inspectDataUrl(png, { maxImageBytes: 4 }), (error) => error.code === 413);
+});
+
+test('media privacy: rimuove metadata JPEG/PNG/WebP e rifiuta posizione MP4', () => {
+  const jpeg = Buffer.concat([
+    Buffer.from('ffd8ffe10008457869660000', 'hex'), // APP1 Exif
+    Buffer.from('ffe000044f4b', 'hex'),             // APP0 preservato
+    Buffer.from('ffda00021122ffd9', 'hex'),         // SOS + entropy/EOI
+  ]);
+  const cleanJpeg = stripJpegMetadata(jpeg);
+  assert.equal(cleanJpeg.indexOf(Buffer.from('Exif')), -1);
+  assert.ok(cleanJpeg.indexOf(Buffer.from('OK')) >= 0);
+
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  const iend = png.indexOf(Buffer.from('IEND')) - 4;
+  const textChunk = Buffer.concat([Buffer.from([0, 0, 0, 3]), Buffer.from('tEXt'), Buffer.from('gps'), Buffer.alloc(4)]);
+  const pngWithText = Buffer.concat([png.subarray(0, iend), textChunk, png.subarray(iend)]);
+  assert.deepEqual(stripPngMetadata(pngWithText), png);
+
+  const webpChunk = (type, data) => {
+    const head = Buffer.alloc(8); head.write(type, 0, 'ascii'); head.writeUInt32LE(data.length, 4);
+    return Buffer.concat([head, data, data.length % 2 ? Buffer.alloc(1) : Buffer.alloc(0)]);
+  };
+  const vp8x = Buffer.alloc(10); vp8x[0] = 0x0c;
+  const webpBody = Buffer.concat([Buffer.from('WEBP'), webpChunk('VP8X', vp8x), webpChunk('EXIF', Buffer.from('gps!')), webpChunk('VP8 ', Buffer.alloc(0))]);
+  const webp = Buffer.alloc(8 + webpBody.length); webp.write('RIFF'); webp.writeUInt32LE(webpBody.length, 4); webpBody.copy(webp, 8);
+  const cleanWebp = stripWebpMetadata(webp);
+  assert.equal(cleanWebp.indexOf(Buffer.from('EXIF')), -1);
+  assert.equal(cleanWebp[20] & 0x0c, 0);
+
+  const locatedMp4 = Buffer.concat([Buffer.from('000000186674797069736f6d00000000', 'hex'), Buffer.from('location.ISO6709+42.5+12.6/')]);
+  assert.equal(hasSensitiveVideoMetadata(locatedMp4, 'video/mp4'), true);
+  const locatedUrl = `data:video/mp4;base64,${locatedMp4.toString('base64')}`;
+  assert.throws(() => inspectDataUrl(locatedUrl, { maxVideoBytes: 1024 }), /metadata di localizzazione/);
+});
+
+test('fallback disk quota: misura solo file e rifiuta prima di superare il cap', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-media-cap-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'a.bin'), Buffer.alloc(10));
+    fs.mkdirSync(path.join(dir, 'sottocartella'));
+    assert.equal(diskDirectoryBytes(dir), 10);
+    assert.doesNotThrow(() => ensureDiskCapacity(dir, 5, 15));
+    assert.throws(() => ensureDiskCapacity(dir, 6, 15), (error) => error.code === 507);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('viralità utile: pesi, auto-engagement escluso, decay 72h e top3 produttore', () => {
+  const now = Date.parse('2026-08-26T12:00:00Z'), createdAt = new Date(now).toISOString();
+  const base = {
+    id: 'v1', authorId: 'prod', producerId: 'p1', authorType: 'producer', createdAt,
+    likes: ['prod', 'l1'], saves: ['prod', 's1'], shares: ['prod', 'h1'],
+    comments: [{ authorId: 'prod' }, { authorId: 'c1' }, { authorId: 'c1' }],
+  };
+  const fresh = socialPostVirality(base, now);
+  assert.equal(fresh.useful, 10); // 1 like + 2 commentatore + 3 save + 4 share
+  assert.equal(socialPostVirality(base, now + 72 * 36e5).score, 5);
+  const four = [1, 2, 3, 4].map((n) => ({
+    id: `v${n}`, authorId: 'prod', producerId: 'p1', authorType: 'producer', createdAt,
+    likes: Array.from({ length: n }, (_, i) => `l${n}-${i}`), saves: [], shares: [], comments: [],
+  }));
+  assert.equal(socialProducerScores(four, now).get('p1'), 9); // migliori tre: 4+3+2
+});
+
+test('post/story media: formati proiettati e nessun raw ID di views/report', () => {
+  const post = projectSocialPost({
+    id: 'p', authorId: 'a@example.test', authorName: 'A', authorType: 'person', text: '',
+    media: [{ type: 'image', mime: 'image/png', url: 'assets/a.png' }, { type: 'video', mime: 'video/mp4', url: 'assets/b.mp4' }],
+  }, 'viewer@example.test', 'secret');
+  assert.equal(post.format, 'carousel');
+  assert.equal(post.mediaUrl, 'assets/a.png');
+  const story = projectSocialStory({
+    id: 's', authorId: 'a@example.test', authorName: 'A', authorType: 'person', views: ['viewer@example.test'], reports: ['reporter@example.test'],
+    media: [{ type: 'video', mime: 'video/mp4', url: 'assets/b.mp4' }],
+  }, 'viewer@example.test', 'secret');
+  assert.equal(story.viewer.seen, true);
+  assert.equal(story.viewsCount, 1);
+  assert.ok(!JSON.stringify(story).includes('@example.test'));
 });
 
 test('projectSocialPost: count commenti totale ma incorpora soltanto gli ultimi 20', () => {

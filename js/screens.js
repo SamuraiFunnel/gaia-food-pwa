@@ -1,6 +1,7 @@
 import { Icon } from './icons.js';
-import { StatusBar, Photo, VerifyBadge, ProducerCard, VideoBlock, BottomNav, catGlyph, catLabel, Lockup, toast } from './components.js';
-import { getState, results, regionalResults, producersInUserRegion, userRegion, producerById, toggleSaved, hubSeen, lastFunction, resetHub, currentUser, userZone, updateProfile, uploadAvatar, signOut, producerStatusNotice, socialState, loadSocialFeed, createSocialPost, likeSocialPost, saveSocialPost, commentSocialPost } from './store.js';
+import { StatusBar, Photo, VerifyBadge, ProducerCard, VideoBlock, BottomNav, catGlyph, catLabel, Lockup, toast, confirmSheet } from './components.js';
+import { getState, results, regionalResults, producersInUserRegion, userRegion, producerRegion, producerById, toggleSaved, hubSeen, lastFunction, resetHub, currentUser, userZone, updateProfile, uploadAvatar, signOut, producerStatusNotice, socialState, loadSocialFeed, createSocialPost, likeSocialPost, saveSocialPost, commentSocialPost } from './store.js';
+import { loadSocialSurface, loadSocialStories, loadSocialSuggestions, uploadSocialMedia, createSocialStory, followSocialAuthor, viewSocialStory, reportSocialStory, deleteSocialStory, shareSocialPost, reportSocialPost, deleteSocialPost } from './store.js';
 import { t, getLang, setLang, LANGS, locDate } from './i18n.js';
 
 // Escape HTML a livello modulo (per valori dinamici inseriti nell'HTML, es. nome del verificatore).
@@ -297,18 +298,15 @@ export function Home() {
 let communityScope = 'for-you';
 let communityDraft = '';
 let communityKind = 'question';
+let communityRouteActive = /^#\/(comunita|cibovero)$/.test(location.hash);
+let communityEntryToken = communityRouteActive ? 1 : 0;
+let communityHandledEntryToken = 0;
+let socialARootController = null;
 const communityOpenComments = new Set();
 const communityCommentDrafts = new Map();
 const SOCIAL_KINDS = ['question', 'tip', 'field', 'availability', 'story'];
-const SOCIAL_KIND_ICONS = { question: 'message-circle', tip: 'sprout', field: 'leaf', availability: 'calendar', story: 'heart' };
 const SOCIAL_KIND_KEYS = { question: 'social.kind.question', tip: 'social.kind.tip', field: 'social.kind.field', availability: 'social.kind.availability', story: 'social.kind.story' };
 const SOCIAL_LOCALITY_KEYS = { city: 'social.locality.city', zone: 'social.locality.zone', region: 'social.locality.region', other: 'social.locality.other' };
-const SOCIAL_FILTER_KEYS = { 'for-you': 'social.filter.for-you', nearby: 'social.filter.nearby', producers: 'social.filter.producers' };
-const SOCIAL_EMPTY_KEYS = {
-  'for-you': ['social.empty.for-you.title', 'social.empty.for-you.body'],
-  nearby: ['social.empty.nearby.title', 'social.empty.nearby.body'],
-  producers: ['social.empty.producers.title', 'social.empty.producers.body'],
-};
 
 function clearCommunityDrafts() {
   communityDraft = '';
@@ -317,6 +315,14 @@ function clearCommunityDrafts() {
   communityCommentDrafts.clear();
 }
 try { window.addEventListener('gf:social-context-changed', clearCommunityDrafts); } catch (_) {}
+try {
+  window.addEventListener('hashchange', () => {
+    const active = /^#\/(comunita|cibovero)$/.test(location.hash);
+    if (active && !communityRouteActive) communityEntryToken += 1;
+    if (!active) { socialARootController?.abort(); socialARootController = null; socialAPostMenus.clear(); }
+    communityRouteActive = active;
+  });
+} catch (_) {}
 
 // `rerender()` ricrea l'intera schermata. Prima di usarlo per una micro-azione salviamo quindi
 // lo scroll del contenitore e il controllo attivo; dopo il render lo stesso controllo torna nello
@@ -330,6 +336,12 @@ const SOCIAL_FOCUS_SELECTORS = {
   like: '[data-social-like]',
   comments: '[data-social-comments]',
   save: '[data-social-save]',
+  share: '[data-social-share]',
+  follow: '[data-social-follow]',
+  menu: '[data-social-menu]',
+  report: '[data-social-report]',
+  delete: '[data-social-delete]',
+  'load-more': '[data-social-load-more]',
   'comment-input': '[data-social-comment-input]',
   'comment-submit': '[data-social-comment-submit]',
 };
@@ -343,6 +355,7 @@ function socialFocusRef(screen, fallback = null) {
         action: entry[0],
         postId: card ? card.dataset.socialPost : '',
         scope: active.dataset.socialScope || '',
+        authorId: active.dataset.socialFollow || '',
         selectionStart: typeof active.selectionStart === 'number' ? active.selectionStart : null,
         selectionEnd: typeof active.selectionEnd === 'number' ? active.selectionEnd : null,
       };
@@ -361,6 +374,8 @@ function socialFocusElement(screen, ref) {
   const candidates = [...owner.querySelectorAll(SOCIAL_FOCUS_SELECTORS[ref.action])];
   return ref.action === 'scope' && ref.scope
     ? candidates.find(button => button.dataset.socialScope === ref.scope) || null
+    : ref.action === 'follow' && ref.authorId
+      ? candidates.find(button => button.dataset.socialFollow === ref.authorId) || null
     : candidates[0] || null;
 }
 function rerenderCommunity(fallbackFocus = null) {
@@ -394,6 +409,8 @@ function socialSafeUrl(value) {
   try {
     const u = new URL(raw, location.origin);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    if (u.username || u.password) return '';
+    if (u.protocol === 'http:' && u.origin !== location.origin) return '';
     return esc(raw);
   } catch (_) { return ''; }
 }
@@ -426,56 +443,6 @@ function socialLocality(locality) {
   const key = ['city', 'zone', 'region', 'other'].includes(locality) ? locality : 'other';
   return t(SOCIAL_LOCALITY_KEYS[key]);
 }
-function socialPostCard(post) {
-  const id = String(post.id == null ? '' : post.id);
-  const idAttr = esc(id);
-  const author = post.author || {};
-  const isProducer = author.type === 'producer' || !!author.producerId;
-  const authorName = esc(author.name || t('social.member'));
-  const authorBody = `<span class="social-author-name">${authorName}${author.verified ? `<span class="social-verified" title="${t('social.verified')}">${Icon('check-circle', { size: 14 })}<span>${t('social.verified')}</span></span>` : ''}</span>
-    <span class="social-author-meta">${isProducer ? t('social.producer') + ' · ' : ''}${socialLocation(post)}${post.createdAt ? ` · ${esc(socialWhen(post.createdAt))}` : ''}</span>`;
-  const authorEl = isProducer && author.producerId
-    ? `<a class="social-author" href="#/produttore/${encodeURIComponent(author.producerId)}" data-link>${socialAvatar(author)}<span>${authorBody}</span></a>`
-    : `<div class="social-author">${socialAvatar(author)}<span>${authorBody}</span></div>`;
-  const kind = SOCIAL_KINDS.includes(post.kind) ? post.kind : 'story';
-  const media = socialSafeUrl(post.mediaUrl);
-  const counts = post.counts || {};
-  const comments = Array.isArray(post.comments) ? post.comments : [];
-  const likeCount = Number(counts.likes || 0);
-  const commentCount = Number(counts.comments == null ? comments.length : counts.comments);
-  const saved = !!(post.viewer && post.viewer.saved);
-  const liked = !!(post.viewer && post.viewer.liked);
-  const expanded = communityOpenComments.has(id);
-  const commentRows = comments.map(c => {
-    const ca = c.author || {};
-    return `<li class="social-comment">${socialAvatar(ca, 'small')}<div><div class="social-comment-meta"><b>${esc(ca.name || t('social.member'))}</b>${c.createdAt ? `<span>${esc(socialWhen(c.createdAt))}</span>` : ''}</div><p>${esc(c.text)}</p></div></li>`;
-  }).join('');
-  return `<article class="social-post" data-social-post="${idAttr}">
-    <div class="social-post-top">
-      ${authorEl}
-      <span class="social-kind">${Icon(SOCIAL_KIND_ICONS[kind], { size: 14 })}${t(SOCIAL_KIND_KEYS[kind])}</span>
-    </div>
-    <div class="social-locality">${Icon('map-pin', { size: 13 })}<span>${socialLocality(post.locality)}</span></div>
-    <p class="social-post-text">${esc(post.text)}</p>
-    ${media ? `<figure class="social-media"><img src="${media}" alt="${t('social.mediaAlt', { name: authorName })}" loading="lazy" onerror="this.closest('figure').remove()"></figure>` : ''}
-    <div class="social-actions" role="group" aria-label="${t('social.actionsAria')}">
-      <button type="button" class="social-action ${liked ? 'on' : ''}" data-social-like aria-pressed="${liked}">${Icon('heart', { size: 19, fill: liked ? 'currentColor' : 'none' })}<span>${t('social.like')}</span><b class="tnum">${likeCount}</b></button>
-      <button type="button" class="social-action ${expanded ? 'on' : ''}" data-social-comments aria-expanded="${expanded}">${Icon('message-circle', { size: 19 })}<span>${t('social.comment')}</span><b class="tnum">${commentCount}</b></button>
-      <button type="button" class="social-action social-save ${saved ? 'on' : ''}" data-social-save aria-pressed="${saved}">${Icon('bookmark', { size: 19, fill: saved ? 'currentColor' : 'none' })}<span>${t('social.save')}</span></button>
-    </div>
-    ${expanded ? `<div class="social-comments" data-social-comment-box>
-      <div class="social-comments-title">${t('social.commentsTitle')}</div>
-      ${comments.length ? `<ul>${commentRows}</ul>` : `<p class="social-no-comments">${t('social.noComments')}</p>`}
-      <form class="social-comment-form" data-social-comment-form>
-        ${socialAvatar(currentUser() || {}, 'small')}
-        <label class="sr-only" for="social-comment-${esc(id.replace(/[^a-zA-Z0-9_-]/g, ''))}">${t('social.writeComment')}</label>
-        <input id="social-comment-${esc(id.replace(/[^a-zA-Z0-9_-]/g, ''))}" maxlength="280" value="${esc(communityCommentDrafts.get(id) || '')}" placeholder="${t('social.writeComment')}" autocomplete="off" data-social-comment-input>
-        <button type="submit" data-social-comment-submit aria-label="${t('social.sendComment')}">${Icon('arrow-right', { size: 18 })}</button>
-      </form>
-      <p class="social-inline-error" role="alert" data-social-comment-error></p>
-    </div>` : ''}
-  </article>`;
-}
 function socialSkeleton() {
   return Array.from({ length: 3 }, () => `<div class="social-post social-skeleton" aria-hidden="true"><div class="sk-row"><i></i><span></span></div><b></b><b></b><b class="short"></b></div>`).join('');
 }
@@ -484,158 +451,666 @@ function socialPlace(context) {
   return context?.city || context?.zone?.label || context?.region || (currentUser() || {}).city ||
     (typeof uz === 'string' ? uz : (uz && ((uz.comuni && uz.comuni[0]) || uz.label || uz.region))) || t('social.yourArea');
 }
+function socialAViralityLabel(score) {
+  const value = Number(score || 0);
+  return t(value >= 25 ? 'social.virality.high' : value >= 8 ? 'social.virality.rising' : 'social.virality.local');
+}
+
+/* Variante A · la superficie sociale scelta: gesto familiare, identita organica Gaia. */
+const SOCIAL_A_SCOPES = ['for-you', 'following', 'nearby', 'producers'];
+const SOCIAL_A_FILTER_KEYS = {
+  'for-you': 'social.filter.for-you', following: 'social.filter.following',
+  nearby: 'social.filter.nearby', producers: 'social.filter.producers',
+};
+const SOCIAL_A_EMPTY_KEYS = {
+  'for-you': ['social.empty.for-you.title', 'social.empty.for-you.body'],
+  following: ['social.empty.following.title', 'social.empty.following.body'],
+  nearby: ['social.empty.nearby.title', 'social.empty.nearby.body'],
+  producers: ['social.empty.producers.title', 'social.empty.producers.body'],
+};
+const socialACarousels = new Map();
+const socialAPostMenus = new Set();
+let socialADeferredRender = false;
+
+function socialAOverlayOpen() {
+  return !!document.querySelector('#app .socialA-modal-backdrop.open,#app .socialA-story-viewer.open,#app .gf-confirm-bd');
+}
+function socialARequestRerender(fallbackFocus = null) {
+  if (socialAOverlayOpen()) { socialADeferredRender = true; return false; }
+  socialADeferredRender = false; rerenderCommunity(fallbackFocus); return true;
+}
+function socialAFlushDeferredRender(screen) {
+  try { window.dispatchEvent(new CustomEvent('gf:social-overlay-closed')); } catch (_) {}
+  if (!socialADeferredRender || !screen || !screen.isConnected || !/^#\/(comunita|cibovero)$/.test(location.hash)) return;
+  queueMicrotask(() => { if (!socialAOverlayOpen() && socialADeferredRender) socialARequestRerender(); });
+}
+try {
+  window.addEventListener('gf:social-overlay-closed', () => {
+    if (socialADeferredRender && !socialAOverlayOpen() && /^#\/(comunita|cibovero)$/.test(location.hash)) queueMicrotask(() => socialARequestRerender());
+  });
+} catch (_) {}
+
+function socialAMedia(post) {
+  const raw = Array.isArray(post && post.media) ? post.media.slice(0, 10) : [];
+  if (!raw.length && post && post.mediaUrl) raw.push({ type: 'image', url: post.mediaUrl, mime: 'image/jpeg' });
+  return raw.map((item) => {
+    const url = socialSafeUrl(item && item.url);
+    if (!url) return null;
+    const mime = String(item && item.mime || '').toLowerCase();
+    const type = item && item.type === 'video' || mime.startsWith('video/') ? 'video' : 'image';
+    return { type, url, mime: esc(mime) };
+  }).filter(Boolean);
+}
+
+function socialAMediaMarkup(post, id) {
+  const media = socialAMedia(post);
+  if (!media.length) return '';
+  const authorName = String(post.author && post.author.name || t('social.member'));
+  const alt = esc(t('social.mediaAlt', { name: authorName }));
+  const render = (item, hidden = false) => item.type === 'video'
+    ? `<video class="socialA-media video" src="${item.url}" controls preload="metadata" playsinline muted${hidden ? ' tabindex="-1"' : ''}></video>`
+    : `<img class="socialA-media" src="${item.url}" alt="${alt}" loading="lazy">`;
+  if (media.length === 1) return `<figure class="socialA-media-wrap ${media[0].type}">${render(media[0])}</figure>`;
+  const index = Math.max(0, Math.min(media.length - 1, socialACarousels.get(id) || 0));
+  return `<div class="socialA-carousel" data-social-carousel data-social-carousel-index="${index}">
+    <div class="socialA-carousel-track" style="transform:translateX(-${index * 100}%)">${media.map((item, at) => `<div class="socialA-slide" aria-hidden="${at !== index}">${render(item, at !== index)}</div>`).join('')}</div>
+    <button type="button" class="socialA-carousel-arrow prev" data-social-carousel-prev aria-label="${t('social.carouselPrev')}"${index === 0 ? ' disabled' : ''}>${Icon('chevron-right', { size: 20 })}</button>
+    <button type="button" class="socialA-carousel-arrow next" data-social-carousel-next aria-label="${t('social.carouselNext')}"${index === media.length - 1 ? ' disabled' : ''}>${Icon('chevron-right', { size: 20 })}</button>
+    <span class="socialA-carousel-count tnum" data-social-carousel-count>${index + 1} / ${media.length}</span>
+    <div class="socialA-carousel-dots" aria-hidden="true">${media.map((_, at) => `<i class="${at === index ? 'active' : ''}"></i>`).join('')}</div>
+  </div>`;
+}
+
+function socialAPostCard(post) {
+  const id = String(post && post.id || '');
+  const author = post && post.author || {};
+  const viewer = post && post.viewer || {};
+  const counts = post && post.counts || {};
+  const isProducer = author.type === 'producer';
+  const isSystem = author.type === 'system';
+  const following = !!viewer.followingAuthor;
+  const canFollow = !isSystem && !viewer.ownAuthor && author.id;
+  const canReport = !isSystem && !viewer.ownAuthor;
+  const canDelete = !isSystem && !!viewer.ownAuthor;
+  const canMenu = canReport || canDelete;
+  const authorName = esc(author.name || t('social.member'));
+  const producerHref = isProducer && author.producerId ? `#/produttore/${encodeURIComponent(author.producerId)}` : '';
+  const expanded = communityOpenComments.has(id);
+  const menuOpen = socialAPostMenus.has(id);
+  const comments = Array.isArray(post.comments) ? post.comments : [];
+  const text = String(post.text || '');
+  const role = isProducer ? t('social.producer') : (isSystem ? t('social.networkName') : t('social.member'));
+  const authorMeta = [esc(role), socialLocation(post), post.createdAt ? esc(socialWhen(post.createdAt)) : ''].filter(Boolean).join(' · ');
+  const authorCopy = `<span class="socialA-author-name social-author-name">${authorName}${author.verified ? `<span title="${t('social.verified')}">${Icon('check-circle', { size: 14 })}</span>` : ''}</span><span class="socialA-author-meta social-author-meta">${authorMeta}</span>`;
+  const authorEl = producerHref
+    ? `<a class="socialA-author" href="${producerHref}" data-link>${socialAvatar(author, 'socialA-avatar')}<span>${authorCopy}</span></a>`
+    : `<div class="socialA-author">${socialAvatar(author, 'socialA-avatar')}<span>${authorCopy}</span></div>`;
+  const commentRows = comments.map((comment) => {
+    const ca = comment.author || {};
+    return `<li class="social-comment">${socialAvatar(ca, 'small socialA-avatar')}<div><div class="social-comment-meta"><b>${esc(ca.name || t('social.member'))}</b>${comment.createdAt ? `<span>${esc(socialWhen(comment.createdAt))}</span>` : ''}</div><p>${esc(comment.text)}</p></div></li>`;
+  }).join('');
+  const virality = post.virality && communityScope === 'producers' ? post.virality : null;
+  const menuId = `social-menu-${id.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  return `<article class="social-post socialA-post ${!socialAMedia(post).length ? 'socialA-text-card' : ''}" data-social-post="${esc(id)}">
+    <header class="socialA-post-head">${authorEl}<div class="socialA-post-controls">
+      ${canFollow ? `<button type="button" class="socialA-follow ${following ? 'following' : ''}" data-social-follow="${esc(author.id)}" data-social-following="${following}" aria-label="${following ? t('social.unfollowAria', { name: authorName }) : t('social.followAria', { name: authorName })}">${following ? t('social.following') : t('social.follow')}</button>` : ''}
+      ${canMenu ? `<button type="button" class="socialA-post-menu" data-social-menu aria-haspopup="menu" aria-controls="${menuId}" aria-expanded="${menuOpen}" aria-label="${t('social.more')}">${Icon('more-horizontal', { size: 21 })}</button>` : ''}
+      ${canMenu && menuOpen ? `<div class="socialA-menu-pop" id="${menuId}" role="menu">${canDelete
+        ? `<button type="button" role="menuitem" data-social-delete>${Icon('trash', { size: 16 })}${t('social.deletePost')}</button>`
+        : `<button type="button" role="menuitem" data-social-report ${viewer.reported ? 'disabled' : ''}>${Icon('flag', { size: 16 })}${viewer.reported ? t('social.reported') : t('social.report')}</button>`}</div>` : ''}
+    </div></header>
+    ${virality ? `<div class="socialA-virality"><strong>${virality.rank ? '#' + Number(virality.rank) : t('social.virality')}</strong><span>${socialAViralityLabel(virality.score)}</span><b class="tnum">${Number(virality.score || 0)}</b></div>` : ''}
+    ${text ? `<div class="socialA-post-copy"><p class="social-post-text">${esc(text)}</p></div>` : ''}
+    ${socialAMediaMarkup(post, id)}
+    ${post.pendingModeration ? `<p class="socialA-moderation-note">${Icon('info', { size: 14 })}${t('social.pendingModeration')}</p>` : ''}
+    <div class="social-actions" role="group" aria-label="${t('social.actionsAria')}">
+      <button type="button" class="social-action ${viewer.liked ? 'on' : ''}" data-social-like aria-pressed="${!!viewer.liked}" aria-label="${t('social.like')}">${Icon('heart', { size: 21, fill: viewer.liked ? 'currentColor' : 'none' })}<b class="tnum">${Number(counts.likes || 0)}</b></button>
+      <button type="button" class="social-action ${expanded ? 'on' : ''}" data-social-comments aria-expanded="${expanded}" aria-label="${t('social.comment')}">${Icon('message-circle', { size: 21 })}<b class="tnum">${Number(counts.comments == null ? comments.length : counts.comments)}</b></button>
+      <button type="button" class="social-action" data-social-share aria-label="${t('social.share')}">${Icon('send', { size: 21 })}<b class="tnum">${Number(counts.shares || 0)}</b></button>
+      <button type="button" class="social-action social-save ${viewer.saved ? 'on' : ''}" data-social-save aria-pressed="${!!viewer.saved}" aria-label="${t('social.save')}">${Icon('bookmark', { size: 21, fill: viewer.saved ? 'currentColor' : 'none' })}</button>
+    </div>
+    ${expanded ? `<div class="social-comments" data-social-comment-box><div class="social-comments-title">${t('social.commentsTitle')}</div>${comments.length ? `<ul>${commentRows}</ul>` : `<p class="social-no-comments">${t('social.noComments')}</p>`}<form class="social-comment-form" data-social-comment-form>${socialAvatar(currentUser() || {}, 'small socialA-avatar')}<label class="sr-only" for="social-comment-${esc(id.replace(/[^a-zA-Z0-9_-]/g, ''))}">${t('social.writeComment')}</label><input id="social-comment-${esc(id.replace(/[^a-zA-Z0-9_-]/g, ''))}" maxlength="280" value="${esc(communityCommentDrafts.get(id) || '')}" placeholder="${t('social.writeComment')}" autocomplete="off" data-social-comment-input><button type="submit" data-social-comment-submit aria-label="${t('social.sendComment')}">${Icon('arrow-right', { size: 18 })}</button></form><p class="social-inline-error" role="alert" data-social-comment-error></p></div>` : ''}
+  </article>`;
+}
+
+function socialAStories(social, user) {
+  const stories = Array.isArray(social.stories) ? social.stories : [];
+  const own = `<button type="button" class="socialA-story is-you" data-social-create-story aria-label="${t('social.addStory')}"><span class="socialA-story-ring">${socialAvatar(user, 'socialA-avatar')}<span class="socialA-story-plus">+</span></span><span class="socialA-story-label">${t('social.yourStory')}</span></button>`;
+  const rows = stories.map((story) => {
+    const author = story.author || {};
+    const media = socialAMedia(story);
+    const thumb = media.find(item => item.type === 'image');
+    const avatar = thumb ? `<img src="${thumb.url}" alt="" loading="lazy">` : socialAvatar(author, 'socialA-avatar');
+    return `<button type="button" class="socialA-story ${story.viewer && story.viewer.seen ? 'is-seen' : ''}" data-social-story="${esc(story.id)}" aria-label="${t('social.openStoryAria', { name: esc(author.name || t('social.member')) })}"><span class="socialA-story-ring">${avatar}</span><span class="socialA-story-label">${esc(author.name || t('social.member'))}</span></button>`;
+  }).join('');
+  return `<div class="socialA-stories" aria-label="${t('social.storiesAria')}">${own}${rows}${social.storiesStatus === 'loading' ? `<span class="socialA-stories-loading" role="status">${t('social.loadingStories')}</span>` : ''}</div>`;
+}
+
+function socialASuggestions(social) {
+  const list = Array.isArray(social.suggestions) ? social.suggestions : [];
+  if (social.suggestionsStatus === 'error') return `<p class="socialA-suggest-state">${t('social.suggestionsUnavailable')}</p>`;
+  if (social.suggestionsStatus === 'loading' && !list.length) return `<p class="socialA-suggest-state" role="status">${t('social.loadingSuggestions')}</p>`;
+  if (!list.length) return `<p class="socialA-suggest-state">${t('social.noSuggestions')}</p>`;
+  return list.map((item) => {
+    const author = item.author || {};
+    const authorName = String(author.name || t('social.member'));
+    const location = socialLocation(item) || socialLocality(item.locality);
+    const producerHref = author.type === 'producer' && author.producerId ? `#/produttore/${encodeURIComponent(author.producerId)}` : '';
+    const copy = `<span class="socialA-suggest-copy"><strong>${esc(authorName)}</strong><small>${location}</small></span>`;
+    const followLabel = item.following ? t('social.unfollowAria', { name: authorName }) : t('social.followAria', { name: authorName });
+    return `<div class="socialA-suggestion">${producerHref ? `<a href="${producerHref}" data-link>${socialAvatar(author, 'socialA-avatar')}${copy}</a>` : `<div>${socialAvatar(author, 'socialA-avatar')}${copy}</div>`}<button type="button" class="socialA-follow ${item.following ? 'following' : ''}" data-social-follow="${esc(author.id)}" data-social-following="${!!item.following}" aria-label="${esc(followLabel)}">${item.following ? t('social.following') : t('social.follow')}</button></div>`;
+  }).join('');
+}
+
+function socialATrap(backdrop, opener, requestClose, forceClose, initial) {
+  let released = false, observer = null;
+  const focusable = () => [...backdrop.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),textarea:not([disabled]),select:not([disabled]),video[controls],[tabindex]:not([tabindex="-1"])')].filter(node => !node.hidden && node.getClientRects().length);
+  const onKey = (event) => {
+    if (document.querySelector('#app .gf-confirm-bd')) return;
+    if (event.key === 'Escape') { event.preventDefault(); requestClose(); return; }
+    if (event.key !== 'Tab') return;
+    const nodes = focusable(); if (!nodes.length) { event.preventDefault(); return; }
+    const first = nodes[0], last = nodes[nodes.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  };
+  const onContextLost = () => forceClose({ restoreFocus: false });
+  document.addEventListener('keydown', onKey);
+  window.addEventListener('hashchange', onContextLost);
+  if (typeof MutationObserver !== 'undefined' && document.body) {
+    observer = new MutationObserver(() => { if (!backdrop.isConnected) onContextLost(); });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+  requestAnimationFrame(() => { if (!released && backdrop.isConnected) try { (initial || focusable()[0]).focus(); } catch (_) {} });
+  return ({ restoreFocus = true } = {}) => {
+    if (released) return;
+    released = true;
+    document.removeEventListener('keydown', onKey);
+    window.removeEventListener('hashchange', onContextLost);
+    if (observer) observer.disconnect();
+    try { if (restoreFocus && opener && opener.isConnected) opener.focus({ preventScroll: true }); } catch (_) {}
+  };
+}
+
+function socialAOpenSoon(screen, title, opener) {
+  const back = document.createElement('div');
+  back.className = 'socialA-modal-backdrop open';
+  back.innerHTML = `<section class="socialA-modal socialA-coming-panel" role="dialog" aria-modal="true" aria-labelledby="social-soon-title"><header class="socialA-modal-head"><div><span class="socialA-soon">${t('social.comingSoon')}</span><h2 id="social-soon-title">${esc(title)}</h2></div><button type="button" data-social-close aria-label="${t('social.close')}">${Icon('x', { size: 21 })}</button></header><div class="socialA-coming-body">${Icon('sprout', { size: 38 })}<p>${t('social.comingSoonBody')}</p></div></section>`;
+  let closed = false, release = () => {};
+  const forceClose = ({ restoreFocus = true } = {}) => { if (closed) return; closed = true; release({ restoreFocus }); back.remove(); socialAFlushDeferredRender(screen); };
+  const close = () => forceClose();
+  back.onclick = event => { if (event.target === back) close(); };
+  back.querySelector('[data-social-close]').onclick = close;
+  screen.appendChild(back);
+  release = socialATrap(back, opener, close, forceClose, back.querySelector('[data-social-close]'));
+}
+
+function socialAOpenStory(screen, story, opener) {
+  const author = story.author || {};
+  const canReport = author.type !== 'system' && !(story.viewer && story.viewer.ownAuthor);
+  const canDelete = author.type !== 'system' && !!(story.viewer && story.viewer.ownAuthor);
+  const media = socialAMedia(story)[0] || null;
+  const back = document.createElement('div');
+  back.className = 'socialA-story-viewer open';
+  const mediaMarkup = media ? (media.type === 'video'
+    ? `<video class="socialA-story-media" src="${media.url}" controls autoplay playsinline muted></video>`
+    : `<img class="socialA-story-media" src="${media.url}" alt="${esc(t('social.mediaAlt', { name: author.name || t('social.member') }))}">`)
+    : `<div class="socialA-story-media socialA-story-text-bg" aria-hidden="true"></div>`;
+  back.innerHTML = `<section class="socialA-story-dialog" role="dialog" aria-modal="true" aria-labelledby="social-story-name"><div class="socialA-story-progress"><span></span></div>${mediaMarkup}<div class="socialA-story-shade"></div><header class="socialA-story-top">${socialAvatar(author, 'socialA-avatar')}<div><strong id="social-story-name">${esc(author.name || t('social.member'))}</strong><small>${esc(socialWhen(story.createdAt))}</small></div>${canReport ? `<button type="button" data-social-story-report ${story.viewer && story.viewer.reported ? 'disabled' : ''} aria-label="${story.viewer && story.viewer.reported ? t('social.reported') : t('social.report')}">${Icon('flag', { size: 18 })}</button>` : ''}${canDelete ? `<button type="button" data-social-story-delete aria-label="${t('social.deleteStory')}">${Icon('trash', { size: 18 })}</button>` : ''}<button type="button" data-social-close-story aria-label="${t('social.closeStory')}">${Icon('x', { size: 22 })}</button></header>${story.text ? `<p class="socialA-story-message" style="overflow-wrap:anywhere">${esc(story.text)}</p>` : ''}</section>`;
+  let closed = false, release = () => {};
+  const forceClose = ({ restoreFocus = true } = {}) => {
+    if (closed) return;
+    closed = true;
+    back.querySelectorAll('video').forEach(video => video.pause());
+    release({ restoreFocus }); back.remove(); socialAFlushDeferredRender(screen);
+  };
+  const close = () => forceClose();
+  back.onclick = event => { if (event.target === back) close(); };
+  back.querySelector('[data-social-close-story]').onclick = close;
+  const report = back.querySelector('[data-social-story-report]');
+  if (report) report.onclick = async () => {
+    report.disabled = true;
+    try { await reportSocialStory(story.id); }
+    catch (_) { report.disabled = false; toast(t('social.reportError'), 'error'); }
+    if (!report.disabled || closed) return;
+    forceClose(); toast(t('social.reported'), 'success');
+    if (/^#\/(comunita|cibovero)$/.test(location.hash)) socialARequestRerender();
+    loadSocialStories({ force: true }).then(() => { if (/^#\/(comunita|cibovero)$/.test(location.hash)) socialARequestRerender(); }).catch(() => {});
+  };
+  const remove = back.querySelector('[data-social-story-delete]');
+  if (remove) remove.onclick = async () => {
+    const confirmed = await confirmSheet(t('social.deleteStoryConfirmTitle'), { body: t('social.deleteStoryConfirmBody'), okLabel: t('social.delete'), cancelLabel: t('social.cancel'), danger: true });
+    if (!confirmed || closed) return;
+    remove.disabled = true;
+    try { await deleteSocialStory(story.id); }
+    catch (_) { remove.disabled = false; toast(t('social.deleteError'), 'error'); return; }
+    if (closed) return;
+    forceClose(); toast(t('social.storyDeleted'), 'success');
+    if (/^#\/(comunita|cibovero)$/.test(location.hash)) socialARequestRerender();
+    loadSocialStories({ force: true }).then(() => { if (/^#\/(comunita|cibovero)$/.test(location.hash)) socialARequestRerender(); }).catch(() => {});
+  };
+  screen.appendChild(back);
+  release = socialATrap(back, opener, close, forceClose, back.querySelector('[data-social-close-story]'));
+  opener.classList.add('is-seen');
+  viewSocialStory(story.id).catch(() => {});
+}
+
+const socialAFileLimits = { image: 8 * 1024 * 1024, video: 18 * 1024 * 1024 };
+function socialAFileType(file) {
+  if (file && /^image\/(png|jpe?g|webp)$/i.test(file.type)) return 'image';
+  if (file && /^video\/(mp4|webm)$/i.test(file.type)) return 'video';
+  return '';
+}
+function socialAAbortError() {
+  const error = new Error('aborted'); error.name = 'AbortError'; return error;
+}
+function socialAVideoDuration(file, signal) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    let done = false;
+    const finish = (duration = null, aborted = false) => {
+      if (done) return; done = true; clearTimeout(timer); signal?.removeEventListener('abort', onAbort);
+      URL.revokeObjectURL(url); video.removeAttribute('src');
+      if (aborted) reject(socialAAbortError()); else resolve(duration);
+    };
+    const onAbort = () => finish(null, true);
+    const timer = setTimeout(() => finish(null), 4500);
+    if (signal?.aborted) return finish(null, true);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => finish(Number.isFinite(video.duration) ? video.duration : null);
+    video.onerror = () => finish(null);
+    video.src = url;
+  });
+}
+function socialADataUrl(file, signal) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    const cleanup = () => signal?.removeEventListener('abort', onAbort);
+    const onAbort = () => { try { reader.abort(); } catch (_) {} cleanup(); reject(socialAAbortError()); };
+    if (signal?.aborted) return reject(socialAAbortError());
+    signal?.addEventListener('abort', onAbort, { once: true });
+    reader.onload = () => { cleanup(); resolve(reader.result); };
+    reader.onerror = () => { cleanup(); reject(reader.error || new Error('read_error')); };
+    reader.onabort = () => { cleanup(); reject(socialAAbortError()); };
+    reader.readAsDataURL(file);
+  });
+}
+
+function socialAOpenCreate(screen, destination, opener) {
+  const user = currentUser() || {};
+  const isStory = destination === 'story';
+  const back = document.createElement('div');
+  back.className = 'socialA-modal-backdrop open';
+  const formats = isStory ? ['text', 'image', 'video'] : ['text', 'image', 'video', 'carousel'];
+  const formatKeys = { text: 'social.format.text', image: 'social.format.image', video: 'social.format.video', carousel: 'social.format.carousel' };
+  const formatIcons = { text: 'message-circle', image: 'image', video: 'video', carousel: 'images' };
+  back.innerHTML = `<section class="socialA-modal" role="dialog" aria-modal="true" aria-labelledby="social-create-title"><header class="socialA-modal-head"><h2 id="social-create-title">${isStory ? t('social.createStoryTitle') : t('social.createTitle')}</h2><button type="button" data-social-close aria-label="${t('social.close')}">${Icon('x', { size: 21 })}</button></header><div class="socialA-composer"><div class="socialA-composer-profile">${socialAvatar(user, 'socialA-avatar')}<div><strong>${esc(user.name || t('social.member'))}</strong><small>${t('social.publishFrom', { place: esc(socialPlace(socialState().context)) })}</small></div></div><div class="socialA-formats" role="group" aria-label="${t('social.formatLabel')}">${formats.map((format, index) => `<button type="button" class="socialA-format ${index === 0 ? 'active' : ''}" data-social-format="${format}" aria-pressed="${index === 0}">${Icon(formatIcons[format], { size: 18 })}<span>${t(formatKeys[format])}</span></button>`).join('')}</div><label class="sr-only" for="social-modal-text">${t('social.postTextLabel')}</label><textarea id="social-modal-text" maxlength="${isStory ? 280 : 700}" rows="4" data-social-modal-draft placeholder="${t('social.modalPlaceholder')}"></textarea><div class="socialA-media-drop" data-social-media-drop hidden><input type="file" data-social-media-input aria-label="${t('social.selectMedia')}"><span>${Icon('image', { size: 25 })}</span><strong>${t('social.selectMedia')}</strong><small>${t('social.mediaRules')}</small></div><div class="socialA-media-preview" data-social-media-preview></div>${!isStory ? `<label class="socialA-kind-select"><span>${t('social.kindLabel')}</span><select data-social-modal-kind>${SOCIAL_KINDS.map(kind => `<option value="${kind}"${kind === communityKind ? ' selected' : ''}>${t(SOCIAL_KIND_KEYS[kind])}</option>`).join('')}</select></label>` : ''}<p class="social-inline-error" role="alert" data-social-modal-error></p><div class="socialA-upload-status" role="status" aria-live="polite" data-social-upload-status></div><div class="socialA-composer-foot"><span>${isStory ? t('social.storyDuration') : t('social.audienceAll')}</span><button type="button" data-social-modal-publish>${isStory ? t('social.publishStory') : t('social.publish')}</button></div></div></section>`;
+  let currentFormat = 'text', files = [], objectUrls = [], busy = false, validating = false, closed = false, validationSeq = 0, validationController = null, release = () => {};
+  const lifetimeController = new AbortController();
+  const input = back.querySelector('[data-social-media-input]');
+  const drop = back.querySelector('[data-social-media-drop]');
+  const preview = back.querySelector('[data-social-media-preview]');
+  const error = back.querySelector('[data-social-modal-error]');
+  const status = back.querySelector('[data-social-upload-status]');
+  const publish = back.querySelector('[data-social-modal-publish]');
+  const routeAtOpen = location.hash;
+  const isActive = () => !closed && back.isConnected && location.hash === routeAtOpen;
+  const revoke = () => { objectUrls.forEach(url => URL.revokeObjectURL(url)); objectUrls = []; };
+  const syncPublish = () => { publish.disabled = busy || validating; };
+  const cancelValidation = () => {
+    validationSeq += 1;
+    if (validationController) validationController.abort();
+    validationController = null; validating = false; status.textContent = ''; syncPublish();
+  };
+  const forceClose = ({ restoreFocus = true } = {}) => {
+    if (closed) return;
+    closed = true; cancelValidation(); lifetimeController.abort(); revoke(); release({ restoreFocus }); back.remove(); socialAFlushDeferredRender(screen);
+  };
+  const close = () => forceClose();
+  const renderPreview = () => {
+    revoke(); preview.replaceChildren();
+    files.forEach((file, index) => {
+      const type = socialAFileType(file), url = URL.createObjectURL(file); objectUrls.push(url);
+      const card = document.createElement('figure'); card.className = 'socialA-preview-item';
+      const media = document.createElement(type === 'video' ? 'video' : 'img'); media.src = url;
+      if (type === 'video') { media.muted = true; media.playsInline = true; media.controls = true; } else media.alt = '';
+      const cap = document.createElement('figcaption'); cap.textContent = file.name;
+      const remove = document.createElement('button'); remove.type = 'button'; remove.setAttribute('aria-label', t('social.removeMedia')); remove.innerHTML = Icon('x', { size: 16 });
+      remove.onclick = () => { cancelValidation(); files.splice(index, 1); input.value = ''; renderPreview(); };
+      card.append(media, cap, remove); preview.appendChild(card);
+    });
+  };
+  const configureInput = () => {
+    const media = currentFormat !== 'text'; drop.hidden = !media;
+    input.accept = currentFormat === 'image' ? 'image/png,image/jpeg,image/webp' : currentFormat === 'video' ? 'video/mp4,video/webm' : 'image/png,image/jpeg,image/webp,video/mp4,video/webm';
+    input.multiple = currentFormat === 'carousel';
+  };
+  const acceptFiles = async (incoming) => {
+    cancelValidation();
+    error.textContent = '';
+    const candidates = [...incoming];
+    if (!candidates.length || closed) return;
+    const format = currentFormat, existing = files.slice(), max = format === 'carousel' ? 10 : 1;
+    if (candidates.length + existing.length > max) { error.textContent = t('social.tooManyFiles'); return; }
+    const seq = ++validationSeq, controller = new AbortController();
+    validationController = controller; validating = true; syncPublish();
+    try {
+      const validated = [];
+      for (const file of candidates) {
+        const type = socialAFileType(file);
+        if (!type || (format !== 'carousel' && type !== format)) throw Object.assign(new Error('validation'), { i18nKey: 'social.unsupportedFile' });
+        if (file.size > socialAFileLimits[type]) throw Object.assign(new Error('validation'), { i18nKey: type === 'image' ? 'social.imageTooBig' : 'social.videoTooBig' });
+        if (type === 'video') {
+          status.textContent = t('social.checkingVideo');
+          const duration = await socialAVideoDuration(file, controller.signal);
+          if (duration != null && duration > 90.05) throw Object.assign(new Error('validation'), { i18nKey: 'social.videoTooLong' });
+        }
+        validated.push(file);
+      }
+      if (seq !== validationSeq || controller.signal.aborted || !isActive() || format !== currentFormat) return;
+      files = [...existing, ...validated]; renderPreview();
+    } catch (validationError) {
+      if (validationError && validationError.name !== 'AbortError' && seq === validationSeq && isActive()) {
+        error.textContent = t(validationError.i18nKey || 'social.unsupportedFile');
+      }
+    } finally {
+      if (seq === validationSeq) { validationController = null; validating = false; status.textContent = ''; syncPublish(); }
+    }
+  };
+  back.querySelectorAll('[data-social-format]').forEach(button => button.onclick = () => {
+    if (busy || button.dataset.socialFormat === currentFormat) return;
+    cancelValidation(); currentFormat = button.dataset.socialFormat; files = []; renderPreview(); input.value = ''; error.textContent = '';
+    back.querySelectorAll('[data-social-format]').forEach(item => { const on = item === button; item.classList.toggle('active', on); item.setAttribute('aria-pressed', String(on)); });
+    configureInput();
+  });
+  input.onchange = () => { const selected = [...(input.files || [])]; input.value = ''; acceptFiles(selected); };
+  drop.ondragover = event => { event.preventDefault(); drop.classList.add('dragging'); };
+  drop.ondragleave = () => drop.classList.remove('dragging');
+  drop.ondrop = event => { event.preventDefault(); drop.classList.remove('dragging'); acceptFiles([...(event.dataTransfer && event.dataTransfer.files || [])]); };
+  publish.onclick = async () => {
+    const text = back.querySelector('[data-social-modal-draft]').value.trim();
+    error.textContent = '';
+    if (!text && !files.length) { error.textContent = t('social.emptyPost'); back.querySelector('[data-social-modal-draft]').focus(); return; }
+    if (currentFormat !== 'text' && !files.length) { error.textContent = t('social.selectMediaError'); input.focus(); return; }
+    if (currentFormat === 'carousel' && files.length < 2) { error.textContent = t('social.carouselMin'); input.focus(); return; }
+    busy = true; publish.disabled = true; publish.textContent = t('social.publishing');
+    const scopeAtPublish = communityScope;
+    try {
+      const refs = [];
+      for (let index = 0; index < files.length; index++) {
+        if (!isActive()) throw socialAAbortError();
+        status.textContent = t('social.uploadProgress', { current: index + 1, total: files.length });
+        const dataUrl = await socialADataUrl(files[index], lifetimeController.signal);
+        const uploaded = await uploadSocialMedia(dataUrl, { signal: lifetimeController.signal }); refs.push(uploaded.mediaRef);
+      }
+      if (!isActive()) throw socialAAbortError();
+      status.textContent = '';
+      if (isStory) {
+        await createSocialStory({ text, mediaRef: refs[0] || null }, { signal: lifetimeController.signal });
+      } else {
+        const kind = back.querySelector('[data-social-modal-kind]');
+        communityKind = kind && SOCIAL_KINDS.includes(kind.value) ? kind.value : communityKind;
+        await createSocialPost({ text, kind: communityKind, mediaRefs: refs }, { signal: lifetimeController.signal });
+      }
+    } catch (uploadError) {
+      if (closed || uploadError && uploadError.name === 'AbortError') return;
+      busy = false; publish.disabled = false; publish.textContent = isStory ? t('social.publishStory') : t('social.publish');
+      const locationMetadata = String(uploadError && uploadError.message || '').toLocaleLowerCase('it').includes('metadata di localizzazione');
+      error.textContent = t(locationMetadata ? 'social.videoLocationMetadata' : 'social.uploadOrPublishError');
+      return;
+    }
+    if (!isActive()) return;
+    busy = false; forceClose(); toast(t(isStory ? 'social.storyPublished' : 'social.published'), 'success');
+    if (/^#\/(comunita|cibovero)$/.test(location.hash)) socialARequestRerender({ action: 'publish' });
+    const refresh = isStory ? loadSocialStories({ force: true }) : loadSocialFeed(scopeAtPublish, { force: true });
+    refresh.then(() => { if (/^#\/(comunita|cibovero)$/.test(location.hash)) socialARequestRerender(); }).catch(() => {});
+  };
+  back.onclick = event => { if (event.target === back) close(); };
+  back.querySelector('[data-social-close]').onclick = close;
+  configureInput(); screen.appendChild(back);
+  release = socialATrap(back, opener, close, forceClose, back.querySelector('[data-social-modal-draft]'));
+}
+
+function socialAScopeNote(scope, place) {
+  if (scope === 'following') return t('social.scopeNoteFollowing');
+  if (scope === 'nearby') return t('social.scopeNoteNearby', { place: esc(place) });
+  if (scope === 'producers') return t('social.scopeNoteProducers');
+  return t('social.scopeNoteForYou', { place: esc(place) });
+}
 
 export function Comunita() {
   const social = socialState();
-  if (social.scope !== communityScope && social.status !== 'loading') communityScope = social.scope || 'for-you';
-  const u = currentUser() || {};
-  // Solo una scheda già pubblicata parla nella rete come produttore; gli altri stati restano persona.
-  const producer = u.producerStatus === 'published' && !!u.producerId;
+  if (!SOCIAL_A_SCOPES.includes(communityScope)) communityScope = 'for-you';
+  if (social.scope !== communityScope && social.status !== 'loading' && SOCIAL_A_SCOPES.includes(social.scope)) communityScope = social.scope;
+  const user = currentUser() || {};
   const place = socialPlace(social.context);
-  const filters = ['for-you', 'nearby', 'producers'].map(scope => `<button type="button" class="social-filter ${communityScope === scope ? 'active' : ''}" data-social-scope="${scope}" aria-pressed="${communityScope === scope}">${t(SOCIAL_FILTER_KEYS[scope])}</button>`).join('');
-  const kindOptions = SOCIAL_KINDS.map(kind => `<option value="${kind}"${communityKind === kind ? ' selected' : ''}>${t(SOCIAL_KIND_KEYS[kind])}</option>`).join('');
-  let feed;
-  if ((social.status === 'idle' || social.status === 'loading') && !(social.posts || []).length) {
-    feed = `<div class="sr-only" role="status">${t('social.loading')}</div>${socialSkeleton()}`;
-  } else if (social.status === 'error' && !(social.posts || []).length) {
-    feed = `<div class="social-state" role="alert">${Icon('sprout', { size: 36 })}<h2>${t('social.loadErrorTitle')}</h2><p>${t('social.loadErrorBody')}</p><button class="btn btn-outline" type="button" data-social-retry>${t('social.retry')}</button></div>`;
-  } else if (!(social.posts || []).length) {
-    const emptyKeys = SOCIAL_EMPTY_KEYS[communityScope] || SOCIAL_EMPTY_KEYS['for-you'];
-    feed = `<div class="social-state">${Icon('message-circle', { size: 38 })}<h2>${t(emptyKeys[0])}</h2><p>${t(emptyKeys[1])}</p></div>`;
-  } else {
-    feed = social.posts.map(socialPostCard).join('');
-  }
-
+  const filters = SOCIAL_A_SCOPES.map(scope => `<button type="button" role="tab" tabindex="${communityScope === scope ? '0' : '-1'}" class="${communityScope === scope ? 'active' : ''}" data-social-scope="${scope}" aria-selected="${communityScope === scope}" aria-controls="social-feed">${t(SOCIAL_A_FILTER_KEYS[scope])}</button>`).join('');
+  let feed = '';
+  if ((social.status === 'idle' || social.status === 'loading') && !(social.posts || []).length) feed = `<div class="sr-only" role="status">${t('social.loading')}</div>${socialSkeleton()}`;
+  else if (social.status === 'error' && !(social.posts || []).length) feed = `<div class="social-state" role="alert">${Icon('sprout', { size: 36 })}<h2>${t('social.loadErrorTitle')}</h2><p>${t('social.loadErrorBody')}</p><button class="btn btn-outline" type="button" data-social-retry>${t('social.retry')}</button></div>`;
+  else if (!(social.posts || []).length) {
+    const keys = SOCIAL_A_EMPTY_KEYS[communityScope];
+    feed = `<div class="social-state">${Icon('message-circle', { size: 38 })}<h2>${t(keys[0])}</h2><p>${t(keys[1])}</p></div>`;
+  } else feed = social.posts.map(socialAPostCard).join('');
+  const profileName = esc(user.name || t('social.member'));
+  const quickKinds = SOCIAL_KINDS.map(kind => `<option value="${kind}"${communityKind === kind ? ' selected' : ''}>${t(SOCIAL_KIND_KEYS[kind])}</option>`).join('');
   return {
-    html: `<div class="screen social-screen">
-      ${StatusBar()}
-      <div class="scroll">
-        <header class="social-hero">
-          <div class="social-topline">
-            <div class="social-place">${Icon('map-pin', { size: 16 })}<span>${esc(place)}</span></div>
-            <a class="iconbtn" href="#/profilo" data-link aria-label="${t('social.profileAria')}">${Icon('user', { size: 18 })}</a>
-          </div>
-          <span class="eyebrow">${t('social.eyebrow')}</span>
-          <h1>${t('social.title1')} <em>${t('social.titleEm')}</em></h1>
-          <p>${t('social.localFirst', { place: `<strong>${esc(place)}</strong>` })}</p>
-        </header>
+    html: `<div class="screen social-screen socialA-screen">${StatusBar()}
+      <header class="socialA-mobile-head"><a href="#/comunita" data-link aria-label="${t('social.networkName')}">${Lockup()}</a><div><button type="button" data-social-open-create aria-label="${t('social.create')}">${Icon('plus', { size: 22 })}</button><button type="button" data-social-soon="messages" aria-label="${t('social.messages')}">${Icon('send', { size: 22 })}</button></div></header>
+      <div class="scroll socialA-scroll"><div class="socialA-shell">
+        <aside class="socialA-rail" aria-label="${t('nav.primary')}"><a class="socialA-lockup" href="#/comunita" data-link>${Lockup()}</a><nav>
+          <a class="socialA-nav-item active" href="#/comunita" data-link aria-current="page">${Icon('home', { size: 22 })}<span>${t('nav.rete')}</span></a>
+          <a class="socialA-nav-item" href="#/mappa" data-link>${Icon('map-pin', { size: 22 })}<span>${t('rail.map')}</span></a>
+          <a class="socialA-nav-item" href="#/ricerca" data-link>${Icon('search', { size: 22 })}<span>${t('social.searchProducers')}</span></a>
+          <button type="button" class="socialA-nav-item" data-social-soon="messages">${Icon('send', { size: 22 })}<span>${t('social.messages')}</span><small class="socialA-soon">${t('social.comingSoon')}</small></button>
+          <button type="button" class="socialA-nav-item" data-social-soon="notifications">${Icon('bell', { size: 22 })}<span>${t('social.notifications')}</span><small class="socialA-soon">${t('social.comingSoon')}</small></button>
+          <button type="button" class="socialA-nav-item" data-social-open-create>${Icon('plus', { size: 22 })}<span>${t('social.create')}</span></button>
+        </nav><a class="socialA-rail-profile" href="#/profilo" data-link>${socialAvatar(user, 'socialA-avatar')}<span>${t('nav.tu')}</span></a></aside>
 
-        <div class="social-layout">
-          <main class="social-main">
-            <section class="social-composer" aria-label="${t('social.composerAria')}">
-              <div class="social-composer-who">${socialAvatar(u)}<div><b>${producer ? t('social.composerProducer') : t('social.composerPerson')}</b><span>${producer ? t('social.composerProducerSub') : t('social.composerPersonSub')}</span></div></div>
-              <label class="sr-only" for="social-post-text">${t('social.composerAria')}</label>
-              <textarea id="social-post-text" maxlength="700" rows="3" placeholder="${producer ? t('social.placeholderProducer') : t('social.placeholderPerson')}" data-social-draft>${esc(communityDraft)}</textarea>
-              <div class="social-composer-foot">
-                <label class="social-kind-select"><span data-social-kind-icon aria-hidden="true">${Icon(SOCIAL_KIND_ICONS[communityKind], { size: 15 })}</span><span class="sr-only">${t('social.kindLabel')}</span><select data-social-kind aria-label="${t('social.kindLabel')}">${kindOptions}</select>${Icon('chevron-down', { size: 14 })}</label>
-                <button class="social-publish" type="button" data-social-publish>${t('social.publish')}</button>
-              </div>
-              ${producer ? `<p class="social-producer-note">${Icon('info', { size: 14 })}${t('social.producerFairness')}</p>` : ''}
-              <p class="social-inline-error" role="alert" data-social-publish-error></p>
-            </section>
+        <main class="socialA-center">
+          <header class="socialA-feed-head"><div class="socialA-title-row"><div><span class="eyebrow">${t('social.eyebrow')}</span><h1>${t('social.networkName')}</h1></div><span class="socialA-location">${Icon('map-pin', { size: 15 })}${esc(place)}</span></div>
+            <div class="socialA-tabs" role="tablist" aria-label="${t('social.filtersAria')}">${filters}</div>
+          </header>
+          ${socialAStories(social, user)}
+          <section class="socialA-quick-compose" aria-label="${t('social.composerAria')}">${socialAvatar(user, 'socialA-avatar')}<label class="sr-only" for="social-post-text-a">${t('social.composerAria')}</label><textarea id="social-post-text-a" rows="1" maxlength="700" data-social-draft placeholder="${t('social.quickPlaceholder')}">${esc(communityDraft)}</textarea><label class="socialA-quick-kind"><span class="sr-only">${t('social.kindLabel')}</span><select data-social-kind>${quickKinds}</select></label><button type="button" class="socialA-quick-media" data-social-open-create aria-label="${t('social.addMedia')}">${Icon('image', { size: 20 })}</button><button type="button" class="socialA-quick-publish" data-social-publish>${t('social.publish')}</button><p class="social-inline-error" role="alert" data-social-publish-error></p></section>
+          <p class="socialA-scope-note">${socialAScopeNote(communityScope, place)}</p>
+          ${social.status === 'loading' && (social.posts || []).length ? `<p class="social-refreshing" role="status">${t('social.refreshing')}</p>` : ''}
+          <section id="social-feed" class="social-feed" role="feed" aria-label="${t('social.feedAria')}" aria-busy="${social.status === 'loading'}">${feed}</section>
+          ${social.hasMore ? `<button type="button" class="socialA-load-more" data-social-load-more>${t('social.loadMore')}</button>` : ''}
+        </main>
 
-            <div class="social-feed-head">
-              <div class="social-filters" role="group" aria-label="${t('social.filtersAria')}">${filters}</div>
-              ${social.status === 'loading' && (social.posts || []).length ? `<span class="social-refreshing" role="status">${t('social.refreshing')}</span>` : ''}
-            </div>
-            <section class="social-feed" role="feed" aria-label="${t('social.feedAria')}" aria-busy="${social.status === 'loading'}">${feed}</section>
-          </main>
-
-          <aside class="social-side" aria-label="${t('social.howTitle')}">
-            <div class="social-side-card local"><span class="social-side-icon">${Icon('map-pin', { size: 18 })}</span><div><h2>${t('social.localVisibilityTitle')}</h2><p>${t('social.localVisibilityBody')}</p></div></div>
-            <div class="social-side-card"><span class="social-side-icon">${Icon('sprout', { size: 18 })}</span><div><h2>${t('social.usefulTitle')}</h2><p>${t('social.usefulBody')}</p></div></div>
-            <div class="social-side-card social-allowed"><h2>${t('social.allowedTitle')}</h2><ul>
-              <li>${Icon('message-circle', { size: 15 })}${t('social.allowedQuestions')}</li>
-              <li>${Icon('leaf', { size: 15 })}${t('social.allowedField')}</li>
-              <li>${Icon('calendar', { size: 15 })}${t('social.allowedAvailability')}</li>
-              <li>${Icon('heart', { size: 15 })}${t('social.allowedStories')}</li>
-            </ul></div>
-            <p class="social-side-principle">${t('social.producerPrinciple')}</p>
-          </aside>
-        </div>
-      </div>
-      ${BottomNav('comunita')}
+        <aside class="socialA-right" aria-label="${t('social.profileAndSuggestions')}"><a class="socialA-self" href="#/profilo" data-link>${socialAvatar(user, 'socialA-avatar')}<span><strong>${profileName}</strong><small>${esc(place)}</small></span><b>${t('social.viewProfile')}</b></a><div class="socialA-suggest-head"><strong>${t('social.suggestionsTitle')}</strong><button type="button" data-social-show-nearby>${t('social.showNearby')}</button></div><div class="socialA-suggest-list">${socialASuggestions(social)}</div><footer class="socialA-right-foot"><strong>${t('social.localCommunityTitle')}</strong><p>${t('social.localCommunityBody')}</p></footer></aside>
+      </div></div>
+      <div class="socialA-mobile-nav">${BottomNav('comunita')}</div>
     </div>`,
     onMount(el) {
       const onThisScreen = () => /^#\/(comunita|cibovero)$/.test(location.hash);
-      const finishLoad = () => { if (onThisScreen()) rerenderCommunity(); };
-      if (social.status === 'idle' || social.scope !== communityScope) loadSocialFeed(communityScope).then(finishLoad).catch(finishLoad);
+      const finishLoad = () => { if (onThisScreen()) socialARequestRerender(); };
+      const initial = [];
+      const refreshEntry = communityHandledEntryToken !== communityEntryToken;
+      if (refreshEntry) {
+        communityHandledEntryToken = communityEntryToken;
+        initial.push(loadSocialFeed(communityScope, { force: true }), loadSocialSurface({ force: true }));
+      } else {
+        if (social.status === 'idle' || social.scope !== communityScope) initial.push(loadSocialFeed(communityScope));
+        if (social.storiesStatus === 'idle' || social.suggestionsStatus === 'idle') initial.push(loadSocialSurface());
+      }
+      if (initial.length) Promise.allSettled(initial).then(finishLoad);
 
       const draft = el.querySelector('[data-social-draft]');
       if (draft) draft.oninput = () => { communityDraft = draft.value; };
       const kind = el.querySelector('[data-social-kind]');
-      if (kind) kind.onchange = () => {
-        communityKind = SOCIAL_KINDS.includes(kind.value) ? kind.value : 'question';
-        const icon = el.querySelector('[data-social-kind-icon]');
-        if (icon) icon.innerHTML = Icon(SOCIAL_KIND_ICONS[communityKind], { size: 15 });
-      };
+      if (kind) kind.onchange = () => { communityKind = SOCIAL_KINDS.includes(kind.value) ? kind.value : 'question'; };
       const publish = el.querySelector('[data-social-publish]');
       if (publish) publish.onclick = async () => {
         const text = (draft ? draft.value : communityDraft).trim();
         const error = el.querySelector('[data-social-publish-error]');
         if (!text) { if (error) error.textContent = t('social.emptyPost'); if (draft) draft.focus(); return; }
-        publish.disabled = true; publish.setAttribute('aria-busy', 'true'); publish.textContent = t('social.publishing');
-        if (error) error.textContent = '';
-        try {
-          await createSocialPost({ text, kind: communityKind });
-          communityDraft = '';
-          // Scope e prossimità sono canonici sul server: rileggerli evita che un post-persona
-          // resti temporaneamente nel filtro “Produttori” (o un post lontano in “Vicino”).
-          try { await loadSocialFeed(communityScope, { force: true }); } catch (_) {}
-          toast(t('social.published'), 'success');
-          if (onThisScreen()) rerenderCommunity({ action: 'publish' });
-        } catch (_) {
-          publish.disabled = false; publish.removeAttribute('aria-busy'); publish.textContent = t('social.publish');
-          if (error) error.textContent = t('social.publishError');
+        publish.disabled = true; publish.textContent = t('social.publishing'); if (error) error.textContent = '';
+        const scopeAtPublish = communityScope;
+        try { await createSocialPost({ text, kind: communityKind }); }
+        catch (_) { publish.disabled = false; publish.textContent = t('social.publish'); if (error) error.textContent = t('social.publishError'); return; }
+        communityDraft = ''; toast(t('social.published'), 'success');
+        if (onThisScreen()) socialARequestRerender({ action: 'publish' });
+        if (onThisScreen() && communityScope === scopeAtPublish) {
+          loadSocialFeed(scopeAtPublish, { force: true }).then(() => { if (onThisScreen() && communityScope === scopeAtPublish) socialARequestRerender(); }).catch(() => {});
         }
       };
 
-      el.querySelectorAll('[data-social-scope]').forEach(button => button.onclick = () => {
-        const next = button.dataset.socialScope;
-        if (next === communityScope) return;
-        communityScope = next;
-        loadSocialFeed(next, { force: true }).then(finishLoad).catch(finishLoad);
-        rerenderCommunity({ action: 'scope', scope: next });
+      el.querySelectorAll('[data-social-open-create]').forEach(button => button.onclick = () => socialAOpenCreate(el, 'post', button));
+      const createStory = el.querySelector('[data-social-create-story]');
+      if (createStory) createStory.onclick = () => socialAOpenCreate(el, 'story', createStory);
+      el.querySelectorAll('[data-social-soon]').forEach(button => button.onclick = () => socialAOpenSoon(el, button.dataset.socialSoon === 'notifications' ? t('social.notifications') : t('social.messages'), button));
+      el.querySelectorAll('[data-social-story]').forEach(button => button.onclick = () => {
+        const story = (socialState().stories || []).find(item => String(item.id) === button.dataset.socialStory);
+        if (story) socialAOpenStory(el, story, button);
       });
+
+      const scopeButtons = [...el.querySelectorAll('[data-social-scope]')];
+      scopeButtons.forEach((button, index) => {
+        button.onclick = () => {
+          const next = button.dataset.socialScope;
+          if (next === communityScope || !SOCIAL_A_SCOPES.includes(next)) return;
+          communityScope = next; socialAPostMenus.clear();
+          loadSocialFeed(next, { force: true }).then(finishLoad).catch(finishLoad);
+          socialARequestRerender({ action: 'scope', scope: next });
+        };
+        button.onkeydown = (event) => {
+          const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+          if (!keys.includes(event.key)) return;
+          event.preventDefault();
+          const targetIndex = event.key === 'Home' ? 0 : event.key === 'End' ? scopeButtons.length - 1
+            : (index + (event.key === 'ArrowRight' ? 1 : -1) + scopeButtons.length) % scopeButtons.length;
+          const target = scopeButtons[targetIndex]; target.focus(); target.click();
+        };
+      });
+      const showNearby = el.querySelector('[data-social-show-nearby]');
+      if (showNearby) showNearby.onclick = () => {
+        communityScope = 'nearby'; loadSocialFeed('nearby', { force: true }).then(finishLoad).catch(finishLoad); socialARequestRerender({ action: 'scope', scope: 'nearby' });
+      };
       const retry = el.querySelector('[data-social-retry]');
-      if (retry) retry.onclick = () => { loadSocialFeed(communityScope, { force: true }).then(finishLoad).catch(finishLoad); rerenderCommunity({ action: 'retry' }); };
+      if (retry) retry.onclick = () => { loadSocialFeed(communityScope, { force: true }).then(finishLoad).catch(finishLoad); socialARequestRerender({ action: 'retry' }); };
+      const more = el.querySelector('[data-social-load-more]');
+      if (more) more.onclick = async () => { more.disabled = true; more.textContent = t('social.loadingMore'); try { await loadSocialFeed(communityScope, { append: true }); finishLoad(); } catch (_) { more.disabled = false; more.textContent = t('social.loadMore'); } };
+
+      el.querySelectorAll('[data-social-follow]').forEach(button => button.onclick = async () => {
+        if (button.disabled) return; button.disabled = true;
+        const id = button.dataset.socialFollow, next = button.dataset.socialFollowing !== 'true';
+        try {
+          await followSocialAuthor(id, next);
+          await Promise.allSettled([loadSocialFeed(communityScope, { force: true }), loadSocialSuggestions({ force: true }), loadSocialStories({ force: true })]);
+          if (onThisScreen()) socialARequestRerender({ action: 'follow', authorId: id });
+        } catch (_) { button.disabled = false; toast(t('social.followError'), 'error'); }
+      });
+
+      socialARootController?.abort(); socialARootController = new AbortController();
+      const socialRootSignal = socialARootController.signal;
+      const dismissPostMenus = ({ restoreFocus = false } = {}) => {
+        if (!socialAPostMenus.size) return;
+        socialAPostMenus.clear();
+        el.querySelectorAll('.socialA-menu-pop').forEach(pop => pop.remove());
+        el.querySelectorAll('[data-social-menu][aria-expanded="true"]').forEach(button => {
+          button.setAttribute('aria-expanded', 'false');
+          if (restoreFocus) try { button.focus({ preventScroll: true }); } catch (_) { button.focus(); }
+        });
+      };
+      el.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && socialAPostMenus.size && !event.target.closest('.socialA-modal-backdrop,.socialA-story-viewer')) {
+          event.preventDefault(); dismissPostMenus({ restoreFocus: true });
+        }
+      }, { signal: socialRootSignal });
+      el.addEventListener('click', event => {
+        if (socialAPostMenus.size && !event.target.closest('[data-social-menu],.socialA-menu-pop')) dismissPostMenus();
+      }, { signal: socialRootSignal });
 
       el.querySelectorAll('[data-social-post]').forEach(card => {
         const id = card.dataset.socialPost;
         const run = async (button, action, focusAction) => {
-          if (button.disabled) return;
-          button.disabled = true;
-          try { await action(); if (onThisScreen()) rerenderCommunity({ action: focusAction, postId: id }); }
-          catch (_) { button.disabled = false; toast(t('social.actionError'), 'error'); }
+          if (!button || button.disabled) return; button.disabled = true;
+          const scopeAtMutation = communityScope;
+          try { await action(); }
+          catch (_) { button.disabled = false; toast(t('social.actionError'), 'error'); return; }
+          if (scopeAtMutation === 'producers' && communityScope === scopeAtMutation && onThisScreen()) try { await loadSocialFeed('producers', { force: true }); } catch (_) {}
+          if (onThisScreen()) socialARequestRerender({ action: focusAction, postId: id });
         };
-        const like = card.querySelector('[data-social-like]');
-        if (like) like.onclick = () => run(like, () => likeSocialPost(id), 'like');
-        const save = card.querySelector('[data-social-save]');
-        if (save) save.onclick = () => run(save, () => saveSocialPost(id), 'save');
-        const comments = card.querySelector('[data-social-comments]');
-        if (comments) comments.onclick = () => {
-          if (communityOpenComments.has(id)) communityOpenComments.delete(id); else communityOpenComments.add(id);
-          rerenderCommunity({ action: 'comments', postId: id });
-        };
-        const commentForm = card.querySelector('[data-social-comment-form]');
-        const commentInput = card.querySelector('[data-social-comment-input]');
-        if (commentInput) commentInput.oninput = () => communityCommentDrafts.set(id, commentInput.value);
-        if (commentForm) commentForm.onsubmit = async (event) => {
-          event.preventDefault();
-          const text = (commentInput ? commentInput.value : '').trim();
-          const error = card.querySelector('[data-social-comment-error]');
-          if (!text) { if (commentInput) commentInput.focus(); return; }
-          const submit = commentForm.querySelector('button[type="submit"]');
-          submit.disabled = true;
-          try {
-            await commentSocialPost(id, text);
-            communityCommentDrafts.delete(id);
-            if (onThisScreen()) rerenderCommunity({ action: 'comment-input', postId: id });
-          } catch (_) {
-            submit.disabled = false;
-            if (error) error.textContent = t('social.commentError');
+        const like = card.querySelector('[data-social-like]'); if (like) like.onclick = () => run(like, () => likeSocialPost(id), 'like');
+        const save = card.querySelector('[data-social-save]'); if (save) save.onclick = () => run(save, () => saveSocialPost(id), 'save');
+        const menu = card.querySelector('[data-social-menu]'); if (menu) menu.onclick = () => { if (socialAPostMenus.has(id)) socialAPostMenus.delete(id); else { socialAPostMenus.clear(); socialAPostMenus.add(id); } socialARequestRerender({ action: 'menu', postId: id }); };
+        const report = card.querySelector('[data-social-report]'); if (report) report.onclick = async () => {
+          report.disabled = true; const scopeAtMutation = communityScope;
+          try { await reportSocialPost(id); }
+          catch (_) { report.disabled = false; toast(t('social.reportError'), 'error'); return; }
+          socialAPostMenus.delete(id); toast(t('social.reported'), 'success'); if (onThisScreen()) socialARequestRerender();
+          if (onThisScreen() && communityScope === scopeAtMutation) {
+            loadSocialFeed(scopeAtMutation, { force: true }).then(() => { if (onThisScreen() && communityScope === scopeAtMutation) socialARequestRerender(); }).catch(() => {});
           }
         };
+        const remove = card.querySelector('[data-social-delete]'); if (remove) remove.onclick = async () => {
+          const confirmed = await confirmSheet(t('social.deletePostConfirmTitle'), { body: t('social.deletePostConfirmBody'), okLabel: t('social.delete'), cancelLabel: t('social.cancel'), danger: true });
+          if (!confirmed) return;
+          remove.disabled = true; const scopeAtMutation = communityScope;
+          try { await deleteSocialPost(id); }
+          catch (_) { remove.disabled = false; toast(t('social.deleteError'), 'error'); return; }
+          communityOpenComments.delete(id); communityCommentDrafts.delete(id); socialAPostMenus.delete(id);
+          toast(t('social.postDeleted'), 'success'); if (onThisScreen()) socialARequestRerender();
+          if (onThisScreen() && communityScope === scopeAtMutation) {
+            loadSocialFeed(scopeAtMutation, { force: true }).then(() => { if (onThisScreen() && communityScope === scopeAtMutation) socialARequestRerender(); }).catch(() => {});
+          }
+        };
+        const share = card.querySelector('[data-social-share]'); if (share) share.onclick = async () => {
+          const post = (socialState().posts || []).find(item => String(item.id) === id) || {};
+          const data = { title: t('social.shareTitle'), text: String(post.text || t('social.shareFallback')).slice(0, 220), url: location.origin + location.pathname + '#/comunita' };
+          let completed = false;
+          try {
+            if (navigator.share) { await navigator.share(data); completed = true; }
+            else if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(data.url); completed = true; }
+            else { const area = document.createElement('textarea'); area.value = data.url; area.style.position = 'fixed'; area.style.opacity = '0'; document.body.appendChild(area); area.select(); completed = document.execCommand('copy'); area.remove(); }
+            if (completed) {
+              const scopeAtMutation = communityScope; await shareSocialPost(id);
+              if (scopeAtMutation === 'producers' && communityScope === scopeAtMutation && onThisScreen()) try { await loadSocialFeed('producers', { force: true }); } catch (_) {}
+              toast(t('social.shared'), 'success'); if (onThisScreen()) socialARequestRerender({ action: 'share', postId: id });
+            }
+          } catch (error) { if (!(error && error.name === 'AbortError')) toast(t('social.shareError'), 'error'); }
+        };
+        const comments = card.querySelector('[data-social-comments]'); if (comments) comments.onclick = () => { if (communityOpenComments.has(id)) communityOpenComments.delete(id); else communityOpenComments.add(id); socialARequestRerender({ action: 'comments', postId: id }); };
+        const commentInput = card.querySelector('[data-social-comment-input]'); if (commentInput) commentInput.oninput = () => communityCommentDrafts.set(id, commentInput.value);
+        const form = card.querySelector('[data-social-comment-form]'); if (form) form.onsubmit = async event => {
+          event.preventDefault(); const text = (commentInput && commentInput.value || '').trim(); const formError = card.querySelector('[data-social-comment-error]');
+          if (!text) { if (commentInput) commentInput.focus(); return; }
+          const submit = form.querySelector('button[type="submit"]'); submit.disabled = true;
+          const scopeAtMutation = communityScope;
+          try { await commentSocialPost(id, text); }
+          catch (_) { submit.disabled = false; if (formError) formError.textContent = t('social.commentError'); return; }
+          communityCommentDrafts.delete(id);
+          if (scopeAtMutation === 'producers' && communityScope === scopeAtMutation && onThisScreen()) try { await loadSocialFeed('producers', { force: true }); } catch (_) {}
+          if (onThisScreen()) socialARequestRerender({ action: 'comment-input', postId: id });
+        };
+        const carousel = card.querySelector('[data-social-carousel]');
+        if (carousel) {
+          const slides = [...carousel.querySelectorAll('.socialA-slide')];
+          const move = delta => {
+            const at = Math.max(0, Math.min(slides.length - 1, Number(carousel.dataset.socialCarouselIndex || 0) + delta));
+            carousel.dataset.socialCarouselIndex = String(at); socialACarousels.set(id, at);
+            const track = carousel.querySelector('.socialA-carousel-track'); if (track) track.style.transform = `translateX(-${at * 100}%)`;
+            slides.forEach((slide, index) => { slide.setAttribute('aria-hidden', String(index !== at)); slide.querySelectorAll('video').forEach(video => { video.tabIndex = index === at ? 0 : -1; if (index !== at) video.pause(); }); });
+            const prev = carousel.querySelector('[data-social-carousel-prev]'), next = carousel.querySelector('[data-social-carousel-next]');
+            if (at === 0 && prev && document.activeElement === prev && next) try { next.focus({ preventScroll: true }); } catch (_) { next.focus(); }
+            if (at === slides.length - 1 && next && document.activeElement === next && prev) try { prev.focus({ preventScroll: true }); } catch (_) { prev.focus(); }
+            if (prev) prev.disabled = at === 0; if (next) next.disabled = at === slides.length - 1;
+            const count = carousel.querySelector('[data-social-carousel-count]'); if (count) count.textContent = `${at + 1} / ${slides.length}`;
+            carousel.querySelectorAll('.socialA-carousel-dots i').forEach((dot, index) => dot.classList.toggle('active', index === at));
+          };
+          const prev = carousel.querySelector('[data-social-carousel-prev]'), next = carousel.querySelector('[data-social-carousel-next]'); if (prev) prev.onclick = () => move(-1); if (next) next.onclick = () => move(1);
+          let touchStart = null;
+          carousel.addEventListener('touchstart', event => { const touch = event.touches && event.touches[0]; touchStart = touch ? { x: touch.clientX, y: touch.clientY } : null; }, { passive: true });
+          carousel.addEventListener('touchend', event => {
+            const touch = event.changedTouches && event.changedTouches[0]; if (!touch || !touchStart) return;
+            const dx = touch.clientX - touchStart.x, dy = touch.clientY - touchStart.y; touchStart = null;
+            if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy)) move(dx < 0 ? 1 : -1);
+          }, { passive: true });
+        }
       });
     },
   };
@@ -645,9 +1120,19 @@ export function Comunita() {
 export function Producer(id) {
   const p = producerById(id);
   if (!p) return { html: `<div class="screen no-nav"><div class="pad mt22">${t('producer.notFound')} <a href="#/home" data-link>${t('producer.backHome')}</a></div></div>` };
-  const cats = p.categories.map(c => `<span class="chip" style="padding:5px 11px">${Icon(catGlyph[c], { size: 14 })}${catLabel(c)}</span>`).join('');
+  const categories = Array.isArray(p.categories) ? p.categories : [];
+  const seasonal = Array.isArray(p.seasonal) ? p.seasonal : [];
+  const verify = p.verify || { state: 'valid', date: '' };
+  const region = producerRegion(p) || userRegion() || '';
+  const locationParts = [...new Set([p.place, region].filter(Boolean).map(String))];
+  const location = locationParts.join(', ');
+  const hasDistance = p.km !== null && p.km !== '' && Number.isFinite(Number(p.km));
+  const distance = hasDistance ? `${km(p.km)} km` : t('producer.distanceUnavailable');
+  const story = String(p.story || '');
+  const lead = story.length > 190 ? story.slice(0, 187).replace(/\s+\S*$/, '') + '…' : story;
+  const cats = categories.map(c => `<span>${Icon(catGlyph[c], { size: 14 })}${catLabel(c)}</span>`).join('');
   // Pull-quote: cita le parole vere del produttore (estratte da story tra « »), con attribuzione.
-  const quoteMatch = (p.story || '').match(/«([^»]+)»/);
+  const quoteMatch = story.match(/«([^»]+)»/);
   const quote = quoteMatch ? quoteMatch[1].trim() : t('producer.defaultQuote');
   const quoteWho = `${(p.name || '').replace(/^Az\.\s*Agricola\s+di\s+/i, '')}, ${p.place || ''}`.replace(/,\s*$/, '');
 
@@ -682,8 +1167,8 @@ export function Producer(id) {
         </button>`;
   const multi = vOrdered.length > 1;
   const videoSection = vOrdered.length ? `
-        <div class="block">
-          <div class="block-h"><div class="section-t">${t('producer.watchVisit')}</div><span class="eyebrow tnum">${t('producer.videoCount', { n: vids.length })}</span></div>
+        <section class="prod-section prod-video-section">
+          <div class="prod-section-head"><h2>${t('producer.watchVisit')}</h2><span class="tnum">${t('producer.videoCount', { n: vids.length })}</span></div>
           <div class="pv3-wrap ${multi ? '' : 'solo'}">
             <div class="pv3">
               <div class="pv3-track" data-pv3-track>${vOrdered.map(slide).join('')}</div>
@@ -696,58 +1181,107 @@ export function Producer(id) {
             ${multi ? `<div class="pv3-chapters">${vOrdered.map(chapterRow).join('')}</div>` : ''}
           </div>
           ${multi ? `<div class="pv3-hint">${t('producer.swipeHint')}</div>` : ''}
-        </div>` : '';
+        </section>` : '';
+  const seasonalCards = seasonal.map(si => `<article class="prod-product-card">
+    ${Photo(si.tone, '', 'prod-product-photo')}
+    <div class="prod-product-copy"><h3>${esc(si.label)}</h3><p>${esc(si.note || t('producer.productAvailable'))}</p></div>
+  </article>`).join('');
+  const verificationLine = verify.date
+    ? t('producer.profileVerified', { date: locDate(verify.date) })
+    : t('producer.noVerifier');
   return {
-    html: `<div class="screen no-nav prod">
+    html: `<div class="screen no-nav prod prod-profile">
       <div class="scroll">
-        <div class="hero">
-          ${Photo(p.tone, '', '', p.photo, p.photoPos || 'center')}
-          <div class="hero-top">
-            <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 18 })}</button>
-            <button class="iconbtn" data-save aria-label="${t('producer.saveAria')}" aria-pressed="${p.saved ? 'true' : 'false'}">${Icon(p.saved ? 'heart' : 'bookmark', { size: 18, color: p.saved ? 'var(--verde)' : 'var(--ink)', fill: p.saved ? 'var(--verde)' : 'none' })}</button>
+        <header class="prod-profile-hero">
+          <div class="prod-profile-cover">
+            ${Photo(p.tone, '', 'prod-profile-cover-photo', p.photo, p.photoPos || 'center')}
+            <div class="prod-profile-nav">
+              <button class="iconbtn" data-back aria-label="${t('common.back')}">${Icon('arrow-left', { size: 19 })}</button>
+              <button class="iconbtn ${p.saved ? 'saved' : ''}" data-save aria-label="${p.saved ? t('producer.saveRemoveAria') : t('producer.saveAria')}" aria-pressed="${p.saved ? 'true' : 'false'}">${Icon(p.saved ? 'heart' : 'bookmark', { size: 19, color: p.saved ? '#fff' : 'var(--ink)', fill: p.saved ? '#fff' : 'none' })}</button>
+            </div>
+            <div class="prod-profile-cover-copy">
+              <span class="eyebrow">${t('producer.localProducer')}</span>
+              <h1>${esc(p.name)}</h1>
+              <p>${Icon('map-pin', { size: 15 })}<span>${esc(location)}${hasDistance ? ` · <b class="tnum">${esc(distance)}</b>` : ''}</span></p>
+            </div>
           </div>
-          <div class="hero-cap"><div class="pn">${p.name}</div><div class="pl">${p.place} · Alta Val di Sangro</div></div>
-        </div>
-        <div class="metarow">${VerifyBadge(p.verify)} ${cats} <span class="km tnum">${km(p.km)} km</span></div>
 
-        ${videoSection}
+          <div class="prod-profile-intro">
+            <div class="prod-profile-trust">${VerifyBadge(verify)}</div>
+            ${cats ? `<div class="prod-profile-cats">${cats}</div>` : ''}
+            <p class="prod-profile-lead">${esc(lead || quote)}</p>
+            <div class="prod-profile-actions">
+              <button class="prod-profile-primary" type="button" data-contact>${Icon('message-circle', { size: 18 })}<span>${t('producer.askAvailability')}</span></button>
+              <button class="prod-profile-secondary" type="button" data-nav aria-label="${t('producer.directionsAria')}">${Icon('navigation', { size: 19 })}</button>
+            </div>
+            <div class="prod-profile-open">
+              <span>${Icon('clock', { size: 17 })}</span>
+              <div><b>${t('producer.pickupDirect')}</b><small>${esc(p.hours || t('producer.contactPickup'))}</small></div>
+            </div>
+          </div>
+        </header>
 
-        <div class="block">
-          <p class="story">${p.story}</p>
-          <figure class="pullquote" style="margin:0">
-            <blockquote style="margin:0">“${quote}”</blockquote>
-            <figcaption class="pq-by">— ${quoteWho}</figcaption>
-          </figure>
-        </div>
+        <div class="prod-profile-content">
+          <main class="prod-profile-main">
+            <section class="prod-section">
+              <div class="prod-section-head"><h2>${t('producer.availableNow')}</h2><span>${seasonal.length} ${seasonal.length === 1 ? t('producer.productOne') : t('producer.productMany')} · ${t('producer.smallLots')}</span></div>
+              ${seasonalCards ? `<div class="prod-products">${seasonalCards}</div>` : `<div class="prod-empty-products">${t('producer.noSeasonal')}</div>`}
+            </section>
 
-        <div class="block">
-          <div class="block-h"><div class="section-t">${t('producer.seasonNow')}</div><span class="eyebrow tnum">${p.seasonal.length} ${p.seasonal.length === 1 ? t('producer.productOne') : t('producer.productMany')}</span></div>
-          <div class="seasonal">${p.seasonal.map(si => `<div class="si">${Photo(si.tone, '')}<div class="sl">${si.label}${si.note ? `<span class="sn">${si.note}</span>` : ''}</div></div>`).join('')}</div>
-        </div>
+            ${videoSection}
 
-        <div class="block">
-          <div class="kv"><span class="open">${Icon('clock', { size: 17, color: 'var(--verde-deep)' })}</span> ${p.hours}</div>
-          <div class="kv">${Icon('map-pin', { size: 17, color: 'var(--muted)' })} ${p.address}</div>
-          <div class="dlv-sel"><div class="dlv-soon">${Icon('truck', { size: 17, color: 'var(--muted)' })} <b style="color:var(--ink)">${t('producer.homeDelivery')}</b> · ${t('producer.deliveryUnavailable')}</div>
-            <div class="muted" style="font-size:12.5px;margin-top:6px">${t('producer.deliveryNote')}</div></div>
-        </div>
+            <section class="prod-section prod-story-section">
+              <div class="prod-section-head"><h2>${t('producer.storyMethod')}</h2><span>${t('producer.fromTerritory')}</span></div>
+              <p class="prod-profile-story">${esc(story || quote)}</p>
+              <figure class="prod-profile-quote">
+                <blockquote>“${esc(quote)}”</blockquote>
+                <figcaption>— ${esc(quoteWho)}</figcaption>
+              </figure>
+              <div class="prod-method">
+                <div class="prod-method-step"><span>01</span><div><b>${t('producer.originDeclared')}</b><small>${t('producer.originBody')}</small></div></div>
+                <div class="prod-method-step"><span>02</span><div><b>${t('producer.processTold')}</b><small>${t('producer.processBody')}</small></div></div>
+                <div class="prod-method-step"><span>03</span><div><b>${t('producer.directPurchase')}</b><small>${t('producer.directPurchaseBody')}</small></div></div>
+              </div>
+            </section>
+          </main>
 
-        <div class="block">
-          <div class="block-h"><div class="section-t">${t('producer.reviews')}</div></div>
-          <div class="muted" style="font-size:14px">${t('producer.noReviews1')} <b style="color:var(--verde-deep)">${t('producer.verifiedByTech', { date: locDate(p.verify.date) })}${p.verify.by ? ' — ' + esc(p.verify.by) : ''}</b>.</div>
+          <aside class="prod-profile-side" aria-label="${t('producer.practicalInfoAria')}">
+            <section class="prod-info-card">
+              <h2>${t('producer.howToBuy')}</h2>
+              <div class="prod-info-row"><span>${Icon('clock', { size: 17 })}</span><div><b>${t('producer.pickupDirect')}</b><small>${esc(p.hours || t('producer.contactPickup'))}</small></div></div>
+              <div class="prod-info-row"><span>${Icon('map-pin', { size: 17 })}</span><div><b>${esc(location || p.name)}</b><small>${esc(p.address || t('producer.addressOnContact'))}</small></div></div>
+              <div class="prod-info-row"><span>${Icon('navigation', { size: 17 })}</span><div><b>${hasDistance ? t('producer.distanceFromCity', { distance }) : t('producer.distanceUnavailable')}</b><small>${t('producer.distancePrinciple')}</small></div></div>
+            </section>
+
+            <section class="prod-info-card prod-verify-card">
+              <h2>${t('producer.whatVerified')}</h2>
+              ${VerifyBadge(verify, { compact: true })}
+              <p>${esc(verificationLine)}${verify.by ? ` · ${esc(t('producer.verifiedBy', { name: verify.by }))}` : ''}</p>
+            </section>
+
+            <section class="prod-info-card prod-delivery-card">
+              <h2>${t('producer.homeDelivery')}</h2>
+              <div class="prod-info-row"><span>${Icon('truck', { size: 17 })}</span><div><b>${t('producer.deliveryUnavailable')}</b><small>${t('producer.deliveryNote')}</small></div></div>
+            </section>
+
+            <section class="prod-info-card prod-reviews-card">
+              <h2>${t('producer.reviews')}</h2>
+              <p>${t('producer.noReviews1')} <b>${esc(verificationLine)}</b>.</p>
+            </section>
+          </aside>
         </div>
-        <div style="height:12px"></div>
       </div>
-      <div class="cta-sticky">
-        <button class="btn btn-grad" style="flex:1" data-contact aria-label="${t('producer.contactPickup')}">${Icon('message-circle', { size: 18, color: '#fff' })} ${t('producer.contactPickup')}</button>
-        <button class="iconbtn" style="width:52px;height:52px" data-nav aria-label="${t('producer.directionsAria')}">${Icon('navigation', { size: 20, color: 'var(--verde)' })}</button>
+
+      <div class="cta-sticky prod-profile-sticky">
+        <button class="btn btn-grad" data-contact aria-label="${t('producer.askAvailability')}">${Icon('message-circle', { size: 18, color: '#fff' })} ${t('producer.askAvailability')}</button>
+        <button class="iconbtn" data-nav aria-label="${t('producer.directionsAria')}">${Icon('navigation', { size: 20, color: 'var(--verde)' })}</button>
       </div>
     </div>`,
     onMount(el) {
       const back = el.querySelector('[data-back]'); if (back) back.onclick = () => history.back();
       const save = el.querySelector('[data-save]'); if (save) save.onclick = (e) => { toggleSaved(p.id); rerender(); };
-      const contact = el.querySelector('[data-contact]'); if (contact) contact.onclick = () => openContact(p);
-      const nav = el.querySelector('[data-nav]'); if (nav) nav.onclick = () => openContact(p);
+      el.querySelectorAll('[data-contact]').forEach(contact => { contact.onclick = () => openContact(p); });
+      el.querySelectorAll('[data-nav]').forEach(nav => { nav.onclick = () => openContact(p); });
 
       // Carosello video "storie": scroll orizzontale (swipe) + frecce + pallini + contatore.
       const track = el.querySelector('[data-pv3-track]');

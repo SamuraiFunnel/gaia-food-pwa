@@ -92,20 +92,59 @@ export function toast(msg, type = 'info') {
   setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 260); }, 3400);
 }
 // Conferma: dialog in-app, ritorna Promise<boolean>. Sostituisce confirm() per le azioni distruttive.
+let confirmSheetSeq = 0;
 export function confirmSheet(title, { body = '', okLabel = 'Conferma', cancelLabel = 'Annulla', danger = false } = {}) {
   return new Promise((resolve) => {
     const host = document.getElementById('app') || document.body;
+    const opener = document.activeElement;
+    const uid = `gf-confirm-${++confirmSheetSeq}`;
     const back = document.createElement('div'); back.className = 'gf-confirm-bd';
     back.setAttribute('role', 'dialog'); back.setAttribute('aria-modal', 'true');
-    back.innerHTML = `<div class="gf-confirm"><div class="gf-confirm-t">${title}</div>${body ? `<div class="gf-confirm-b">${body}</div>` : ''}
-      <div class="gf-confirm-row"><button type="button" class="gf-confirm-no">${cancelLabel}</button><button type="button" class="gf-confirm-ok${danger ? ' danger' : ''}">${okLabel}</button></div></div>`;
-    const done = (v) => { document.removeEventListener('keydown', onKey); back.remove(); resolve(v); };
-    const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    back.setAttribute('aria-labelledby', `${uid}-title`);
+    if (body) back.setAttribute('aria-describedby', `${uid}-body`);
+    back.innerHTML = `<div class="gf-confirm"><div class="gf-confirm-t" id="${uid}-title"></div>${body ? `<div class="gf-confirm-b" id="${uid}-body"></div>` : ''}
+      <div class="gf-confirm-row"><button type="button" class="gf-confirm-no"></button><button type="button" class="gf-confirm-ok${danger ? ' danger' : ''}"></button></div></div>`;
+    back.querySelector('.gf-confirm-t').textContent = String(title == null ? '' : title);
+    const bodyEl = back.querySelector('.gf-confirm-b'); if (bodyEl) bodyEl.textContent = String(body);
+    back.querySelector('.gf-confirm-no').textContent = String(cancelLabel == null ? '' : cancelLabel);
+    back.querySelector('.gf-confirm-ok').textContent = String(okLabel == null ? '' : okLabel);
+    const covered = [...host.querySelectorAll('[aria-modal="true"]')].filter(node => node !== back && !node.contains(back)).map(node => ({
+      node, ariaHidden: node.getAttribute('aria-hidden'), inert: !!node.inert,
+    }));
+    covered.forEach(({ node }) => { node.setAttribute('aria-hidden', 'true'); node.inert = true; });
+    let settled = false, observer = null;
+    const focusable = () => [...back.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(node => node.getClientRects().length);
+    const done = (v, { restoreFocus = true } = {}) => {
+      if (settled) return; settled = true;
+      document.removeEventListener('keydown', onKey, true); window.removeEventListener('hashchange', onRouteChange); if (observer) observer.disconnect();
+      covered.forEach(({ node, ariaHidden, inert }) => {
+        if (ariaHidden == null) node.removeAttribute('aria-hidden'); else node.setAttribute('aria-hidden', ariaHidden);
+        node.inert = inert;
+      });
+      back.remove();
+      try { window.dispatchEvent(new CustomEvent('gf:social-overlay-closed')); } catch (_) {}
+      if (restoreFocus && opener && opener.isConnected) try { opener.focus({ preventScroll: true }); } catch (_) { try { opener.focus(); } catch (_) {} }
+      resolve(v);
+    };
+    const onRouteChange = () => done(false, { restoreFocus: false });
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); done(false); return; }
+      if (e.key !== 'Tab') return;
+      const nodes = focusable(); if (!nodes.length) { e.preventDefault(); return; }
+      const first = nodes[0], last = nodes[nodes.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
     back.onclick = (e) => { if (e.target === back) done(false); };
     back.querySelector('.gf-confirm-no').onclick = () => done(false);
     back.querySelector('.gf-confirm-ok').onclick = () => done(true);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
+    window.addEventListener('hashchange', onRouteChange);
     host.appendChild(back);
+    if (typeof MutationObserver !== 'undefined' && document.body) {
+      observer = new MutationObserver(() => { if (!back.isConnected) done(false, { restoreFocus: false }); });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
     const ok = back.querySelector('.gf-confirm-ok'); if (ok) ok.focus();
   });
 }

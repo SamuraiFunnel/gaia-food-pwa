@@ -132,6 +132,9 @@ export function enhanceHome(el) {
   if (!isDesktop()) return;            // mobile: nessun cambiamento
   const home = el.querySelector('.screen.home');
   if (!home) return;
+  // La Home "Elenco essenziale" usa righe-link vere: il dettaglio deve aprirsi sempre
+  // nella sua pagina, anche su desktop. Il vecchio split resta disponibile solo al markup storico.
+  if (home.classList.contains('home-directory')) return;
   if (home.querySelector('.dk-panel')) return; // già montato
 
   home.classList.add('dk-split');

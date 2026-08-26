@@ -6,7 +6,12 @@ const state = {
   query: '', category: null, radius: 15, role: null,
   user: null, // utente finale loggato (Google/email); null = nessuno (l'app è gated, niente ospite)
   saved: JSON.parse(localStorage.getItem('gf_saved') || '[]'),
-  social: { scope: 'for-you', posts: [], context: null, status: 'idle', error: null },
+  social: {
+    scope: 'for-you', posts: [], context: null, status: 'idle', error: null,
+    hasMore: false, nextOffset: null,
+    stories: [], storiesStatus: 'idle', storiesError: null,
+    suggestions: [], suggestionsStatus: 'idle', suggestionsError: null,
+  },
 };
 
 async function fetchData() {
@@ -145,10 +150,12 @@ const ja = (url, opts = {}) => fetch(url, { headers: { 'Content-Type': 'applicat
 // ---- Rete Gaia · feed sociale locale ----
 // Lo store conserva un solo feed alla volta: cambiando filtro la UI mostra subito lo skeleton e
 // scarta le risposte arrivate in ritardo. Le mutazioni ritornano sempre il post canonico dal server.
-const SOCIAL_SCOPES = new Set(['for-you', 'nearby', 'producers']);
+const SOCIAL_SCOPES = new Set(['for-you', 'following', 'nearby', 'producers']);
 const SOCIAL_KINDS = new Set(['question', 'tip', 'field', 'availability', 'story']);
 let socialRequestSeq = 0;
 let socialContextSeq = 0;
+let socialStoriesRequestSeq = 0;
+let socialSuggestionsRequestSeq = 0;
 
 export const socialState = () => state.social;
 
@@ -168,8 +175,15 @@ function socialLocationOf(user) {
 export function invalidateSocialState(reason = 'context') {
   socialRequestSeq += 1;
   socialContextSeq += 1;
+  socialStoriesRequestSeq += 1;
+  socialSuggestionsRequestSeq += 1;
   const scope = socialScope(state.social && state.social.scope);
-  state.social = { scope, posts: [], context: null, status: 'idle', error: null };
+  state.social = {
+    scope, posts: [], context: null, status: 'idle', error: null,
+    hasMore: false, nextOffset: null,
+    stories: [], storiesStatus: 'idle', storiesError: null,
+    suggestions: [], suggestionsStatus: 'idle', suggestionsError: null,
+  };
   try { window.dispatchEvent(new CustomEvent('gf:social-context-changed', { detail: { reason } })); } catch (_) {}
   return state.social;
 }
@@ -186,31 +200,49 @@ function replaceSocialPost(post, { prepend = false } = {}) {
   if (!post || post.id == null) return post;
   const posts = state.social.posts || [];
   const at = posts.findIndex(p => String(p.id) === String(post.id));
-  if (at >= 0) posts.splice(at, 1, post);
+  if (at >= 0) {
+    if (!post.virality && posts[at] && posts[at].virality) post = { ...post, virality: posts[at].virality };
+    posts.splice(at, 1, post);
+  }
   else if (prepend) {
-    const inScope = state.social.scope !== 'producers'
-      ? (state.social.scope !== 'nearby' || post.locality !== 'other')
-      : !!(post.author && post.author.type === 'producer');
+    const inScope = state.social.scope === 'for-you'
+      || (state.social.scope === 'producers' && !!(post.author && post.author.type === 'producer'));
     if (inScope) posts.unshift(post);
   }
   return post;
 }
 
-export async function loadSocialFeed(scope = 'for-you', { force = false } = {}) {
+function mergeSocialPosts(current, incoming) {
+  const merged = [], seen = new Set();
+  for (const post of [...(current || []), ...(incoming || [])]) {
+    const id = String(post && post.id || '');
+    if (!id || seen.has(id)) continue;
+    seen.add(id); merged.push(post);
+  }
+  return merged;
+}
+
+export async function loadSocialFeed(scope = 'for-you', { force = false, append = false } = {}) {
   scope = socialScope(scope);
-  if (!force && state.social.scope === scope && state.social.status === 'ready') return state.social;
+  if (!force && !append && state.social.scope === scope && state.social.status === 'ready') return state.social;
+  if (append && (state.social.scope !== scope || !state.social.hasMore || state.social.status === 'loading')) return state.social;
   const seq = ++socialRequestSeq;
-  const keepPosts = state.social.scope === scope ? state.social.posts : [];
+  const sameScope = state.social.scope === scope;
+  const keepPosts = sameScope ? state.social.posts : [];
+  const offset = append && sameScope ? (state.social.nextOffset == null ? keepPosts.length : state.social.nextOffset) : 0;
   state.social = { ...state.social, scope, posts: keepPosts, status: 'loading', error: null };
   try {
-    const d = await ja('./api/social/feed?scope=' + encodeURIComponent(scope));
+    const d = await ja('./api/social/feed?scope=' + encodeURIComponent(scope) + '&limit=20&offset=' + encodeURIComponent(offset));
     if (seq !== socialRequestSeq) return state.social;
     state.social = {
+      ...state.social,
       scope,
-      posts: Array.isArray(d.posts) ? d.posts : [],
+      posts: append ? mergeSocialPosts(keepPosts, d.posts) : (Array.isArray(d.posts) ? d.posts : []),
       context: d.context || null,
       status: 'ready',
       error: null,
+      hasMore: !!d.hasMore,
+      nextOffset: Number.isInteger(d.nextOffset) ? d.nextOffset : null,
     };
     return state.social;
   } catch (error) {
@@ -219,12 +251,113 @@ export async function loadSocialFeed(scope = 'for-you', { force = false } = {}) 
   }
 }
 
-export async function createSocialPost({ text, kind = 'question' }) {
+export async function loadSocialStories({ force = false } = {}) {
+  if (!force && state.social.storiesStatus === 'ready') return state.social.stories;
+  const seq = ++socialStoriesRequestSeq;
+  state.social = { ...state.social, storiesStatus: 'loading', storiesError: null };
+  try {
+    const d = await ja('./api/social/stories');
+    if (seq !== socialStoriesRequestSeq) return state.social.stories;
+    state.social = { ...state.social, stories: Array.isArray(d.stories) ? d.stories : [], storiesStatus: 'ready', storiesError: null };
+    return state.social.stories;
+  } catch (error) {
+    if (seq === socialStoriesRequestSeq) state.social = { ...state.social, storiesStatus: 'error', storiesError: error };
+    throw error;
+  }
+}
+
+export async function loadSocialSuggestions({ force = false } = {}) {
+  if (!force && state.social.suggestionsStatus === 'ready') return state.social.suggestions;
+  const seq = ++socialSuggestionsRequestSeq;
+  state.social = { ...state.social, suggestionsStatus: 'loading', suggestionsError: null };
+  try {
+    const d = await ja('./api/social/suggestions?limit=5');
+    if (seq !== socialSuggestionsRequestSeq) return state.social.suggestions;
+    state.social = { ...state.social, suggestions: Array.isArray(d.suggestions) ? d.suggestions : [], suggestionsStatus: 'ready', suggestionsError: null };
+    return state.social.suggestions;
+  } catch (error) {
+    if (seq === socialSuggestionsRequestSeq) state.social = { ...state.social, suggestionsStatus: 'error', suggestionsError: error };
+    throw error;
+  }
+}
+
+export async function loadSocialSurface({ force = false } = {}) {
+  return Promise.allSettled([loadSocialStories({ force }), loadSocialSuggestions({ force })]);
+}
+
+export async function uploadSocialMedia(dataUrl, { signal } = {}) {
+  return ja('./api/social/media', { method: 'POST', body: JSON.stringify({ dataUrl }), signal });
+}
+
+export async function createSocialPost({ text, kind = 'question', mediaRefs = [] }, { signal } = {}) {
   const contextSeq = socialContextSeq;
   const cleanKind = SOCIAL_KINDS.has(kind) ? kind : 'question';
-  const d = await ja('./api/social/posts', { method: 'POST', body: JSON.stringify({ text, kind: cleanKind }) });
+  const refs = Array.isArray(mediaRefs) ? mediaRefs.filter(Boolean).slice(0, 10) : [];
+  const d = await ja('./api/social/posts', { method: 'POST', body: JSON.stringify({ text, kind: cleanKind, mediaRefs: refs }), signal });
   return contextSeq === socialContextSeq ? replaceSocialPost(d.post, { prepend: true }) : d.post;
 }
+
+export async function createSocialStory({ text, mediaRef = null }, { signal } = {}) {
+  const contextSeq = socialContextSeq;
+  const d = await ja('./api/social/stories', { method: 'POST', body: JSON.stringify({ text, mediaRef: mediaRef || undefined }), signal });
+  if (contextSeq === socialContextSeq && d.story) {
+    state.social.stories = [d.story, ...(state.social.stories || []).filter(story => String(story.id) !== String(d.story.id))];
+  }
+  return d.story;
+}
+
+function replaceSocialStory(story) {
+  if (!story || story.id == null) return story;
+  const at = (state.social.stories || []).findIndex(item => String(item.id) === String(story.id));
+  if (at >= 0) state.social.stories.splice(at, 1, story);
+  return story;
+}
+
+function setFollowingAuthor(authorId, following) {
+  const id = String(authorId || '');
+  const patchAuthor = (item) => {
+    if (!item || String(item.author && item.author.id || '') !== id) return;
+    item.viewer = { ...(item.viewer || {}), followingAuthor: following };
+  };
+  (state.social.posts || []).forEach(patchAuthor);
+  (state.social.stories || []).forEach(patchAuthor);
+  (state.social.suggestions || []).forEach((item) => {
+    if (String(item && item.author && item.author.id || '') === id) item.following = following;
+  });
+}
+
+export async function followSocialAuthor(authorId, following = true) {
+  const contextSeq = socialContextSeq;
+  const id = encodeURIComponent(String(authorId || ''));
+  const d = await ja('./api/social/authors/' + id + '/follow', { method: following ? 'PUT' : 'DELETE', body: '{}' });
+  if (contextSeq === socialContextSeq) setFollowingAuthor(d.authorId || authorId, !!d.following);
+  return d;
+}
+
+export async function viewSocialStory(id) {
+  const contextSeq = socialContextSeq;
+  const d = await ja('./api/social/stories/' + encodeURIComponent(id) + '/view', { method: 'POST', body: '{}' });
+  return contextSeq === socialContextSeq ? replaceSocialStory(d.story) : d.story;
+}
+
+export async function reportSocialStory(id) {
+  const contextSeq = socialContextSeq;
+  const d = await ja('./api/social/stories/' + encodeURIComponent(id) + '/report', { method: 'POST', body: '{}' });
+  if (contextSeq === socialContextSeq) {
+    state.social.stories = (state.social.stories || []).filter(item => String(item.id) !== String(id));
+  }
+  return d;
+}
+
+export async function deleteSocialStory(id) {
+  const contextSeq = socialContextSeq;
+  const d = await ja('./api/social/stories/' + encodeURIComponent(id), { method: 'DELETE' });
+  if (contextSeq === socialContextSeq) {
+    state.social.stories = (state.social.stories || []).filter(item => String(item.id) !== String(id));
+  }
+  return d;
+}
+
 export async function likeSocialPost(id) {
   const contextSeq = socialContextSeq;
   const d = await ja('./api/social/posts/' + encodeURIComponent(id) + '/like', { method: 'POST', body: '{}' });
@@ -239,6 +372,28 @@ export async function commentSocialPost(id, text) {
   const contextSeq = socialContextSeq;
   const d = await ja('./api/social/posts/' + encodeURIComponent(id) + '/comments', { method: 'POST', body: JSON.stringify({ text }) });
   return contextSeq === socialContextSeq ? replaceSocialPost(d.post) : d.post;
+}
+export async function shareSocialPost(id) {
+  const contextSeq = socialContextSeq;
+  const d = await ja('./api/social/posts/' + encodeURIComponent(id) + '/share', { method: 'POST', body: '{}' });
+  return contextSeq === socialContextSeq ? replaceSocialPost(d.post) : d.post;
+}
+export async function reportSocialPost(id) {
+  const contextSeq = socialContextSeq;
+  const d = await ja('./api/social/posts/' + encodeURIComponent(id) + '/report', { method: 'POST', body: '{}' });
+  if (contextSeq === socialContextSeq) {
+    state.social.posts = (state.social.posts || []).filter(item => String(item.id) !== String(id));
+  }
+  return d;
+}
+
+export async function deleteSocialPost(id) {
+  const contextSeq = socialContextSeq;
+  const d = await ja('./api/social/posts/' + encodeURIComponent(id), { method: 'DELETE' });
+  if (contextSeq === socialContextSeq) {
+    state.social.posts = (state.social.posts || []).filter(item => String(item.id) !== String(id));
+  }
+  return d;
 }
 
 // "Seme" del referral: se l'app è aperta con ?seme=<codice> (nell'URL o nell'hash), lo ricordiamo

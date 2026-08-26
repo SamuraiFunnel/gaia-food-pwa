@@ -15,6 +15,18 @@ import ZH from '../js/i18n/zh.js';
 const DICTS = { en: EN, de: DE, zh: ZH }; // tutte le lingue non-IT, confrontate con IT (base)
 const jsDir = fileURLToPath(new URL('../js', import.meta.url));
 
+test('service worker: tutte le API sono network-only e mai cache/fallback cross-account', () => {
+  const source = fs.readFileSync(fileURLToPath(new URL('../sw.js', import.meta.url)), 'utf8');
+  assert.match(source, /const VERSION = 'gaia-food-v46'/);
+  const fetchSource = source.slice(source.indexOf("self.addEventListener('fetch'"));
+  const apiStart = fetchSource.indexOf("if (sameOrigin && /\\/api");
+  const apiEnd = fetchSource.indexOf('// 1) Navigazioni', apiStart);
+  assert.ok(apiStart >= 0 && apiEnd > apiStart, 'il ramo /api deve precedere le strategie con cache');
+  const apiBranch = fetchSource.slice(apiStart, apiEnd);
+  assert.match(apiBranch, /fetch\(new Request\(req, \{ cache: 'no-store' \}\)\)/);
+  assert.doesNotMatch(apiBranch, /caches\.|\.catch\s*\(/, 'il ramo API non deve avere cache o fallback offline');
+});
+
 test('SUPPORTED / LANGS coerenti', () => {
   assert.ok(SUPPORTED.includes('it') && SUPPORTED.includes('en'));
   assert.deepEqual(LANGS.map((l) => l.code), SUPPORTED); // ogni lingua elencata ha un loader

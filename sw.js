@@ -2,12 +2,13 @@
    Offline reale: precache della shell completa (HTML + CSS + tutti i moduli JS +
    dati + brand) e runtime-cache per il resto.
    Strategie:
-   - navigazioni/HTML e /api,/data  → network-first (sempre l'ultima versione, cache come fallback offline)
+   - /api/* → solo rete, mai cache o fallback (dati privati legati all'account)
+   - navigazioni/HTML e /data → network-first (sempre l'ultima versione, cache come fallback offline)
    - moduli JS / CSS / icone same-origin → network-first (online = sempre l'ultima; cache solo come fallback offline)
    - CDN (font Google, MapLibre, tiles), foto → cache-first (riusa la copia, scarica una volta)
    Aggiornamento: il nuovo SW si attiva subito (skipWaiting) e prende il controllo (clients.claim).
 */
-const VERSION = 'gaia-food-v43';
+const VERSION = 'gaia-food-v46';
 const SHELL_CACHE = VERSION + '-shell';
 const RUNTIME_CACHE = VERSION + '-runtime';
 
@@ -67,8 +68,16 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   const sameOrigin = url.origin === location.origin;
 
-  // 1) Navigazioni HTML + dati dinamici (/api, /data): network-first, fallback cache → shell.
-  if (isHTML(req) || (sameOrigin && (url.pathname.includes('/api/') || url.pathname.includes('/data/')))) {
+  // Tutte le API possono includere identità o dati legati al cookie corrente. Non devono mai
+  // finire nella runtime cache: un fallback offline potrebbe riaprire l'account precedente
+  // dopo logout/login sullo stesso dispositivo (/api/auth/me, /api/me, feed social, ecc.).
+  if (sameOrigin && /\/api(?:\/|$)/.test(url.pathname)) {
+    e.respondWith(fetch(new Request(req, { cache: 'no-store' })));
+    return;
+  }
+
+  // 1) Navigazioni HTML + dati pubblici /data: network-first, fallback cache → shell.
+  if (isHTML(req) || (sameOrigin && url.pathname.includes('/data/'))) {
     e.respondWith(
       fetch(req).then(r => {
         const copy = r.clone();

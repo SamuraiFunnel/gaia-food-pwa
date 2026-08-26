@@ -13,7 +13,12 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-api-'));
 process.env.GF_DATA_DIR = TMP;
 process.env.GF_GOOGLE_CLIENT_ID = '';
 process.env.GF_ADMIN_PASSWORD = 'social-admin-test';
-const { requestHandler } = await import('../server.js');
+process.env.GF_SOCIAL_DISK_CAP_BYTES = String(64 * 1024);
+delete process.env.CLOUDINARY_URL;
+delete process.env.CLOUDINARY_CLOUD_NAME;
+delete process.env.CLOUDINARY_API_KEY;
+delete process.env.CLOUDINARY_API_SECRET;
+const { requestHandler, acquireSocialUploadSlot } = await import('../server.js');
 
 let server, port;
 before(async () => {
@@ -23,18 +28,19 @@ before(async () => {
 });
 after(() => { try { server.close(); } catch {} try { fs.rmSync(TMP, { recursive: true, force: true }); } catch {} });
 
-// Client HTTP minimale. opts: { body, cookie, ip }.
-function api(method, p, { body, cookie, ip } = {}) {
+// Client HTTP minimale. opts: { body, rawBody, cookie, ip, headers }.
+function api(method, p, { body, rawBody, cookie, ip, headers: extraHeaders } = {}) {
   return new Promise((resolve, reject) => {
-    const data = body != null ? JSON.stringify(body) : null;
-    const headers = { 'Content-Type': 'application/json' };
+    const data = rawBody != null ? rawBody : (body != null ? JSON.stringify(body) : null);
+    const headers = { 'Content-Type': 'application/json', ...(extraHeaders || {}) };
     if (cookie) headers['Cookie'] = cookie;
     if (ip) headers['x-forwarded-for'] = ip;
-    if (data) headers['Content-Length'] = Buffer.byteLength(data);
+    if (data && !Object.keys(headers).some((key) => key.toLowerCase() === 'content-length')) headers['Content-Length'] = Buffer.byteLength(data);
     const req = http.request({ host: '127.0.0.1', port, method, path: p, headers }, (res) => {
-      let b = ''; res.on('data', (c) => (b += c)); res.on('end', () => {
-        let json = null; try { json = b ? JSON.parse(b) : null; } catch {}
-        resolve({ status: res.statusCode, json, headers: res.headers });
+      const chunks = []; res.on('data', (c) => chunks.push(c)); res.on('end', () => {
+        const raw = Buffer.concat(chunks), text = raw.toString('utf8');
+        let json = null; try { json = text ? JSON.parse(text) : null; } catch {}
+        resolve({ status: res.statusCode, json, headers: res.headers, raw, text });
       });
     });
     req.on('error', reject);
@@ -52,6 +58,8 @@ async function signIn(email, ip, seme) {
   assert.equal(r.status, 200, `register ${email} → ${r.status}`);
   return userCookie(r);
 }
+const SOCIAL_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+const SOCIAL_MP4 = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAAAAA==';
 
 // -------------------------------------------------- config & sessione
 test('GET /api/auth/config → googleClientId vuoto quando non configurato', async () => {
@@ -176,7 +184,9 @@ test('social: crea, proietta senza PII, like/save toggle, commenta, filtra nearb
 
   const like1 = await api('POST', `/api/social/posts/${id}/like`, { cookie: romaCookie, ip: 'soc-react-1' });
   assert.equal(like1.status, 200);
-  assert.deepEqual(like1.json.post.viewer, { liked: true, saved: false });
+  assert.deepEqual(like1.json.post.viewer, {
+    liked: true, saved: false, shared: false, followingAuthor: false, ownAuthor: false, reported: false,
+  });
   assert.equal(like1.json.post.counts.likes, 1);
   const like2 = await api('POST', `/api/social/posts/${id}/like`, { cookie: romaCookie, ip: 'soc-react-1' });
   assert.equal(like2.json.post.viewer.liked, false);
@@ -300,6 +310,228 @@ test('social: rate limit creazione post per account+IP', async () => {
   assert.equal(statuses[8], 429);
 });
 
+test('social v2 media: MIME reale, 413, mediaRef account-bound, 4 formati e Range video 206', async () => {
+  const cookie = await signIn('social-media-owner@example.test', 'soc-media-auth');
+  const otherCookie = await signIn('social-media-other@example.test', 'soc-media-auth-other');
+  assert.equal((await api('POST', '/api/social/media', { body: { dataUrl: SOCIAL_PNG }, ip: 'soc-media-noauth' })).status, 401);
+  assert.equal((await api('POST', '/api/social/media', {
+    cookie, ip: 'soc-media-fake', body: { dataUrl: 'data:image/png;base64,ZmFrZQ==' },
+  })).status, 400);
+  const tooLarge = await api('POST', '/api/social/media', {
+    cookie, ip: 'soc-media-oversize', rawBody: JSON.stringify({ dataUrl: 'a'.repeat(26 * 1024 * 1024) }),
+  });
+  assert.equal(tooLarge.status, 413);
+
+  const image = await api('POST', '/api/social/media', { cookie, ip: 'soc-media-image', body: { dataUrl: SOCIAL_PNG } });
+  const video = await api('POST', '/api/social/media', { cookie, ip: 'soc-media-video', body: { dataUrl: SOCIAL_MP4 } });
+  assert.equal(image.status, 201); assert.equal(image.json.type, 'image'); assert.equal(image.json.expiresIn, 3600);
+  assert.equal(video.status, 201); assert.equal(video.json.type, 'video');
+  assert.ok(!image.json.mediaRef.includes('social-media-owner@example.test'));
+
+  const wrongOwner = await api('POST', '/api/social/posts', {
+    cookie: otherCookie, ip: 'soc-media-wrong-owner', body: { text: 'Non mio', mediaRefs: [image.json.mediaRef] },
+  });
+  assert.equal(wrongOwner.status, 400);
+  const arbitrary = await api('POST', '/api/social/posts', {
+    cookie, ip: 'soc-media-arbitrary', body: { mediaUrl: 'https://example.test/arbitrario.jpg' },
+  });
+  assert.equal(arbitrary.status, 400);
+
+  const text = await api('POST', '/api/social/posts', { cookie, ip: 'soc-media-post-text', body: { text: 'Solo testo' } });
+  const picture = await api('POST', '/api/social/posts', { cookie, ip: 'soc-media-post-image', body: { mediaRefs: [image.json.mediaRef] } });
+  const clip = await api('POST', '/api/social/posts', { cookie, ip: 'soc-media-post-video', body: { text: 'Clip', mediaRefs: [video.json.mediaRef] } });
+  const carousel = await api('POST', '/api/social/posts', { cookie, ip: 'soc-media-post-carousel', body: { mediaRefs: [image.json.mediaRef, video.json.mediaRef] } });
+  assert.equal(text.json.post.format, 'text');
+  assert.equal(picture.json.post.format, 'image');
+  assert.equal(clip.json.post.format, 'video');
+  assert.equal(carousel.json.post.format, 'carousel');
+  assert.deepEqual(carousel.json.post.media.map((item) => item.type), ['image', 'video']);
+  assert.equal((await api('POST', '/api/social/posts', {
+    cookie, ip: 'soc-media-post-eleven', body: { mediaRefs: Array(11).fill(image.json.mediaRef) },
+  })).status, 400);
+
+  const ranged = await api('GET', `/${video.json.url}`, { headers: { Range: 'bytes=4-7' } });
+  assert.equal(ranged.status, 206);
+  assert.equal(ranged.raw.toString('ascii'), 'ftyp');
+  assert.match(ranged.headers['content-range'], /^bytes 4-7\/\d+$/);
+  assert.equal(ranged.headers['accept-ranges'], 'bytes');
+
+  const socialDir = path.join(TMP, 'assets', 'media', 'social'), reserve = path.join(socialDir, 'quota-reserve.bin');
+  fs.writeFileSync(reserve, Buffer.alloc(64 * 1024));
+  try {
+    const full = await api('POST', '/api/social/media', { cookie, ip: 'soc-media-quota', body: { dataUrl: SOCIAL_PNG } });
+    assert.equal(full.status, 507);
+    assert.equal(full.json.error, 'spazio_media_esaurito');
+  } finally { fs.unlinkSync(reserve); }
+});
+
+test('social upload semaphore: 429 per stesso account e terzo upload globale', async () => {
+  const emailA = 'social-slot-a@example.test', emailB = 'social-slot-b@example.test', emailC = 'social-slot-c@example.test';
+  const a = await signIn(emailA, 'soc-slot-auth-a');
+  await signIn(emailB, 'soc-slot-auth-b');
+  const c = await signIn(emailC, 'soc-slot-auth-c');
+  const releaseA = acquireSocialUploadSlot(emailA);
+  assert.equal(typeof releaseA, 'function');
+  try {
+    const duplicate = await api('POST', '/api/social/media', { cookie: a, ip: 'soc-slot-duplicate', body: { dataUrl: SOCIAL_PNG } });
+    assert.equal(duplicate.status, 429); assert.equal(duplicate.headers['retry-after'], '2');
+    const releaseB = acquireSocialUploadSlot(emailB);
+    assert.equal(typeof releaseB, 'function');
+    try {
+      const global = await api('POST', '/api/social/media', { cookie: c, ip: 'soc-slot-global', body: { dataUrl: SOCIAL_PNG } });
+      assert.equal(global.status, 429); assert.equal(global.json.retryAfter, 2);
+    } finally { releaseB(); }
+  } finally { releaseA(); }
+  assert.equal((await api('POST', '/api/social/media', { cookie: c, ip: 'soc-slot-released', body: { dataUrl: SOCIAL_PNG } })).status, 201);
+});
+
+test('social v2: follow privacy-safe, Seguiti e Vicino con esclusione self/seguiti', async () => {
+  const alice = await signIn('social-follow-alice@example.test', 'soc-follow-auth-a');
+  const bob = await signIn('social-follow-bob@example.test', 'soc-follow-auth-b');
+  const dario = await signIn('social-follow-dario@example.test', 'soc-follow-auth-d');
+  const carla = await signIn('social-follow-carla@example.test', 'soc-follow-auth-c');
+  const setZone = (cookie, name, city, id, region) => api('PATCH', '/api/auth/profile', {
+    cookie, body: { name, city, zone: { id, label: id, region } },
+  });
+  await setZone(alice, 'Alice', 'Terni', 'tr', 'Umbria');
+  await setZone(bob, 'Bob', 'Terni', 'tr', 'Umbria');
+  await setZone(dario, 'Dario', 'Narni', 'tr', 'Umbria');
+  await setZone(carla, 'Carla', 'Roma', 'rm', 'Lazio');
+  const alicePost = await api('POST', '/api/social/posts', { cookie: alice, ip: 'soc-follow-post-a', body: { text: 'Post Alice' } });
+  const bobPost = await api('POST', '/api/social/posts', { cookie: bob, ip: 'soc-follow-post-b', body: { text: 'Post Bob' } });
+  const darioPost = await api('POST', '/api/social/posts', { cookie: dario, ip: 'soc-follow-post-d', body: { text: 'Post Dario' } });
+  await api('POST', '/api/social/posts', { cookie: carla, ip: 'soc-follow-post-c', body: { text: 'Post Carla' } });
+  const bobId = bobPost.json.post.author.id, aliceId = alicePost.json.post.author.id;
+
+  const suggestions = await api('GET', '/api/social/suggestions?limit=20', { cookie: alice });
+  assert.ok(suggestions.json.suggestions.some((item) => item.author.id === bobId));
+  assert.equal(suggestions.json.suggestions.some((item) => item.author.name === 'Carla'), false);
+  assert.ok(!JSON.stringify(suggestions.json).includes('@example.test'));
+  assert.equal((await api('PUT', `/api/social/authors/${aliceId}/follow`, { cookie: alice, ip: 'soc-follow-self' })).status, 400);
+  assert.equal((await api('PUT', `/api/social/authors/${bobId}/follow`, { cookie: alice, ip: 'soc-follow-put' })).json.following, true);
+  assert.equal((await api('PUT', `/api/social/authors/${bobId}/follow`, { cookie: alice, ip: 'soc-follow-put' })).status, 200);
+
+  const following = await api('GET', '/api/social/feed?scope=following', { cookie: alice });
+  assert.ok(following.json.posts.some((post) => post.id === bobPost.json.post.id));
+  assert.ok(following.json.posts.every((post) => post.author.id === bobId));
+  assert.equal(following.json.posts[0].viewer.followingAuthor, true);
+  const nearby = await api('GET', '/api/social/feed?scope=nearby', { cookie: alice });
+  assert.equal(nearby.json.posts.some((post) => post.id === alicePost.json.post.id), false);
+  assert.equal(nearby.json.posts.some((post) => post.id === bobPost.json.post.id), false);
+  assert.equal(nearby.json.posts.some((post) => post.id === darioPost.json.post.id), true);
+  assert.equal((await api('DELETE', `/api/social/authors/${bobId}/follow`, { cookie: alice, ip: 'soc-follow-del' })).json.following, false);
+  assert.equal((await api('DELETE', `/api/social/authors/${bobId}/follow`, { cookie: alice, ip: 'soc-follow-del' })).status, 200);
+});
+
+test('social v2: share idempotente, report nasconde al reporter e moderazione a soglia 3', async () => {
+  const owner = await signIn('social-report-owner@example.test', 'soc-report-auth-o');
+  const r1 = await signIn('social-report-r1@example.test', 'soc-report-auth-1');
+  const r2 = await signIn('social-report-r2@example.test', 'soc-report-auth-2');
+  const r3 = await signIn('social-report-r3@example.test', 'soc-report-auth-3');
+  const observer = await signIn('social-report-observer@example.test', 'soc-report-auth-v');
+  const created = await api('POST', '/api/social/posts', { cookie: owner, ip: 'soc-report-post', body: { text: 'Contenuto da moderare' } });
+  const id = created.json.post.id;
+  const share1 = await api('POST', `/api/social/posts/${id}/share`, { cookie: r1, ip: 'soc-report-share' });
+  const share2 = await api('POST', `/api/social/posts/${id}/share`, { cookie: r1, ip: 'soc-report-share' });
+  assert.equal(share1.json.post.counts.shares, 1);
+  assert.equal(share2.json.post.counts.shares, 1);
+  const selfShare = await api('POST', `/api/social/posts/${id}/share`, { cookie: owner, ip: 'soc-report-self-share' });
+  assert.equal(selfShare.json.post.counts.shares, 1);
+  assert.equal((await api('POST', `/api/social/posts/${id}/report`, { cookie: owner, ip: 'soc-report-self' })).status, 400);
+  assert.equal((await api('POST', `/api/social/posts/${id}/report`, { cookie: r1, ip: 'soc-report-1' })).json.pendingModeration, false);
+  assert.equal((await api('POST', `/api/social/posts/${id}/report`, { cookie: r1, ip: 'soc-report-1' })).json.pendingModeration, false); // idempotente
+  assert.equal((await api('GET', '/api/social/feed?scope=for-you', { cookie: r1 })).json.posts.some((post) => post.id === id), false);
+  await api('POST', `/api/social/posts/${id}/report`, { cookie: r2, ip: 'soc-report-2' });
+  const threshold = await api('POST', `/api/social/posts/${id}/report`, { cookie: r3, ip: 'soc-report-3' });
+  assert.equal(threshold.json.pendingModeration, true);
+  const visible = (await api('GET', '/api/social/feed?scope=for-you', { cookie: observer })).json.posts.find((post) => post.id === id);
+  assert.equal(visible.pendingModeration, true);
+  assert.ok(!JSON.stringify(visible).includes('@example.test'));
+});
+
+test('social v2 stories: 24h, seen idempotente, report privacy-safe e delete owner', async () => {
+  const owner = await signIn('social-story-owner@example.test', 'soc-story-auth-o');
+  const r1 = await signIn('social-story-r1@example.test', 'soc-story-auth-1');
+  const r2 = await signIn('social-story-r2@example.test', 'soc-story-auth-2');
+  const r3 = await signIn('social-story-r3@example.test', 'soc-story-auth-3');
+  const observer = await signIn('social-story-observer@example.test', 'soc-story-auth-v');
+  const uploaded = await api('POST', '/api/social/media', { cookie: owner, ip: 'soc-story-media', body: { dataUrl: SOCIAL_PNG } });
+  const created = await api('POST', '/api/social/stories', {
+    cookie: owner, ip: 'soc-story-create', body: { text: 'Dal campo', mediaRef: uploaded.json.mediaRef },
+  });
+  assert.equal(created.status, 201);
+  const story = created.json.story, id = story.id;
+  assert.equal(Date.parse(story.expiresAt) - Date.parse(story.createdAt), 24 * 60 * 60 * 1000);
+  assert.equal(story.media[0].type, 'image');
+  const view1 = await api('POST', `/api/social/stories/${id}/view`, { cookie: r1, ip: 'soc-story-view' });
+  const view2 = await api('POST', `/api/social/stories/${id}/view`, { cookie: r1, ip: 'soc-story-view' });
+  assert.equal(view1.json.story.viewsCount, 1); assert.equal(view2.json.story.viewsCount, 1); assert.equal(view2.json.story.viewer.seen, true);
+  assert.equal((await api('POST', `/api/social/stories/${id}/report`, { cookie: owner, ip: 'soc-story-self-report' })).status, 400);
+  await api('POST', `/api/social/stories/${id}/report`, { cookie: r1, ip: 'soc-story-report-1' });
+  assert.equal((await api('GET', '/api/social/stories', { cookie: r1 })).json.stories.some((item) => item.id === id), false);
+  await api('POST', `/api/social/stories/${id}/report`, { cookie: r2, ip: 'soc-story-report-2' });
+  const third = await api('POST', `/api/social/stories/${id}/report`, { cookie: r3, ip: 'soc-story-report-3' });
+  assert.equal(third.json.pendingModeration, true);
+  const forObserver = (await api('GET', '/api/social/stories', { cookie: observer })).json.stories.find((item) => item.id === id);
+  assert.equal(forObserver.pendingModeration, true);
+  assert.ok(!JSON.stringify(forObserver).includes('@example.test'));
+  assert.equal((await api('DELETE', `/api/social/stories/${id}`, { cookie: r2 })).status, 403);
+  assert.equal((await api('DELETE', `/api/social/stories/${id}`, { cookie: owner })).status, 200);
+});
+
+test('social v2 Produttori: viralità utile primaria, score/rank server e round-robin', async () => {
+  const emailA = 'social-viral-a@example.test', emailB = 'social-viral-b@example.test';
+  const a = await signIn(emailA, 'soc-viral-auth-a'), b = await signIn(emailB, 'soc-viral-auth-b');
+  await api('PATCH', '/api/auth/profile', { cookie: a, body: { name: 'Podere A', city: 'Terni', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } } });
+  await api('PATCH', '/api/auth/profile', { cookie: b, body: { name: 'Podere B', city: 'Roma', zone: { id: 'rm', label: 'Roma', region: 'Lazio' } } });
+  const login = await api('POST', '/api/login', { body: { password: 'social-admin-test', name: 'Admin viralità' }, ip: 'soc-viral-admin' });
+  const admin = staffCookie(login);
+  async function publish(email) {
+    const promoted = await api('POST', '/api/admin/users/level', { cookie: admin, body: { userId: email, level: 'produttore' } });
+    assert.equal(promoted.status, 200);
+    const producerId = promoted.json.producer.id;
+    assert.equal((await api('POST', '/api/producer/verify', { cookie: admin, body: { producerId } })).status, 200);
+    assert.equal((await api('POST', '/api/producer/publish', { cookie: admin, body: { producerId } })).status, 200);
+    return producerId;
+  }
+  await publish(emailA); await publish(emailB);
+  const postA = await api('POST', '/api/social/posts', { cookie: a, ip: 'soc-viral-post-a', body: { text: 'Raccolto A' } });
+  const postB1 = await api('POST', '/api/social/posts', { cookie: b, ip: 'soc-viral-post-b1', body: { text: 'Raccolto B virale' } });
+  const postB2 = await api('POST', '/api/social/posts', { cookie: b, ip: 'soc-viral-post-b2', body: { text: 'Secondo dal campo B' } });
+  assert.equal(postA.json.post.author.type, 'producer'); assert.equal(postB1.json.post.author.type, 'producer');
+  const fan = await signIn('social-viral-fan@example.test', 'soc-viral-auth-fan'), target = postB1.json.post.id;
+  await api('POST', `/api/social/posts/${target}/like`, { cookie: fan, ip: 'soc-viral-like' });
+  await api('POST', `/api/social/posts/${target}/save`, { cookie: fan, ip: 'soc-viral-save' });
+  await api('POST', `/api/social/posts/${target}/share`, { cookie: fan, ip: 'soc-viral-share' });
+  await api('POST', `/api/social/posts/${target}/comments`, { cookie: fan, ip: 'soc-viral-comment', body: { text: 'Utile' } });
+  const feed = await api('GET', '/api/social/feed?scope=producers', { cookie: a });
+  const ids = feed.json.posts.map((post) => post.id);
+  assert.deepEqual(ids.slice(0, 3), [postB1.json.post.id, postA.json.post.id, postB2.json.post.id]);
+  assert.equal(feed.json.posts[0].virality.rank, 1);
+  assert.equal(feed.json.posts[1].virality.rank, 2);
+  assert.ok(feed.json.posts[0].virality.score > feed.json.posts[1].virality.score);
+  assert.ok(feed.json.posts.every((post) => post.author.type === 'producer' && post.virality && post.virality.label));
+});
+
+test('social v2: rate-limit dedicati media, follow, share e report', async () => {
+  const owner = await signIn('social-rates-owner@example.test', 'soc-rates-auth-o');
+  const actor = await signIn('social-rates-actor@example.test', 'soc-rates-auth-a');
+  const target = await api('POST', '/api/social/posts', { cookie: owner, ip: 'soc-rates-post', body: { text: 'Target pubblico' } });
+  const id = target.json.post.id, authorId = target.json.post.author.id;
+  const mediaStatuses = [];
+  for (let i = 0; i < 13; i++) mediaStatuses.push((await api('POST', '/api/social/media', { cookie: actor, ip: 'soc-rate-media', body: { dataUrl: SOCIAL_PNG } })).status);
+  assert.deepEqual(mediaStatuses.slice(0, 12), Array(12).fill(201)); assert.equal(mediaStatuses[12], 429);
+  let followStatus;
+  for (let i = 0; i < 61; i++) followStatus = (await api('PUT', `/api/social/authors/${authorId}/follow`, { cookie: actor, ip: 'soc-rate-follow' })).status;
+  assert.equal(followStatus, 429);
+  let shareStatus;
+  for (let i = 0; i < 121; i++) shareStatus = (await api('POST', `/api/social/posts/${id}/share`, { cookie: actor, ip: 'soc-rate-share' })).status;
+  assert.equal(shareStatus, 429);
+  let reportStatus;
+  for (let i = 0; i < 21; i++) reportStatus = (await api('POST', `/api/social/posts/${id}/report`, { cookie: actor, ip: 'soc-rate-report' })).status;
+  assert.equal(reportStatus, 429);
+});
+
 // -------------------------------------------------- Custodi / referral
 test('GET /api/custodi/me senza login → 401', async () => {
   const r = await api('GET', '/api/custodi/me');
@@ -358,7 +590,7 @@ test('rate-limit: /api/auth/login oltre 10/min dallo stesso IP → 429', async (
 
 // -------------------------------------------------- avatar
 test('avatar: senza login 401, data-url invalido 400, valido → 200 con picture', async () => {
-  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
   assert.equal((await api('POST', '/api/auth/avatar', { body: { dataUrl: PNG } })).status, 401);
   const cookie = await signIn('avatar@x.it', 'av1');
   assert.equal((await api('POST', '/api/auth/avatar', { cookie, body: { dataUrl: 'nope' } })).status, 400);
@@ -402,4 +634,11 @@ test('login: giusta → 200 · sbagliata → 401 · inesistente → 401 · senza
 // -------------------------------------------------- API inesistente
 test('rotta API inesistente → 404', async () => {
   assert.equal((await api('GET', '/api/non-esiste')).status, 404);
+});
+
+test('URL con percent-encoding malformato → 400 senza interrompere il server', async () => {
+  const malformed = await api('GET', '/api/%E0%A4%A');
+  assert.equal(malformed.status, 400);
+  assert.equal(malformed.json.error, 'url_non_valido');
+  assert.equal((await api('GET', '/api/auth/config')).status, 200);
 });

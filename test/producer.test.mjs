@@ -49,7 +49,7 @@ async function loginAdmin(ip) {
   const r = await api('POST', '/api/login', { body: { password: 'test-admin-pw' }, ip });
   assert.equal(r.status, 200); return staffCookie(r);
 }
-const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
 // ---------------------------------------------------------------- ciclo completo (happy path)
 test('ciclo produttore: request → approve → onboarding → submit → verify → publish → live', async () => {

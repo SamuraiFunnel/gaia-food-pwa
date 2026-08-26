@@ -164,6 +164,10 @@ function isPublic(h) { return PUBLIC_ROUTES.includes(h) || h.startsWith('#/invit
 
 function render() {
   const h = location.hash || '#/';
+  // La Rete Gaia ha una shell dedicata (rail, testata e navigazione mobile proprie).
+  // Mantieni il flag sincronizzato a ogni render: uscendo dal social le altre rotte
+  // tornano immediatamente alla chrome globale senza dipendere dal lifecycle della view.
+  document.body.classList.toggle('app-social', h === '#/comunita' || h === '#/cibovero');
   // GATE "alla Glovo": nessun ospite entra. Se non loggato e la rotta non è pubblica →
   // riporta allo splash e apri il POP-UP di accesso (niente più pagina #/registrati).
   if (!currentUser() && !isPublic(h)) {
@@ -197,7 +201,20 @@ document.addEventListener('click', (e) => {
   openAuthModal({ step: t.getAttribute('data-open-auth') === 'zone' ? 'zone' : 'auth' });
 });
 // Attraversare il breakpoint 1024px ridisegna: il pannello split-view appare/scompare pulito.
-try { window.matchMedia('(min-width: 1024px)').addEventListener('change', render); } catch (_) {}
+// Se l'utente sta componendo un contenuto social, il layout della Rete è già governato dal CSS:
+// rinviamo il render fino alla chiusura dell'overlay per non perdere testo e file selezionati.
+try {
+  let breakpointRenderPending = false;
+  const socialOverlayOpen = () => !!document.querySelector('#app .socialA-modal-backdrop.open,#app .socialA-story-viewer.open,#app .gf-confirm-bd');
+  window.matchMedia('(min-width: 1024px)').addEventListener('change', () => {
+    if (socialOverlayOpen()) { breakpointRenderPending = true; return; }
+    render();
+  });
+  window.addEventListener('gf:social-overlay-closed', () => {
+    if (!breakpointRenderPending || socialOverlayOpen()) return;
+    breakpointRenderPending = false; render();
+  });
+} catch (_) {}
 
 // Bootstrap: prima risolviamo la sessione (cookie httpOnly) così il GATE sa subito se l'utente è loggato,
 // poi carichiamo i dati. authMe() non fallisce mai (ritorna null se non loggato).

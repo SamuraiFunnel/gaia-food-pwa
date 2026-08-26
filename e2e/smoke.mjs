@@ -19,7 +19,7 @@ const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-e2e-'));
 process.env.GF_DATA_DIR = DATA;
 const { requestHandler } = await import('../server.js');
 const server = http.createServer(requestHandler);
-await new Promise((r) => server.listen(0, r));
+await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const APP = `http://127.0.0.1:${server.address().port}`;
 
 // ---- Chrome headless isolato ----
@@ -125,6 +125,14 @@ async function main() {
   if (!nav) throw new Error('bottom nav assente in Home');
   ok(`Home raggiunta e usabile con ${n} produttori nel dataset isolato + bottom nav presente`);
 
+  // Il dialog di conferma è riusato anche dall'area amministrativa con nomi inseriti dagli utenti:
+  // ogni stringa deve restare testo letterale, mai diventare markup eseguibile.
+  const confirmXss = await ev(`(async()=>{const payload='<img src=x onerror="window.__gfConfirmXss=1">';window.__gfConfirmXss=0;const {confirmSheet}=await import('./js/components.js');const pending=confirmSheet(payload,{body:payload,okLabel:payload,cancelLabel:payload,danger:true});const dialog=document.querySelector('.gf-confirm-bd');const result={images:dialog.querySelectorAll('img').length,title:dialog.querySelector('.gf-confirm-t').textContent,body:dialog.querySelector('.gf-confirm-b').textContent,ok:dialog.querySelector('.gf-confirm-ok').textContent,cancel:dialog.querySelector('.gf-confirm-no').textContent};dialog.querySelector('.gf-confirm-no').click();await pending;result.executed=window.__gfConfirmXss;return result;})()`, true);
+  if (!confirmXss || confirmXss.images !== 0 || confirmXss.executed !== 0 || ![confirmXss.title, confirmXss.body, confirmXss.ok, confirmXss.cancel].every(value => value.startsWith('<img'))) {
+    throw new Error('confirmSheet interpreta input utente come HTML: ' + JSON.stringify(confirmXss));
+  }
+  ok('Conferme: testo utente neutralizzato, nessun markup eseguibile');
+
   // 5) la sessione è reale: /api/auth/me riconosce l'utente
   const me = await ev(`fetch('/api/auth/me').then(r=>r.json()).then(d=>d.user&&d.user.email)`, true);
   if (me !== 'e2e@test.it') throw new Error('sessione non riconosciuta dal backend, me=' + JSON.stringify(me));
@@ -152,14 +160,111 @@ async function main() {
   }
   ok('Rete Gaia: testo pubblicato e riconosciuto come contenuto locale di Terni');
 
+  // 7-bis) La Variante A espone il composer completo con tutti i formati, senza togliere il
+  // composer rapido storico. Verifichiamo poi un carosello reale e una storia reale via API.
+  await ev(`document.querySelector('.socialA-mobile-head [data-social-open-create]').click()`);
+  await waitFor(`document.querySelector('.socialA-modal-backdrop.open [data-social-modal-draft]')`, 'composer multiformato aperto');
+  const formats = await ev(`[...document.querySelectorAll('.socialA-modal [data-social-format]')].map(b=>b.dataset.socialFormat).join(',')`);
+  if (formats !== 'text,image,video,carousel') throw new Error('formati composer incompleti: ' + formats);
+  const resizeDraft = `Bozza preservata al breakpoint · ${Date.now()}`;
+  await ev(`document.querySelector('[data-social-modal-draft]').value=${JSON.stringify(resizeDraft)}`);
+  await rpc('Emulation.setDeviceMetricsOverride', { width: 1024, height: 844, deviceScaleFactor: 1, mobile: false });
+  await sleep(300);
+  const draftAfterResize = await ev(`document.querySelector('[data-social-modal-draft]')?.value`);
+  if (draftAfterResize !== resizeDraft) throw new Error('composer distrutto dal cambio breakpoint');
+  await ev(`document.querySelector('.socialA-modal [data-social-close]').click()`);
+  await waitFor(`!document.querySelector('.socialA-modal-backdrop')`, 'composer multiformato chiuso');
+  await rpc('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+  await waitFor(`document.querySelector('.social-screen')`, 'Rete Gaia dopo ripristino viewport');
+
+  // Validazione atomica: una selezione mista valida+invalida non deve lasciare file nascosti;
+  // un carosello con un solo elemento resta nel composer e mostra il vincolo minimo.
+  await ev(`document.querySelector('.socialA-mobile-head [data-social-open-create]').click()`);
+  await waitFor(`document.querySelector('.socialA-modal-backdrop.open')`, 'composer riaperto per validazione media');
+  await ev(`document.querySelector('[data-social-format="carousel"]').click()`);
+  await ev(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const dt=new DataTransfer();dt.items.add(new File([bytes],'valida.png',{type:'image/png'}));dt.items.add(new File([new Uint8Array([1,2,3])],'non-valida.heic',{type:'image/heic'}));const i=document.querySelector('[data-social-media-input]');i.files=dt.files;i.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await waitFor(`document.querySelector('[data-social-modal-error]').textContent.length>0`, 'errore selezione media non valida');
+  if (await ev(`document.querySelectorAll('.socialA-preview-item').length`) !== 0) throw new Error('validazione media non atomica: file valido aggiunto prima del rifiuto');
+  await ev(`(()=>{const bytes=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='),c=>c.charCodeAt(0));const dt=new DataTransfer();dt.items.add(new File([bytes],'uno.png',{type:'image/png'}));const i=document.querySelector('[data-social-media-input]');i.files=dt.files;i.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await waitFor(`document.querySelectorAll('.socialA-preview-item').length===1`, 'un elemento valido nel carosello');
+  await ev(`document.querySelector('[data-social-modal-publish]').click()`);
+  await waitFor(`document.querySelector('[data-social-modal-error]').textContent.length>0 && document.querySelectorAll('.socialA-preview-item').length===1`, 'carosello minimo due elementi');
+  await ev(`document.querySelector('.socialA-modal [data-social-close]').click()`);
+  await waitFor(`!document.querySelector('.socialA-modal-backdrop')`, 'composer validazione chiuso');
+
+  await ev(`document.querySelector('[data-social-create-story]').click()`);
+  await waitFor(`document.querySelector('.socialA-modal-backdrop.open [data-social-modal-draft]')`, 'composer storia aperto');
+  if (await ev(`document.querySelector('[data-social-modal-draft]').maxLength`) !== 280) throw new Error('maxlength storia diverso da 280');
+  await ev(`document.querySelector('.socialA-modal [data-social-close]').click()`);
+  await waitFor(`!document.querySelector('.socialA-modal-backdrop')`, 'composer storia chiuso');
+  ok('Variante A: formati completi, bozza preservata al resize e validazione media atomica');
+
+  const carouselText = `E2E · carosello misto · ${Date.now()}`;
+  const storyText = `E2E · storia da Terni · ${Date.now()}`;
+  const seededMedia = await ev(`(async()=>{
+    const dataUrl='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+    const upload=()=>fetch('/api/social/media',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dataUrl})}).then(r=>r.json());
+    const a=await upload(),b=await upload();
+    const post=await fetch('/api/social/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:${JSON.stringify(carouselText)},kind:'tip',mediaRefs:[a.mediaRef,b.mediaRef]})}).then(r=>r.json());
+    const story=await fetch('/api/social/stories',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:${JSON.stringify(storyText)}})}).then(r=>r.json());
+    return {post:post.post&&post.post.id,story:story.story&&story.story.id,format:post.post&&post.post.format};
+  })()`, true);
+  if (!seededMedia || !seededMedia.post || !seededMedia.story || seededMedia.format !== 'carousel') throw new Error('seed social multiformato fallito: ' + JSON.stringify(seededMedia));
+
   // 8) regressione refresh: cookie/sessione e route profonda devono sopravvivere al full reload.
   await rpc('Page.reload', { ignoreCache: false });
   await waitFor(`location.hash === '#/comunita' && document.querySelector('.social-screen')`, 'Rete Gaia dopo il reload');
   await waitFor(`[...document.querySelectorAll('.social-post-text')].some(p=>p.textContent===${JSON.stringify(postText)})`, 'contenuto persistito dopo il reload');
+  await waitFor(`[...document.querySelectorAll('[data-social-post]')].some(p=>p.querySelector('.social-post-text')?.textContent===${JSON.stringify(carouselText)}&&p.querySelectorAll('.socialA-slide').length===2)`, 'carosello reale renderizzato');
+  const carouselCardExpr = `[...document.querySelectorAll('[data-social-post]')].find(p=>p.querySelector('.social-post-text')?.textContent===${JSON.stringify(carouselText)})`;
+  await ev(`(()=>{const c=${carouselCardExpr};c.querySelector('[data-social-carousel-next]').click();})()`);
+  await waitFor(`${carouselCardExpr}.querySelector('[data-social-carousel]').dataset.socialCarouselIndex==='1'`, 'carosello avanzato alla seconda slide');
+  await waitFor(`[...document.querySelectorAll('[data-social-story]')].some(b=>b.dataset.socialStory===${JSON.stringify(seededMedia.story)})`, 'storia reale nello strip');
+  await ev(`[...document.querySelectorAll('[data-social-story]')].find(b=>b.dataset.socialStory===${JSON.stringify(seededMedia.story)}).click()`);
+  await waitFor(`document.querySelector('.socialA-story-viewer.open')?.textContent.includes(${JSON.stringify(storyText)})`, 'viewer storia aperto');
+  await ev(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+  await waitFor(`!document.querySelector('.socialA-story-viewer')`, 'viewer storia chiuso con Escape');
+  // La conferma di eliminazione è un dialog accessibile e non deve chiudere anche il viewer
+  // quando viene annullata con Escape. Al secondo tentativo eliminiamo davvero la storia.
+  await ev(`[...document.querySelectorAll('[data-social-story]')].find(b=>b.dataset.socialStory===${JSON.stringify(seededMedia.story)}).click()`);
+  await waitFor(`document.querySelector('[data-social-story-delete]')`, 'azione elimina sulla propria storia');
+  await ev(`document.querySelector('[data-social-story-delete]').click()`);
+  await waitFor(`document.querySelector('.gf-confirm-bd[aria-labelledby]')`, 'conferma elimina storia accessibile');
+  await ev(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`);
+  await waitFor(`!document.querySelector('.gf-confirm-bd') && document.querySelector('.socialA-story-viewer.open')`, 'Escape annulla solo la conferma');
+  await ev(`document.querySelector('[data-social-story-delete]').click()`);
+  await waitFor(`document.querySelector('.gf-confirm-ok')`, 'seconda conferma elimina storia');
+  await ev(`document.querySelector('.gf-confirm-ok').click()`);
+  await waitFor(`!document.querySelector('.socialA-story-viewer') && ![...document.querySelectorAll('[data-social-story]')].some(b=>b.dataset.socialStory===${JSON.stringify(seededMedia.story)})`, 'storia propria eliminata');
+
+  // Anche il post proprio espone Elimina (mai Segnala), con rimozione immediata dallo store.
+  const ownPostCard = `[...document.querySelectorAll('[data-social-post]')].find(p=>p.querySelector('.social-post-text')?.textContent===${JSON.stringify(postText)})`;
+  await ev(`(()=>{const c=${ownPostCard};c.querySelector('[data-social-menu]').click();})()`);
+  await waitFor(`${ownPostCard}.querySelector('[data-social-delete]') && !${ownPostCard}.querySelector('[data-social-report]')`, 'menu proprio post con elimina');
+  await ev(`${ownPostCard}.querySelector('[data-social-delete]').click()`);
+  await waitFor(`document.querySelector('.gf-confirm-ok')`, 'conferma elimina post');
+  await ev(`document.querySelector('.gf-confirm-ok').click()`);
+  await waitFor(`!${ownPostCard}`, 'post proprio eliminato dalla UI');
+  ok('Rete Gaia: carosello, storia e cancellazione dei propri contenuti verificati');
   const meAfterReload = await ev(`fetch('/api/auth/me').then(r=>r.json()).then(d=>d.user&&d.user.email)`, true);
   const authModal = await ev(`!!document.querySelector('.auth-modal')`);
   if (meAfterReload !== 'e2e@test.it' || authModal) throw new Error('refresh non ha preservato la sessione: ' + JSON.stringify({ meAfterReload, authModal, hash: await ev('location.hash') }));
   ok('Reload: route #/comunita, sessione e contenuto pubblicato preservati');
+
+  // Uscendo e rientrando nella SPA, la superficie ready deve aggiornarsi una volta: creiamo un
+  // contenuto via API mentre siamo in Home e pretendiamo di trovarlo al rientro senza full reload.
+  const reentryText = `E2E · aggiornamento al rientro · ${Date.now()}`;
+  await rpc('Page.navigate', { url: APP + '/#/home' });
+  await waitFor(`document.querySelector('.screen.home.home-directory')`, 'Home prima del rientro social');
+  const externalPost = await ev(`fetch('/api/social/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:${JSON.stringify(reentryText)},kind:'question'})}).then(r=>r.json()).then(d=>d.post&&d.post.id)`, true);
+  if (!externalPost) throw new Error('creazione esterna per test rientro fallita');
+  await rpc('Page.navigate', { url: APP + '/#/comunita' });
+  await waitFor(`[...document.querySelectorAll('.social-post-text')].some(p=>p.textContent===${JSON.stringify(reentryText)})`, 'feed aggiornato al rientro SPA');
+  ok('Rientro nella Rete Gaia: feed, storie e suggerimenti vengono rivalidati una sola volta');
+
+  const cachedApis = await ev(`(async()=>{const out=[];for(const key of await caches.keys()){const cache=await caches.open(key);for(const req of await cache.keys()){if(new URL(req.url).pathname.includes('/api/'))out.push({key,url:req.url});}}return out;})()`, true);
+  if (cachedApis.length) throw new Error('API private presenti nella CacheStorage: ' + JSON.stringify(cachedApis));
+  ok('Service worker: nessuna risposta /api è conservata tra account');
 
   // 9) cambio lingua → EN: l'interfaccia si traduce (nav + Home)
   await rpc('Page.navigate', { url: APP + '/#/profilo' });
