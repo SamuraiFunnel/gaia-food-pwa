@@ -192,7 +192,7 @@ async function saveMedia(dataUrl, opts = {}) {
     form.append('signature', signature);
     const r = await fetch(`https://api.cloudinary.com/v1_1/${cfg.cloud}/${resourceType}/upload`, { method: 'POST', body: form });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.secure_url) throw Object.assign(new Error('upload cloudinary fallito: ' + (j.error && j.error.message || r.status)), { code: 502 });
+    if (!r.ok || !j.secure_url || !j.public_id) throw Object.assign(new Error('upload cloudinary fallito: ' + (j.error && j.error.message || r.status)), { code: 502 });
     return {
       url: j.secure_url, provider: 'cloudinary', mime, type, bytes: buf.length,
       publicId: String(j.public_id || ''), resourceType,

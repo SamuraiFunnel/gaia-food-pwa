@@ -27,7 +27,7 @@ import { Stati } from './screens/Stati.js';
 // Riepilogo/Tracking restano in repo, pronti da riattivare quando la consegna sarà scoped.
 import { DlvNonDisp } from './screens/DlvNonDisp.js';
 import { Admin } from './screens/Admin.js';
-import { Gestione } from './screens/Gestione.js';
+import { Gestione, ModerazioneSocial } from './screens/Gestione.js';
 import { Invito } from './screens/Invito.js';
 import { Azienda } from './screens/Azienda.js';
 import { Hub } from './screens/Hub.js';
@@ -130,6 +130,10 @@ const routes = [
   { re: /^#\/ricerca$/, view: () => Ricerca() },
   { re: /^#\/filtri$/, view: () => Filtri() },
   { re: /^#\/percorso$/, view: () => Percorso() },
+  { re: /^#\/comunita\/cerca$/, view: () => S.ComunitaCerca() },
+  { re: /^#\/comunita\/profilo$/, view: () => S.ComunitaProfilo() },
+  { re: /^#\/comunita\/messaggi$/, view: () => S.ComunitaMessaggi() },
+  { re: /^#\/comunita\/notifiche$/, view: () => S.ComunitaNotifiche() },
   { re: /^#\/comunita$/, view: () => S.Comunita() },
   { re: /^#\/cibovero$/, view: () => S.Comunita() }, // alias storico → nuova Rete Gaia
   { re: /^#\/video\/([^/]+)\/(\d+)$/, view: (m) => Player(m[1], +m[2]) },
@@ -150,6 +154,7 @@ const routes = [
   { re: /^#\/sasha\/pianifica$/, view: () => SashaPianifica() },
   { re: /^#\/sasha\/revoca$/, view: () => SashaRevoca() },
   { re: /^#\/sasha$/, view: () => SashaCoda() },
+  { re: /^#\/admin\/moderazione$/, view: () => ModerazioneSocial() }, // coda segnalazioni Rete Gaia (solo admin)
   { re: /^#\/admin$/, view: () => Gestione() },                 // NUOVO: gestione persone/livelli/inviti
   { re: /^#\/admin\/pipeline$/, view: () => Admin() },          // vecchia pipeline verifiche/pubblicazione produttori
   { re: /^#\/invito\/(.+)$/, view: (m) => Invito(m[1]) },       // accettazione invito → account + onboarding
@@ -162,12 +167,30 @@ const routes = [
 const PUBLIC_ROUTES = ['#/', '', '#/termini', '#/privacy'];
 function isPublic(h) { return PUBLIC_ROUTES.includes(h) || h.startsWith('#/invito/'); } // l'invito si apre da sloggati
 
+// I due spazi sono parti dello stesso prodotto, ma il passaggio fra loro e il primo
+// ingresso autenticato sono momenti di orientamento. Conserviamo il realm già renderizzato
+// per non riprodurre il loader durante Home → Mappa, Feed → Cerca o altri movimenti interni.
+let renderedRealm = null;
+function routeRealm(h) {
+  if (/^#\/comunita(?:\/|$)/.test(h) || h === '#/cibovero') return 'community';
+  // Termini e Privacy sono pagine interne dell'app anche se accessibili da sloggati:
+  // visitarle da un profilo non deve trasformare il ritorno in un nuovo accesso.
+  return h === '#/' || h === '' || h.startsWith('#/invito/') ? 'public' : 'app';
+}
+function transitionForRealm(nextRealm) {
+  if (!currentUser() || nextRealm === 'public') return null;
+  if (nextRealm === 'community' && renderedRealm !== 'community') return { target: 'community', mode: 'entry' };
+  if (nextRealm === 'app' && renderedRealm === 'community') return { target: 'app', mode: 'return' };
+  if (nextRealm === 'app' && (renderedRealm == null || renderedRealm === 'public')) return { target: 'app', mode: 'entry' };
+  return null;
+}
+
 function render() {
   const h = location.hash || '#/';
   // La Rete Gaia ha una shell dedicata (rail, testata e navigazione mobile proprie).
   // Mantieni il flag sincronizzato a ogni render: uscendo dal social le altre rotte
   // tornano immediatamente alla chrome globale senza dipendere dal lifecycle della view.
-  document.body.classList.toggle('app-social', h === '#/comunita' || h === '#/cibovero');
+  document.body.classList.toggle('app-social', /^#\/comunita(?:\/|$)/.test(h) || h === '#/cibovero');
   // GATE "alla Glovo": nessun ospite entra. Se non loggato e la rotta non è pubblica →
   // riporta allo splash e apri il POP-UP di accesso (niente più pagina #/registrati).
   if (!currentUser() && !isPublic(h)) {
@@ -175,14 +198,25 @@ function render() {
     openAuthModal();
     return;
   }
-  document.body.classList.toggle('app-bare', ['#/', '#/onboarding', '#/zona', '#/hub'].includes(h));
-  document.body.classList.toggle('app-splash', h === '#/' || h === ''); // splash = hero a tutta larghezza su desktop
-  const r = routes.find(r => r.re.test(h)) || routes[0];
+  const matchedRoute = routes.find(r => r.re.test(h));
+  const r = matchedRoute || routes[0];
+  // Un hash sconosciuto conserva il fallback storico allo Splash: non deve essere
+  // scambiato per un ingresso autenticato nell'app e mostrare un loader fuorviante.
+  const resolvedHash = matchedRoute ? h : '#/';
+  document.body.classList.toggle('app-bare', ['#/', '#/onboarding', '#/zona', '#/hub'].includes(resolvedHash));
+  document.body.classList.toggle('app-splash', resolvedHash === '#/' || resolvedHash === ''); // splash = hero a tutta larghezza su desktop
+  const nextRealm = routeRealm(resolvedHash);
+  const transition = transitionForRealm(nextRealm);
   let view;
   try { view = r.view(h.match(r.re)); }
   catch (e) { console.error(e); view = { html: `<div class="screen no-nav"><div class="pad" style="padding:40px">Errore schermata: ${e.message}<br><a href="#/home">Torna alla Home</a></div></div>` }; }
   app.innerHTML = view.html;
   app.scrollTop = 0;
+  // Imposta il realm prima dell'onMount: eventuali ridisegni richiesti dalla view restano
+  // navigazione interna e non possono accodare una seconda transizione.
+  renderedRealm = nextRealm;
+  if (transition) S.startGaiaTransition(transition);
+  else if (nextRealm === 'public') S.cancelGaiaTransition();
   if (view.onMount) { try { view.onMount(app); } catch (e) { console.error('onMount', e); } }
   // Layer desktop split-view (additivo, solo >=1024px; no-op sotto).
   try { enhanceHome(app); } catch (e) { console.error('enhanceHome', e); }
@@ -198,7 +232,11 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-open-auth]');
   if (!t) return;
   e.preventDefault();
-  openAuthModal({ step: t.getAttribute('data-open-auth') === 'zone' ? 'zone' : 'auth' });
+  const step = t.getAttribute('data-open-auth') === 'zone' ? 'zone' : 'auth';
+  // Dal profilo della Community la scelta del territorio resta nella stessa shell;
+  // AuthModal ridisegna poi la route e mostra subito il dato canonico aggiornato.
+  const redirect = step === 'zone' && /^#\/comunita(?:\/|$)/.test(location.hash) ? location.hash : '';
+  openAuthModal({ step, redirect });
 });
 // Attraversare il breakpoint 1024px ridisegna: il pannello split-view appare/scompare pulito.
 // Se l'utente sta componendo un contenuto social, il layout della Rete è già governato dal CSS:
@@ -207,6 +245,9 @@ try {
   let breakpointRenderPending = false;
   const socialOverlayOpen = () => !!document.querySelector('#app .socialA-modal-backdrop.open,#app .socialA-story-viewer.open,#app .gf-confirm-bd');
   window.matchMedia('(min-width: 1024px)').addEventListener('change', () => {
+    // L'intera Rete (feed e sottosezioni) è responsive via CSS: ridisegnarla qui
+    // cancellerebbe una ricerca o un profilo non ancora salvato durante il resize.
+    if (document.body.classList.contains('app-social')) return;
     if (socialOverlayOpen()) { breakpointRenderPending = true; return; }
     render();
   });

@@ -103,9 +103,38 @@ let META = { zone: null, categories: [] };
 
 // Coda di persistenza serializzata per collezione → i "replace-all" non si sovrappongono.
 const queues = { users: Promise.resolve(), producers: Promise.resolve(), wait: Promise.resolve(), cand: Promise.resolve(), crm: Promise.resolve() };
-function enqueue(coll, fn) {
-  queues[coll] = queues[coll].then(fn).catch((e) => console.error(`persist ${coll}:`, e.message));
+// Gli errori restano associati alla risorsa logica (per il CRM: il singolo documento/progetto),
+// così una scrittura riuscita su un'altra riga non può mascherare una cancellazione fallita.
+const persistFailures = new Map();
+function enqueue(coll, fn, key = coll) {
+  const run = queues[coll].then(fn);
+  queues[coll] = run.then(
+    (value) => { persistFailures.delete(key); return value; },
+    (error) => {
+      persistFailures.set(key, { coll, key, fn, error });
+      console.error(`persist ${coll}:`, error.message);
+    },
+  );
   return queues[coll];
+}
+
+async function flushQueues(opts = {}) {
+  await Promise.all(Object.values(queues));
+  if (opts && opts.strict && persistFailures.size) {
+    // Un retry bounded copre gli errori transitori senza riordinare le scritture: se nel frattempo
+    // la stessa risorsa è già stata salvata, il suo record di errore è stato eliminato dal successivo enqueue.
+    const retryable = [...persistFailures.values()];
+    for (const item of retryable) {
+      if (persistFailures.get(item.key) === item) enqueue(item.coll, item.fn, item.key);
+    }
+    await Promise.all(Object.values(queues));
+    if (persistFailures.size) {
+      const error = new Error('persistenza_non_confermata');
+      error.code = 503;
+      error.failures = [...persistFailures.keys()];
+      throw error;
+    }
+  }
 }
 
 const DDL = `
@@ -225,7 +254,7 @@ const dbStore = {
     await loadOrSeed();
     console.log(`DB pronto (Postgres) — utenti:${cache.users.users.length} produttori:${cache.producers.length} candidature:${cache.cand.candidature.length} waitlist:${cache.wait.leads.length}`);
   },
-  flush: () => Promise.all(Object.values(queues)),
+  flush: (opts) => flushQueues(opts),
   readUsers: () => clone(cache.users),
   writeUsers: (d) => { cache.users = clone(d); enqueue('users', () => persistUsers(cache.users)); },
   readStore: () => ({ zone: META.zone, categories: META.categories, producers: clone(cache.producers) }),
@@ -235,7 +264,7 @@ const dbStore = {
   readCand: () => clone(cache.cand),
   writeCand: (d) => { cache.cand = clone(d); enqueue('cand', () => persistCand(cache.cand)); },
   readCrm: (project) => clone(cache.crm.byProject[project] || { states: {}, hidden: [], manual: [], pipeline: [] }),
-  writeCrm: (project, doc) => { cache.crm.byProject[project] = clone(doc); const snap = clone(doc); enqueue('crm', () => persistCrmRow(project, snap)); },
+  writeCrm: (project, doc) => { cache.crm.byProject[project] = clone(doc); const snap = clone(doc); enqueue('crm', () => persistCrmRow(project, snap), `crm:${project}`); },
   query: (...a) => pool.query(...a), // per il cruscotto (read-only) in Fase 2
 };
 

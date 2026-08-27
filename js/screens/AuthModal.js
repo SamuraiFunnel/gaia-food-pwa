@@ -221,7 +221,17 @@ export function openAuthModal({ step = 'auth', redirect = '' } = {}) {
     wrap.classList.add('step-zone');
     const q = wrap.querySelector('[data-zq]'); if (q) setTimeout(() => q.focus(), 60);
   };
-  const enterApp = () => { close(); location.hash = redirect || '#/home'; setTimeout(() => window.dispatchEvent(new Event('hashchange')), 30); };
+  const enterApp = () => {
+    close();
+    const targetHash = redirect || '#/home';
+    // Assegnare un hash diverso genera gia l'evento nativo. Il dispatch manuale serve
+    // soltanto quando restiamo sulla stessa rotta, altrimenti il router partirebbe due volte.
+    if (location.hash === targetHash) {
+      setTimeout(() => window.dispatchEvent(new Event('hashchange')), 30);
+    } else {
+      location.hash = targetHash;
+    }
+  };
 
   const msgEl = wrap.querySelector('[data-msg]');
   const setMsg = (t, ok = false) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.style.color = ok ? 'var(--verde-deep)' : 'var(--red-alert)'; } };

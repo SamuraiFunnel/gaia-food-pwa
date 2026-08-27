@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Gaia Food — il cibo vero, vicino a te</title>
   <meta name="description" content="Trova produttori veri di cibo, verificati di persona sul campo, vicino a casa.">
-  <meta name="theme-color" content="#F4F1EB">
-  <!-- iOS / standalone PWA: barra di stato chiara coerente con la "Carta" (#F4F1EB) -->
+  <meta name="theme-color" content="#F0ECDC">
+  <!-- iOS / standalone PWA: barra di stato chiara coerente con la carta Atlante. -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500;1,9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
   <link rel="stylesheet" href="./css/app.css">
   <link rel="stylesheet" href="./css/desktop.css">
@@ -37,11 +37,11 @@
             if (!worker) return;
             const bar = document.createElement('div');
             bar.setAttribute('role', 'status');
-            bar.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;display:flex;gap:12px;align-items:center;background:#1F1812;color:#fff;padding:11px 14px 11px 16px;border-radius:14px;box-shadow:0 12px 26px -10px rgba(0,0,0,.5);font:500 14px/1.2 Inter,system-ui,sans-serif;max-width:calc(100% - 32px)';
+            bar.style.cssText = 'position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9999;display:flex;gap:12px;align-items:center;background:#283829;color:#fbf8ec;padding:11px 14px 11px 16px;border:1px solid rgba(251,248,236,.18);border-radius:14px;box-shadow:0 18px 42px -18px rgba(40,56,41,.62);font:600 14px/1.2 Manrope,system-ui,sans-serif;max-width:calc(100% - 32px)';
             bar.innerHTML = '<span>Nuova versione disponibile</span>';
             const btn = document.createElement('button');
             btn.textContent = 'Aggiorna';
-            btn.style.cssText = 'border:none;background:#16A34A;color:#fff;font:600 14px Inter,sans-serif;padding:7px 14px;border-radius:100px;cursor:pointer';
+            btn.style.cssText = 'min-height:44px;border:none;background:#dae887;color:#283829;font:700 14px Manrope,sans-serif;padding:7px 14px;border-radius:12px;cursor:pointer';
             btn.onclick = () => { worker.postMessage({ type: 'SKIP_WAITING' }); btn.disabled = true; btn.textContent = '...'; };
             bar.appendChild(btn);
             document.body.appendChild(bar);

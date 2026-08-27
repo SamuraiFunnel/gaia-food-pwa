@@ -19,6 +19,8 @@ delete process.env.CLOUDINARY_CLOUD_NAME;
 delete process.env.CLOUDINARY_API_KEY;
 delete process.env.CLOUDINARY_API_SECRET;
 const { requestHandler, acquireSocialUploadSlot } = await import('../server.js');
+const dbImport = await import('../db.js');
+const TEST_DB = dbImport.default || dbImport;
 
 let server, port;
 before(async () => {
@@ -423,6 +425,117 @@ test('social v2: follow privacy-safe, Seguiti e Vicino con esclusione self/segui
   assert.equal((await api('DELETE', `/api/social/authors/${bobId}/follow`, { cookie: alice, ip: 'soc-follow-del' })).status, 200);
 });
 
+test('ricerca social: gated, query 2..80, limit bounded e contratto stabile', async () => {
+  assert.equal((await api('GET', '/api/social/search?q=orto')).status, 401);
+  const cookie = await signIn('social-search-validation@example.test', 'soc-search-validation-auth');
+  assert.equal((await api('GET', '/api/social/search?q=', { cookie, ip: 'soc-search-validation' })).status, 400);
+  const tooShort = await api('GET', '/api/social/search?q=a', { cookie, ip: 'soc-search-validation' });
+  assert.equal(tooShort.status, 400); assert.equal(tooShort.json.minChars, 2);
+  assert.equal((await api('GET', '/api/social/search?q=' + 'x'.repeat(81), { cookie, ip: 'soc-search-validation' })).status, 400);
+  const empty = await api('GET', '/api/social/search?q=nessunrisultatounico&limit=999', { cookie, ip: 'soc-search-validation' });
+  assert.equal(empty.status, 200);
+  assert.deepEqual(Object.keys(empty.json).sort(), ['authors', 'hasMore', 'minChars', 'posts', 'producers', 'query'].sort());
+  assert.deepEqual(empty.json.authors, []); assert.deepEqual(empty.json.producers, []); assert.deepEqual(empty.json.posts, []);
+  assert.equal(empty.json.minChars, 2); assert.match(empty.headers['cache-control'], /no-store/);
+});
+
+test('ricerca social: accenti, territorio/follow, produttori pubblicati e privacy/report', async () => {
+  const observerEmail = 'social-search-observer@example.test';
+  const authorEmail = 'social-search-author@example.test';
+  const observer = await signIn(observerEmail, 'soc-search-observer-auth');
+  const author = await signIn(authorEmail, 'soc-search-author-auth');
+  await api('PATCH', '/api/auth/profile', { cookie: observer, body: { name: 'Osservatore', city: 'Terni', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } } });
+  await api('PATCH', '/api/auth/profile', { cookie: author, body: { name: 'José Zaffiro', city: 'Terni', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } } });
+  const post = await api('POST', '/api/social/posts', {
+    cookie: author, ip: 'soc-search-post', body: { text: 'Raccolto VietatoUnico di zafferano', kind: 'field' },
+  });
+  const authorId = post.json.post.author.id;
+  await api('PUT', `/api/social/authors/${authorId}/follow`, { cookie: observer, ip: 'soc-search-follow' });
+  const personSearch = await api('GET', '/api/social/search?q=jose&limit=10', { cookie: observer, ip: 'soc-search-person' });
+  assert.equal(personSearch.status, 200);
+  const foundAuthor = personSearch.json.authors.find((item) => item.author.id === authorId);
+  assert.ok(foundAuthor); assert.equal(foundAuthor.author.name, 'José Zaffiro');
+  assert.equal(foundAuthor.locality, 'city'); assert.equal(foundAuthor.following, true);
+  assert.match(foundAuthor.author.id, /^gf_[A-Za-z0-9_-]{22}$/);
+  assert.ok(!JSON.stringify(personSearch.json).includes(authorEmail));
+
+  await api('POST', `/api/social/posts/${post.json.post.id}/report`, { cookie: observer, ip: 'soc-search-report' });
+  const hidden = await api('GET', '/api/social/search?q=vietatounico', { cookie: observer, ip: 'soc-search-hidden' });
+  assert.equal(hidden.json.posts.some((item) => item.id === post.json.post.id), false);
+
+  const login = await api('POST', '/api/login', { body: { password: 'social-admin-test', name: 'Admin ricerca' }, ip: 'soc-search-admin-login' });
+  const admin = staffCookie(login); assert.ok(admin);
+  const publishOwnerEmail = 'social-search-producer-live@example.test';
+  const publishOwner = await signIn(publishOwnerEmail, 'soc-search-producer-live-auth');
+  await api('PATCH', '/api/auth/profile', { cookie: publishOwner, body: { name: 'Persona azienda', city: 'Terni', phone: '+39 333 0000000', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } } });
+  const promoted = await api('POST', '/api/admin/users/level', { cookie: admin, body: { userId: publishOwnerEmail, level: 'produttore' } });
+  const producerId = promoted.json.producer.id;
+  await api('PATCH', `/api/producers/${producerId}`, { cookie: admin, body: { name: 'Fattoria Ètica Zaffiro', place: 'Terni', categories: ['Ortaggi'], contact: { email: 'privata-prod@example.test', phone: '+39 399 1111111' } } });
+  await api('POST', '/api/producer/verify', { cookie: admin, body: { producerId } });
+  assert.equal((await api('POST', '/api/producer/publish', { cookie: admin, body: { producerId } })).status, 200);
+
+  const makeHiddenProducer = async (suffix, status) => {
+    const email = `social-search-producer-${suffix}@example.test`;
+    const cookie = await signIn(email, `soc-search-${suffix}-auth`);
+    const created = await api('POST', '/api/admin/users/level', { cookie: admin, body: { userId: email, level: 'produttore' } });
+    await api('PATCH', `/api/producers/${created.json.producer.id}`, { cookie: admin, body: { name: `Zaffiro ${suffix}`, status } });
+    return email;
+  };
+  const draftEmail = await makeHiddenProducer('BozzaSegreta', 'draft');
+  const suspendedEmail = await makeHiddenProducer('SospesaSegreta', 'sospeso');
+  const producerSearch = await api('GET', '/api/social/search?q=etica%20zaffiro', { cookie: observer, ip: 'soc-search-producer' });
+  assert.equal(producerSearch.status, 200);
+  const foundProducer = producerSearch.json.producers.find((item) => item.id === producerId);
+  assert.ok(foundProducer); assert.equal(foundProducer.name, 'Fattoria Ètica Zaffiro'); assert.equal(foundProducer.locality, 'city');
+  const allZaffiro = await api('GET', '/api/social/search?q=zaffiro&limit=30', { cookie: observer, ip: 'soc-search-producer-all' });
+  assert.equal(allZaffiro.json.producers.some((item) => item.name.includes('BozzaSegreta')), false);
+  assert.equal(allZaffiro.json.producers.some((item) => item.name.includes('SospesaSegreta')), false);
+  const serialized = JSON.stringify(allZaffiro.json);
+  for (const forbidden of [observerEmail, authorEmail, publishOwnerEmail, draftEmail, suspendedEmail, 'privata-prod@example.test', '+39 399 1111111', 'ownerId']) {
+    assert.ok(!serialized.includes(forbidden), `PII/campo interno esposto: ${forbidden}`);
+  }
+});
+
+test('profilo social sincronizzato live su post, storia, commento e ricerca', async () => {
+  const owner = await signIn('social-sync-owner@example.test', 'soc-sync-owner-auth');
+  const commenter = await signIn('social-sync-commenter@example.test', 'soc-sync-commenter-auth');
+  const observer = await signIn('social-sync-observer@example.test', 'soc-sync-observer-auth');
+  await api('PATCH', '/api/auth/profile', { cookie: owner, body: { name: 'Nome Vecchio Autore', city: 'Perugia', zone: { id: 'pg', label: 'Perugia', region: 'Umbria' } } });
+  await api('PATCH', '/api/auth/profile', { cookie: commenter, body: { name: 'Nome Vecchio Commento', city: 'Terni', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } } });
+  await api('PATCH', '/api/auth/profile', { cookie: observer, body: { name: 'Lettore Sync', city: 'Terni', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } } });
+  const post = await api('POST', '/api/social/posts', { cookie: owner, ip: 'soc-sync-post', body: { text: 'Contenuto SincronoUnico' } });
+  const story = await api('POST', '/api/social/stories', { cookie: owner, ip: 'soc-sync-story', body: { text: 'Storia SincronaUnica' } });
+  await api('POST', `/api/social/posts/${post.json.post.id}/comments`, { cookie: commenter, ip: 'soc-sync-comment', body: { text: 'Commento da sincronizzare' } });
+  const ownerAvatar = await api('POST', '/api/auth/avatar', { cookie: owner, body: { dataUrl: SOCIAL_PNG } });
+  const commenterAvatar = await api('POST', '/api/auth/avatar', { cookie: commenter, body: { dataUrl: SOCIAL_PNG } });
+  await api('PATCH', '/api/auth/profile', { cookie: owner, body: { name: 'Autore Sincrono Nuovo', city: 'Terni', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } } });
+  await api('PATCH', '/api/auth/profile', { cookie: commenter, body: { name: 'Commentatore Sincrono Nuovo' } });
+
+  const feed = await api('GET', '/api/social/feed?scope=for-you', { cookie: observer });
+  const livePost = feed.json.posts.find((item) => item.id === post.json.post.id);
+  assert.ok(livePost); assert.equal(livePost.author.name, 'Autore Sincrono Nuovo');
+  assert.equal(livePost.author.picture, ownerAvatar.json.user.picture); assert.equal(livePost.location.city, 'Terni'); assert.equal(livePost.locality, 'city');
+  const liveComment = livePost.comments.find((item) => item.text === 'Commento da sincronizzare');
+  assert.ok(liveComment); assert.equal(liveComment.author.name, 'Commentatore Sincrono Nuovo');
+  assert.equal(liveComment.author.picture, commenterAvatar.json.user.picture);
+  const stories = await api('GET', '/api/social/stories', { cookie: observer });
+  const liveStory = stories.json.stories.find((item) => item.id === story.json.story.id);
+  assert.ok(liveStory); assert.equal(liveStory.author.name, 'Autore Sincrono Nuovo');
+  assert.equal(liveStory.author.picture, ownerAvatar.json.user.picture); assert.equal(liveStory.location.city, 'Terni');
+  const search = await api('GET', '/api/social/search?q=autore%20sincrono', { cookie: observer, ip: 'soc-sync-search' });
+  assert.ok(search.json.authors.some((item) => item.author.name === 'Autore Sincrono Nuovo'));
+  assert.equal(search.json.authors.some((item) => item.author.name === 'Nome Vecchio Autore'), false);
+});
+
+test('ricerca social: rate limit account+IP dedicato', async () => {
+  const cookie = await signIn('social-search-rate@example.test', 'soc-search-rate-auth');
+  const statuses = [];
+  for (let i = 0; i < 61; i++) {
+    statuses.push((await api('GET', '/api/social/search?q=campo', { cookie, ip: 'soc-search-rate' })).status);
+  }
+  assert.equal(statuses[59], 200); assert.equal(statuses[60], 429);
+});
+
 test('social v2: share idempotente, report nasconde al reporter e moderazione a soglia 3', async () => {
   const owner = await signIn('social-report-owner@example.test', 'soc-report-auth-o');
   const r1 = await signIn('social-report-r1@example.test', 'soc-report-auth-1');
@@ -532,6 +645,170 @@ test('social v2: rate-limit dedicati media, follow, share e report', async () =>
   assert.equal(reportStatus, 429);
 });
 
+test('cancellazione account: purge social completo, media in retention e nuova identità sulla stessa email', async () => {
+  const victimEmail = 'social-delete-victim@example.test';
+  const victim = await signIn(victimEmail, 'soc-delete-auth-v');
+  const other = await signIn('social-delete-other@example.test', 'soc-delete-auth-o');
+  await api('PATCH', '/api/auth/profile', { cookie: victim, body: { name: 'Profilo da cancellare', city: 'Terni', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } } });
+  await api('PATCH', '/api/auth/profile', { cookie: other, body: { name: 'Profilo rimasto', city: 'Terni', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } } });
+  const victimAvatar = await api('POST', '/api/auth/avatar', { cookie: victim, body: { dataUrl: SOCIAL_PNG } });
+  assert.equal(victimAvatar.status, 200);
+  const victimAvatarPath = path.join(TMP, victimAvatar.json.user.picture);
+  assert.equal(fs.existsSync(victimAvatarPath), true);
+  const otherAvatar = await api('POST', '/api/auth/avatar', { cookie: other, body: { dataUrl: SOCIAL_PNG } });
+  assert.equal(otherAvatar.status, 200);
+  const otherAvatarPath = path.join(TMP, otherAvatar.json.user.picture);
+  assert.equal(fs.existsSync(otherAvatarPath), true);
+
+  const otherPost = await api('POST', '/api/social/posts', { cookie: other, ip: 'soc-delete-other-post', body: { text: 'Post che resta' } });
+  const otherStory = await api('POST', '/api/social/stories', { cookie: other, ip: 'soc-delete-other-story', body: { text: 'Storia che resta' } });
+  const uploaded = await api('POST', '/api/social/media', { cookie: victim, ip: 'soc-delete-upload', body: { dataUrl: SOCIAL_PNG } });
+  const victimPost = await api('POST', '/api/social/posts', {
+    cookie: victim, ip: 'soc-delete-victim-post', body: { text: 'Post da cancellare', mediaRefs: [uploaded.json.mediaRef] },
+  });
+  const victimStory = await api('POST', '/api/social/stories', { cookie: victim, ip: 'soc-delete-victim-story', body: { text: 'Storia da cancellare' } });
+  const mediaPath = path.join(TMP, victimPost.json.post.media[0].url);
+  assert.equal(fs.existsSync(mediaPath), true);
+
+  const targetId = otherPost.json.post.id;
+  await api('POST', `/api/social/posts/${targetId}/like`, { cookie: victim, ip: 'soc-delete-like' });
+  await api('POST', `/api/social/posts/${targetId}/save`, { cookie: victim, ip: 'soc-delete-save' });
+  await api('POST', `/api/social/posts/${targetId}/share`, { cookie: victim, ip: 'soc-delete-share' });
+  await api('POST', `/api/social/posts/${targetId}/comments`, { cookie: victim, ip: 'soc-delete-comment', body: { text: 'Commento da cancellare' } });
+  await api('POST', `/api/social/posts/${targetId}/report`, { cookie: victim, ip: 'soc-delete-report' });
+  await api('POST', `/api/social/stories/${otherStory.json.story.id}/view`, { cookie: victim, ip: 'soc-delete-view' });
+  await api('PUT', `/api/social/authors/${otherPost.json.post.author.id}/follow`, { cookie: victim, ip: 'soc-delete-follow-out' });
+  await api('PUT', `/api/social/authors/${victimPost.json.post.author.id}/follow`, { cookie: other, ip: 'soc-delete-follow-in' });
+
+  const staffLogin = await api('POST', '/api/login', { body: { password: 'social-admin-test', name: 'Admin cancellazione' }, ip: 'soc-delete-admin-login' });
+  const admin = staffCookie(staffLogin);
+  const deleted = await api('DELETE', `/api/admin/users?id=${encodeURIComponent(victimEmail)}`, { cookie: admin });
+  assert.equal(deleted.status, 200); assert.equal(deleted.json.social.removedPosts, 1); assert.equal(deleted.json.social.removedStories, 1);
+  assert.equal(fs.existsSync(mediaPath), true, 'il media orfano non va eliminato prima di 24h');
+  assert.equal(fs.existsSync(victimAvatarPath), false, "l'avatar locale dell'account eliminato va rimosso");
+  assert.equal(fs.existsSync(otherAvatarPath), true, "l'avatar di un altro account non va toccato");
+  assert.equal((await api('GET', '/api/auth/me', { cookie: victim })).json.user, null);
+
+  const feed = await api('GET', '/api/social/feed?scope=for-you', { cookie: other });
+  assert.equal(feed.json.posts.some((post) => post.id === victimPost.json.post.id), false);
+  const kept = feed.json.posts.find((post) => post.id === targetId);
+  assert.deepEqual(kept.counts, { likes: 0, saves: 0, comments: 0, shares: 0 });
+  assert.equal(kept.pendingModeration, undefined);
+  const stories = await api('GET', '/api/social/stories', { cookie: other });
+  assert.equal(stories.json.stories.some((story) => story.id === victimStory.json.story.id), false);
+  assert.equal(stories.json.stories.find((story) => story.id === otherStory.json.story.id).viewsCount, 0);
+  const suggestions = await api('GET', '/api/social/suggestions?limit=20', { cookie: other });
+  assert.equal(suggestions.json.suggestions.some((item) => item.author.id === victimPost.json.post.author.id), false);
+
+  const reRegistered = await api('POST', '/api/auth/register', {
+    body: { email: victimEmail, password: 'nuovaPassword1' }, ip: 'soc-delete-reregister',
+  });
+  assert.equal(reRegistered.status, 200); assert.match(reRegistered.json.user.id, /^usr_[0-9a-f]{36}$/);
+  const newCookie = userCookie(reRegistered);
+  const newPost = await api('POST', '/api/social/posts', { cookie: newCookie, ip: 'soc-delete-new-post', body: { text: 'Nuova identità' } });
+  assert.notEqual(newPost.json.post.author.id, victimPost.json.post.author.id);
+  assert.equal((await api('GET', '/api/auth/me', { cookie: victim })).json.user, null, 'il vecchio cookie non possiede il nuovo account');
+
+  // Tutti i flussi che ricevono un'email continuano a risolvere la nuova identità opaca.
+  const loginAgain = await api('POST', '/api/auth/login', {
+    body: { email: victimEmail, password: 'nuovaPassword1' }, ip: 'soc-delete-login-opaque',
+  });
+  assert.equal(loginAgain.status, 200); assert.equal(loginAgain.json.user.id, reRegistered.json.user.id);
+  const managed = await api('POST', '/api/admin/users/level', {
+    cookie: admin, body: { userId: victimEmail, level: 'verificatore' },
+  });
+  assert.equal(managed.status, 200); assert.equal(managed.json.user.id, reRegistered.json.user.id);
+  const invited = await api('POST', '/api/admin/invites', {
+    cookie: admin, body: { email: victimEmail, level: 'produttore' },
+  });
+  assert.equal(invited.status, 200);
+  const accepted = await api('POST', `/api/invite/${invited.json.token}/accept`, { cookie: newCookie });
+  assert.equal(accepted.status, 200); assert.equal(accepted.json.level, 'produttore');
+});
+
+test('moderazione admin: coda privacy-safe e keep/remove idempotenti, scaduta distinta da 404', async () => {
+  const owner = await signIn('social-moderation-owner@example.test', 'soc-mod-auth-o');
+  const reporter = await signIn('social-moderation-reporter@example.test', 'soc-mod-auth-r');
+  await api('PATCH', '/api/auth/profile', { cookie: owner, body: { name: 'Fattoria Moderata', city: 'Terni', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } } });
+  const post = await api('POST', '/api/social/posts', { cookie: owner, ip: 'soc-mod-post', body: { text: 'Post segnalato' } });
+  const story = await api('POST', '/api/social/stories', { cookie: owner, ip: 'soc-mod-story', body: { text: 'Storia segnalata' } });
+  await api('POST', `/api/social/posts/${post.json.post.id}/report`, { cookie: reporter, ip: 'soc-mod-report-p' });
+  await api('POST', `/api/social/stories/${story.json.story.id}/report`, { cookie: reporter, ip: 'soc-mod-report-s' });
+  assert.equal((await api('GET', '/api/admin/social/moderation?status=pending')).status, 403);
+  assert.equal((await api('GET', '/api/admin/social/moderation?status=pending', { cookie: reporter })).status, 403);
+  assert.equal((await api('POST', '/api/admin/social/moderation/resolve', { cookie: reporter, body: { type: 'post', id: post.json.post.id, decision: 'keep' } })).status, 403);
+
+  const login = await api('POST', '/api/login', { body: { password: 'social-admin-test', name: 'Admin moderazione' }, ip: 'soc-mod-admin-login' });
+  const admin = staffCookie(login);
+  // La suite usa un unico documento social: chiude le segnalazioni lasciate volutamente pending
+  // dai test precedenti, senza toccare i due contenuti di questo caso.
+  const previousQueue = await api('GET', '/api/admin/social/moderation?status=pending', { cookie: admin });
+  for (const item of previousQueue.json.items.filter((item) => item.id !== post.json.post.id && item.id !== story.json.story.id)) {
+    await api('POST', '/api/admin/social/moderation/resolve', { cookie: admin, body: { type: item.type, id: item.id, decision: 'keep' } });
+  }
+  const queue = await api('GET', '/api/admin/social/moderation?status=pending', { cookie: admin });
+  assert.equal(queue.status, 200); assert.equal(queue.json.counts.pending, 2);
+  assert.deepEqual(new Set(queue.json.items.map((item) => item.type)), new Set(['post', 'story']));
+  const queuedPost = queue.json.items.find((item) => item.id === post.json.post.id);
+  assert.equal(queuedPost.reportCount, 1); assert.equal(queuedPost.author.name, 'Fattoria Moderata');
+  assert.deepEqual(queuedPost.location, { city: 'Terni', zoneId: 'tr', zoneLabel: 'Conca', region: 'Umbria' });
+  assert.equal(queuedPost.author.id, undefined);
+  assert.ok(!JSON.stringify(queue.json).includes('social-moderation-reporter@example.test'));
+  assert.equal((await api('GET', '/api/admin/social/moderation?status=resolved', { cookie: admin })).status, 400);
+
+  const kept = await api('POST', '/api/admin/social/moderation/resolve', { cookie: admin, body: { type: 'post', id: post.json.post.id, decision: 'keep' } });
+  assert.deepEqual(kept.json, { ok: true, type: 'post', id: post.json.post.id, decision: 'keep', alreadyResolved: false });
+  const keptAgain = await api('POST', '/api/admin/social/moderation/resolve', { cookie: admin, body: { type: 'post', id: post.json.post.id, decision: 'keep' } });
+  assert.equal(keptAgain.status, 200); assert.equal(keptAgain.json.alreadyResolved, true);
+
+  // `keep` chiude la pratica ma conserva lo storico interno: il reporter continua a non vedere
+  // il contenuto e una segnalazione duplicata non riapre la coda.
+  const storedAfterKeep = TEST_DB.readCrm('__social').posts.find((item) => item.id === post.json.post.id);
+  assert.deepEqual(storedAfterKeep.reports, ['social-moderation-reporter@example.test']);
+  assert.deepEqual(storedAfterKeep.reviewedReports, ['social-moderation-reporter@example.test']);
+  const reporterFeed = await api('GET', '/api/social/feed?scope=for-you', { cookie: reporter });
+  assert.equal(reporterFeed.json.posts.some((item) => item.id === post.json.post.id), false);
+  const duplicate = await api('POST', `/api/social/posts/${post.json.post.id}/report`, { cookie: reporter, ip: 'soc-mod-report-p-duplicate' });
+  assert.equal(duplicate.status, 200); assert.equal(duplicate.json.alreadyReported, true); assert.equal(duplicate.json.alreadyReviewed, true);
+  let queueAfterKeep = await api('GET', '/api/admin/social/moderation?status=pending', { cookie: admin });
+  assert.equal(queueAfterKeep.json.items.some((item) => item.id === post.json.post.id), false);
+
+  // Un reporter realmente nuovo apre una nuova pratica con un nuovo pendingSince; i duplicati
+  // dello stesso ciclo restano idempotenti e non gonfiano reportCount.
+  await new Promise((resolve) => setTimeout(resolve, 2));
+  const newReporter = await signIn('social-moderation-new-reporter@example.test', 'soc-mod-auth-new-r');
+  const reopened = await api('POST', `/api/social/posts/${post.json.post.id}/report`, { cookie: newReporter, ip: 'soc-mod-report-p-new' });
+  assert.equal(reopened.status, 200); assert.equal(reopened.json.alreadyReported, false); assert.equal(reopened.json.alreadyReviewed, false);
+  queueAfterKeep = await api('GET', '/api/admin/social/moderation?status=pending', { cookie: admin });
+  const reopenedItem = queueAfterKeep.json.items.find((item) => item.id === post.json.post.id);
+  assert.equal(reopenedItem.reportCount, 1); assert.ok(Date.parse(reopenedItem.pendingSince));
+  assert.ok(Date.parse(reopenedItem.pendingSince) > Date.parse(queuedPost.pendingSince));
+  assert.ok(!JSON.stringify(queueAfterKeep.json).includes('social-moderation-new-reporter@example.test'));
+  const duplicateNew = await api('POST', `/api/social/posts/${post.json.post.id}/report`, { cookie: newReporter, ip: 'soc-mod-report-p-new-duplicate' });
+  assert.equal(duplicateNew.json.alreadyReported, true); assert.equal(duplicateNew.json.alreadyReviewed, false);
+  const stillOne = (await api('GET', '/api/admin/social/moderation?status=pending', { cookie: admin })).json.items.find((item) => item.id === post.json.post.id);
+  assert.equal(stillOne.reportCount, 1); assert.equal(stillOne.pendingSince, reopenedItem.pendingSince);
+  const keptNewCycle = await api('POST', '/api/admin/social/moderation/resolve', { cookie: admin, body: { type: 'post', id: post.json.post.id, decision: 'keep' } });
+  assert.equal(keptNewCycle.status, 200); assert.equal(keptNewCycle.json.alreadyResolved, false);
+
+  const removed = await api('POST', '/api/admin/social/moderation/resolve', { cookie: admin, body: { type: 'story', id: story.json.story.id, decision: 'remove' } });
+  assert.equal(removed.status, 200); assert.equal(removed.json.alreadyResolved, false);
+  const removedAgain = await api('POST', '/api/admin/social/moderation/resolve', { cookie: admin, body: { type: 'story', id: story.json.story.id, decision: 'remove' } });
+  assert.equal(removedAgain.status, 200); assert.equal(removedAgain.json.alreadyResolved, true);
+  assert.equal((await api('GET', '/api/admin/social/moderation?status=pending', { cookie: admin })).json.counts.pending, 0);
+  assert.equal((await api('POST', '/api/admin/social/moderation/resolve', { cookie: admin, body: { type: 'post', id: 'missing', decision: 'remove' } })).status, 404);
+  assert.equal((await api('POST', '/api/admin/social/moderation/resolve', { cookie: admin, body: { type: 'post', id: post.json.post.id, decision: 'invalid' } })).status, 400);
+
+  const expiring = await api('POST', '/api/social/stories', { cookie: owner, ip: 'soc-mod-expiring', body: { text: 'Ormai scaduta' } });
+  const socialDoc = TEST_DB.readCrm('__social');
+  socialDoc.stories.find((item) => item.id === expiring.json.story.id).expiresAt = new Date(Date.now() - 1000).toISOString();
+  TEST_DB.writeCrm('__social', socialDoc);
+  const expired = await api('POST', '/api/admin/social/moderation/resolve', { cookie: admin, body: { type: 'story', id: expiring.json.story.id, decision: 'remove' } });
+  assert.equal(expired.status, 410); assert.equal(expired.json.error, 'storia_scaduta');
+  const expiredAgain = await api('POST', '/api/admin/social/moderation/resolve', { cookie: admin, body: { type: 'story', id: expiring.json.story.id, decision: 'remove' } });
+  assert.equal(expiredAgain.status, 410);
+});
+
 // -------------------------------------------------- Custodi / referral
 test('GET /api/custodi/me senza login → 401', async () => {
   const r = await api('GET', '/api/custodi/me');
@@ -589,14 +866,46 @@ test('rate-limit: /api/auth/login oltre 10/min dallo stesso IP → 429', async (
 });
 
 // -------------------------------------------------- avatar
-test('avatar: senza login 401, data-url invalido 400, valido → 200 con picture', async () => {
-  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+test('avatar: valida magic bytes/5MiB, rimuove metadata e versiona URL senza cache stantia', async () => {
+  const PNG = SOCIAL_PNG;
+  const PNG_2 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZL0AAAAAASUVORK5CYII=';
+  const png = Buffer.from(PNG.split(',')[1], 'base64');
   assert.equal((await api('POST', '/api/auth/avatar', { body: { dataUrl: PNG } })).status, 401);
   const cookie = await signIn('avatar@x.it', 'av1');
   assert.equal((await api('POST', '/api/auth/avatar', { cookie, body: { dataUrl: 'nope' } })).status, 400);
-  const r = await api('POST', '/api/auth/avatar', { cookie, body: { dataUrl: PNG } });
-  assert.equal(r.status, 200);
-  assert.match(r.json.user.picture, /^assets\/photos\/users\//);
+  assert.equal((await api('POST', '/api/auth/avatar', {
+    cookie, body: { dataUrl: 'data:image/png;base64,ZmFrZQ==' },
+  })).status, 400, 'il MIME dichiarato non sostituisce le magic bytes');
+  const oversized = `data:image/png;base64,${Buffer.concat([png, Buffer.alloc(5 * 1024 * 1024)]).toString('base64')}`;
+  assert.equal((await api('POST', '/api/auth/avatar', { cookie, body: { dataUrl: oversized } })).status, 413);
+
+  const first = await api('POST', '/api/auth/avatar', { cookie, body: { dataUrl: PNG } });
+  assert.equal(first.status, 200);
+  assert.match(first.json.user.picture, /^assets\/photos\/users\/[a-f0-9]{16}-[a-f0-9]{32}\.png$/);
+  const firstPath = path.join(TMP, first.json.user.picture);
+  assert.equal(fs.existsSync(firstPath), true);
+  assert.deepEqual((await api('GET', `/${first.json.user.picture}`)).raw, png);
+
+  const secondBytes = Buffer.from(PNG_2.split(',')[1], 'base64');
+  const second = await api('POST', '/api/auth/avatar', { cookie, body: { dataUrl: PNG_2 } });
+  assert.equal(second.status, 200);
+  assert.notEqual(second.json.user.picture, first.json.user.picture, 'ogni upload deve cambiare URL');
+  assert.equal(fs.existsSync(firstPath), false, "l'avatar precedente dello stesso account va rimosso");
+  const secondLive = await api('GET', `/${second.json.user.picture}`);
+  assert.equal(secondLive.status, 200); assert.deepEqual(secondLive.raw, secondBytes);
+
+  const iend = png.indexOf(Buffer.from('IEND')) - 4, privateValue = Buffer.from('gps-private');
+  const textChunk = Buffer.concat([
+    Buffer.from([0, 0, 0, privateValue.length]), Buffer.from('tEXt'), privateValue, Buffer.alloc(4),
+  ]);
+  const withMetadata = Buffer.concat([png.subarray(0, iend), textChunk, png.subarray(iend)]);
+  const sanitized = await api('POST', '/api/auth/avatar', {
+    cookie, body: { dataUrl: `data:image/png;base64,${withMetadata.toString('base64')}` },
+  });
+  assert.equal(sanitized.status, 200);
+  const sanitizedBytes = fs.readFileSync(path.join(TMP, sanitized.json.user.picture));
+  assert.deepEqual(sanitizedBytes, png, 'i chunk metadata PNG non devono arrivare sul disco');
+  assert.equal(sanitizedBytes.indexOf(privateValue), -1);
 });
 
 // -------------------------------------------------- static file server

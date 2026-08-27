@@ -8,7 +8,7 @@ const CONFIG = path.join(ROOT, 'data', 'config.json');
 const DB = require('./db');
 const { readUsers, writeUsers, readStore, writeStore, readWait, writeWait, readCand, writeCand, readCrm, writeCrm } = DB;
 // Salvataggio media: Cloudinary in produzione (env), fallback su disco in dev/test (vedi media.js).
-const { saveMedia, listDiskMediaAssets, deleteMediaAsset } = require('./media');
+const { saveMedia, inspectDataUrl, extOf, listDiskMediaAssets, deleteMediaAsset } = require('./media');
 // I MEDIA caricati (foto/video, avatar) restano su disco (GF_DATA_DIR o ./data). NB: su hosting free il
 // disco è effimero → gli upload non sopravvivono ai deploy (migrazione a object-storage: passo successivo).
 const DATA_RW = process.env.GF_DATA_DIR || path.join(ROOT, 'data');
@@ -24,10 +24,15 @@ const positiveEnvMs = (name, fallback) => {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 // Policy approvata: un asset non referenziato resta recuperabile per almeno 24 ore. Anche lo sweep
-// gira ogni 24 ore di default; gli env consentono finestre più strette esclusivamente in test/ops.
-const SOCIAL_MEDIA_RETENTION_MS = positiveEnvMs('GF_SOCIAL_MEDIA_RETENTION_MS', 24 * 60 * 60 * 1000);
+// gira ogni 24 ore di default; una retention più stretta è accettata esclusivamente in NODE_ENV=test.
+const SOCIAL_MEDIA_POLICY_MIN_MS = 24 * 60 * 60 * 1000;
+const configuredSocialRetentionMs = positiveEnvMs('GF_SOCIAL_MEDIA_RETENTION_MS', SOCIAL_MEDIA_POLICY_MIN_MS);
+const SOCIAL_MEDIA_RETENTION_MS = process.env.NODE_ENV === 'test'
+  ? configuredSocialRetentionMs
+  : Math.max(SOCIAL_MEDIA_POLICY_MIN_MS, configuredSocialRetentionMs);
 const SOCIAL_MEDIA_SWEEP_INTERVAL_MS = positiveEnvMs('GF_SOCIAL_MEDIA_SWEEP_INTERVAL_MS', 24 * 60 * 60 * 1000);
 const SOCIAL_MEDIA_SWEEP_BATCH = Math.max(1, Math.min(100, Number(process.env.GF_SOCIAL_MEDIA_SWEEP_BATCH) || 25));
+const PERSISTENCE_FLUSH_TIMEOUT_MS = Math.max(1000, Math.min(30000, positiveEnvMs('GF_PERSIST_FLUSH_TIMEOUT_MS', 8000)));
 fs.mkdirSync(DATA_RW, { recursive: true });
 fs.mkdirSync(USERPHOTODIR, { recursive: true });
 fs.mkdirSync(PHOTODIR, { recursive: true });
@@ -39,11 +44,59 @@ fs.mkdirSync(SOCIALMEDIADIR, { recursive: true });
 // Limiti payload: JSON normale 12MB, upload media (foto/video base64) fino a 25MB (audit S3: era 80MB → DoS).
 // 25MB base64 copre foto da telefono e clip brevi; abbatte la pressione RAM per richiesta. Il body() tronca oltre soglia.
 const BODY_MAX_JSON = 12e6, BODY_MAX_MEDIA = 26 * 1024 * 1024;
+const USER_AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const USER_AVATAR_DISK_URL_BASE = 'assets/photos/users';
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
   '.mp4': 'video/mp4', '.webm': 'video/webm' };
+
+async function flushPersistenceBounded(opts = {}) {
+  const flush = typeof opts.flush === 'function' ? opts.flush : (typeof DB.flush === 'function' ? DB.flush.bind(DB) : null);
+  if (!flush) return;
+  const timeoutMs = Number.isFinite(opts.timeoutMs) && opts.timeoutMs > 0 ? opts.timeoutMs : PERSISTENCE_FLUSH_TIMEOUT_MS;
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error('persistenza_timeout'); error.code = 503; reject(error);
+    }, timeoutMs);
+  });
+  try {
+    await Promise.race([Promise.resolve().then(() => flush({ strict: true })), timeout]);
+  } catch (cause) {
+    if (cause && cause.code === 503) throw cause;
+    const error = new Error('persistenza_non_confermata'); error.code = 503; error.cause = cause;
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+const userAvatarAccountHash = (userId) => crypto.createHash('sha1').update(String(userId || '')).digest('hex').slice(0, 16);
+function ownedLocalUserAvatarUrl(userId, picture) {
+  const value = String(picture || '').replace(/^\/+/, '');
+  if (!value.startsWith(USER_AVATAR_DISK_URL_BASE + '/')) return '';
+  const file = value.slice(USER_AVATAR_DISK_URL_BASE.length + 1), accountHash = userAvatarAccountHash(userId);
+  // Accetta il nome storico <hash>.<ext> e quello versionato <hash>-<token>.<ext>, ma mai
+  // sottocartelle, query string o file appartenenti a un altro account.
+  if (!new RegExp(`^${accountHash}(?:-[a-f0-9]{16,64})?\\.(?:png|jpe?g|webp)$`, 'i').test(file)) return '';
+  return `${USER_AVATAR_DISK_URL_BASE}/${file}`;
+}
+async function deleteOwnedLocalUserAvatar(userId, picture) {
+  const url = ownedLocalUserAvatarUrl(userId, picture);
+  if (!url) return { deleted: false, reason: 'not_owned_local_avatar' };
+  try {
+    return await deleteMediaAsset({ provider: 'disk', url }, {
+      diskDir: USERPHOTODIR, diskUrlBase: USER_AVATAR_DISK_URL_BASE,
+    });
+  } catch (error) {
+    // L'avatar nuovo/account deletion sono già persistiti: un errore di pulizia non deve
+    // trasformare una mutazione riuscita in un 500 ambiguo. Il file resta confinato e recuperabile.
+    console.error('Pulizia avatar locale fallita:', String(error && error.message || 'errore'));
+    return { deleted: false, reason: 'cleanup_failed' };
+  }
+}
 
 // Sessioni STATELESS (audit R1 / obiettivo 1.2): niente Map in memoria → sopravvivono a riavvii/deploy
 // e a più istanze. Il cookie contiene un token firmato HMAC (payload-base64 + firma), verificato ad ogni richiesta.
@@ -67,6 +120,7 @@ const socialMediaHits = new Map();    // upload social (utente+IP)
 const socialFollowHits = new Map();   // follow/unfollow (utente+IP)
 const socialShareHits = new Map();    // condivisioni social (utente+IP)
 const socialReportHits = new Map();   // segnalazioni social (utente+IP)
+const socialSearchHits = new Map();   // ricerca social (utente+IP)
 function clientIp(req) {
   const xff = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return xff || (req.socket && req.socket.remoteAddress) || 'unknown';
@@ -84,7 +138,7 @@ const loginThrottle = (req) => throttle(loginHits, req, 5);
 setInterval(() => {
   const now = Date.now();
   for (const bucket of [loginHits, authHits, publicHits, socialPostHits, socialCommentHits, socialReactionHits,
-    socialMediaHits, socialFollowHits, socialShareHits, socialReportHits]) {
+    socialMediaHits, socialFollowHits, socialShareHits, socialReportHits, socialSearchHits]) {
     for (const [key, e] of bucket) if (now >= e.resetAt) bucket.delete(key);
   }
 }, LOGIN_WINDOW_MS).unref();
@@ -209,6 +263,39 @@ function upsertUser(fields) {
   if (u) { Object.assign(u, fields, { createdAt: u.createdAt }); }
   else { u = { ...fields, createdAt: new Date().toISOString() }; db.users.push(u); }
   writeUsers(db); return u;
+}
+const normalizedAccountEmail = (value) => String(value || '').trim().toLowerCase();
+function findUserByEmail(users, email) {
+  const wanted = normalizedAccountEmail(email);
+  return (Array.isArray(users) ? users : []).find((user) => normalizedAccountEmail(user && (user.email || user.id)) === wanted) || null;
+}
+function readDeletedAccountsDoc() {
+  const raw = readCrm('__deleted_accounts') || {};
+  const fingerprints = Array.isArray(raw.fingerprints) ? raw.fingerprints.filter((value) => typeof value === 'string' && value) : [];
+  let salt = typeof raw.salt === 'string' && /^[0-9a-f]{64}$/.test(raw.salt) ? raw.salt : '';
+  if (!salt) {
+    salt = crypto.randomBytes(32).toString('hex');
+    writeCrm('__deleted_accounts', { version: 1, salt, fingerprints });
+  }
+  return { version: 1, salt, fingerprints };
+}
+function deletedAccountFingerprint(email, salt) {
+  const stableSalt = salt || readDeletedAccountsDoc().salt;
+  return crypto.createHmac('sha256', stableSalt).update('deleted-account:' + normalizedAccountEmail(email)).digest('base64url');
+}
+function rememberDeletedAccount(email) {
+  const doc = readDeletedAccountsDoc(), fingerprint = deletedAccountFingerprint(email, doc.salt);
+  if (!doc.fingerprints.includes(fingerprint)) doc.fingerprints.push(fingerprint);
+  writeCrm('__deleted_accounts', { ...doc, fingerprints: doc.fingerprints.slice(-100000) });
+  return fingerprint;
+}
+function accountIdForNewEmail(email) {
+  // Gli account mai cancellati conservano l'ID storico=email. Dopo una cancellazione l'ID diventa
+  // una nuova identità opaca: la stessa casella non può riottenere ownership, follow o reazioni pregresse.
+  const doc = readDeletedAccountsDoc();
+  return doc.fingerprints.includes(deletedAccountFingerprint(email, doc.salt))
+    ? 'usr_' + crypto.randomBytes(18).toString('hex')
+    : normalizedAccountEmail(email);
 }
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -655,7 +742,7 @@ function rankSocialPosts(posts, viewerLocation, scope = 'for-you', opts = {}) {
   const following = opts.following instanceof Set ? opts.following : new Set(Array.isArray(opts.following) ? opts.following : []);
   const located = (Array.isArray(posts) ? posts : [])
     .map((post) => ({ ...post, locality: socialLocality(post && post.location, viewerLocation) }))
-    .filter((post) => !(Array.isArray(post.reports) && opts.viewerId && post.reports.includes(opts.viewerId)))
+    .filter((post) => !socialContentReportedBy(post, opts.viewerId))
     .filter((post) => selectedScope !== 'following' || following.has(post.authorId))
     .filter((post) => selectedScope !== 'nearby' || (post.locality !== 'other'
       && (!opts.viewerId || post.authorId !== opts.viewerId) && !following.has(post.authorId)))
@@ -666,40 +753,62 @@ function rankSocialPosts(posts, viewerLocation, scope = 'for-you', opts = {}) {
   for (const locality of ['city', 'zone', 'region', 'other']) ranked.push(...diversifySocialTier(located.filter((post) => post.locality === locality)));
   return ranked;
 }
-// Un post firmato come produttore mantiene quel ruolo in output SOLO finché account e scheda sono
-// ancora collegati, owned e pubblicati. La trasformazione è live e non muta lo storico salvato.
+// Un contenuto firmato come produttore mantiene quel ruolo in output SOLO finché account e scheda
+// storica sono ancora collegati, owned e pubblicati. Persone e commenti vengono invece riletti dal
+// profilo live: una modifica di nome/avatar/territorio si riflette ovunque senza riscrivere lo storico.
+function revalidateSocialAuthorRecord(record, userById, producerById, { withLocation = false } = {}) {
+  if (!record || typeof record !== 'object') return record;
+  const out = { ...record };
+  if (record.authorType === 'system' || !record.authorId) return out;
+  const user = userById.get(record.authorId) || null;
+  const producer = record.authorType === 'producer' && record.producerId
+    ? producerById.get(record.producerId) || null
+    : null;
+  const hasProducerAnchor = !!(producer && Object.prototype.hasOwnProperty.call(producer, 'socialLocation'));
+  const validProducer = !!(user && producer
+    && user.producerId === producer.id
+    && user.producerStatus === 'published'
+    && producer.ownerId === user.id
+    && producer.status === 'published'
+    && hasProducerAnchor);
+  if (validProducer) return {
+    ...out,
+    authorName: socialDisplayName(producer.name, 'Produttore locale'),
+    authorPicture: cleanSocialText(producer.photo || user.picture, 1200),
+    authorType: 'producer', authorVerified: true, producerId: producer.id,
+    ...(withLocation ? { location: socialLocation(producer.socialLocation) } : {}),
+  };
+  if (!user) {
+    if (record.authorType !== 'producer') return out;
+    return { ...out, authorType: 'person', authorVerified: false, producerId: null };
+  }
+  return {
+    ...out,
+    authorName: socialDisplayName(user.name, 'Membro Gaia'),
+    authorPicture: cleanSocialText(user.picture, 1200),
+    authorType: 'person', authorVerified: false, producerId: null,
+    ...(withLocation ? { location: socialLocation(user) } : {}),
+  };
+}
 function revalidateSocialAuthors(posts, users, producers) {
   const userById = new Map((Array.isArray(users) ? users : []).map((user) => [user.id, user]));
   const producerById = new Map((Array.isArray(producers) ? producers : []).map((producer) => [producer.id, producer]));
   return (Array.isArray(posts) ? posts : []).map((post) => {
-    if (!post || post.authorType !== 'producer') return post && typeof post === 'object' ? { ...post } : post;
-    const user = userById.get(post.authorId) || null;
-    // Il legame storico è il producerId DEL POST: un nuovo producerId sul medesimo account
-    // non può riappropriarsi di contenuti firmati da una scheda precedente.
-    const producer = producerById.get(post.producerId) || null;
-    const hasProducerAnchor = !!(producer && Object.prototype.hasOwnProperty.call(producer, 'socialLocation'));
-    const valid = !!(user && producer
-      && user.producerId === producer.id
-      && user.producerStatus === 'published'
-      && producer.ownerId === user.id
-      && producer.status === 'published'
-      && hasProducerAnchor);
-    if (valid) return {
-      ...post,
-      authorName: socialDisplayName(producer.name, 'Produttore locale'),
-      authorPicture: cleanSocialText(producer.photo || user.picture, 1200),
-      authorType: 'producer', authorVerified: true, producerId: producer.id,
-      location: socialLocation(producer.socialLocation),
-    };
-    return {
-      ...post,
-      authorName: socialDisplayName(user && user.name, 'Membro Gaia'),
-      authorPicture: cleanSocialText(user && user.picture, 1200),
-      authorType: 'person', authorVerified: false, producerId: null,
-    };
+    const live = revalidateSocialAuthorRecord(post, userById, producerById, { withLocation: true });
+    if (!live || typeof live !== 'object' || !Array.isArray(post.comments)) return live;
+    live.comments = post.comments.map((comment) => revalidateSocialAuthorRecord(comment, userById, producerById));
+    return live;
   });
 }
 const socialUniqueIds = (value) => [...new Set((Array.isArray(value) ? value : []).filter((x) => typeof x === 'string' && x))];
+function socialReviewedReportIds(content) { return socialUniqueIds(content && content.reviewedReports); }
+function socialUnresolvedReportIds(content) {
+  const reviewed = new Set(socialReviewedReportIds(content));
+  return socialUniqueIds(content && content.reports).filter((id) => !reviewed.has(id));
+}
+function socialContentReportedBy(content, viewerId) {
+  return !!viewerId && socialUniqueIds(content && content.reports).includes(viewerId);
+}
 function cleanSocialMedia(value, max = 10) {
   return (Array.isArray(value) ? value : []).slice(0, max).map((item) => {
     const type = item && item.type === 'video' ? 'video' : (item && item.type === 'image' ? 'image' : '');
@@ -717,7 +826,8 @@ function projectSocialPost(post, viewerId, secret, opts = {}) {
   const type = ['person', 'producer', 'system'].includes(post && post.authorType) ? post.authorType : 'person';
   const authorId = type === 'system' ? 'gaia-food' : socialPublicId(post && post.authorId, secret);
   const likes = socialUniqueIds(post && post.likes), saves = socialUniqueIds(post && post.saves), shares = socialUniqueIds(post && post.shares);
-  const reports = socialUniqueIds(post && post.reports), following = opts.following instanceof Set ? opts.following : new Set();
+  const reports = socialUniqueIds(post && post.reports), unresolvedReports = socialUnresolvedReportIds(post);
+  const following = opts.following instanceof Set ? opts.following : new Set();
   const media = cleanSocialMedia(post && post.media);
   const allComments = Array.isArray(post && post.comments) ? post.comments : [];
   const comments = allComments.slice(-20).map((comment) => {
@@ -770,7 +880,7 @@ function projectSocialPost(post, viewerId, secret, opts = {}) {
     out.virality = { score: Number(score.toFixed(2)), postScore: Number(postScore.toFixed(2)), label: v && v.label || socialViralityLabel(score) };
     if (v && Number.isInteger(v.rank)) out.virality.rank = v.rank;
   }
-  if (reports.length >= 3 || post && post.pendingModeration) out.pendingModeration = true;
+  if (unresolvedReports.length >= 3 || post && post.pendingModeration) out.pendingModeration = true;
   if (post && post.isExample) out.isExample = true;
   return out;
 }
@@ -778,6 +888,7 @@ function projectSocialPost(post, viewerId, secret, opts = {}) {
 function projectSocialStory(story, viewerId, secret, opts = {}) {
   const type = story && story.authorType === 'producer' ? 'producer' : 'person';
   const views = socialUniqueIds(story && story.views), reports = socialUniqueIds(story && story.reports);
+  const unresolvedReports = socialUnresolvedReportIds(story);
   const following = opts.following instanceof Set ? opts.following : new Set();
   const out = {
     id: cleanSocialText(story && story.id, 80),
@@ -803,7 +914,7 @@ function projectSocialStory(story, viewerId, secret, opts = {}) {
     },
   };
   if (type === 'producer' && story.producerId) out.author.producerId = cleanSocialText(story.producerId, 80);
-  if (reports.length >= 3 || story && story.pendingModeration) out.pendingModeration = true;
+  if (unresolvedReports.length >= 3 || story && story.pendingModeration) out.pendingModeration = true;
   return out;
 }
 
@@ -814,20 +925,57 @@ const SOCIAL_EXAMPLE_POST = {
   authorId: null, authorName: 'Gaia Food', authorPicture: '', authorType: 'system', authorVerified: true,
   producerId: null, location: { city: '', zoneId: '', zoneLabel: '', region: '' }, likes: [], saves: [], shares: [], reports: [], comments: [],
 };
+
+const validSocialIso = (value, fallback = '') => {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : fallback;
+};
+function cleanSocialAssetRecord(value) {
+  const item = value && typeof value === 'object' ? value : {};
+  const url = cleanSocialText(item.url, 2200);
+  const provider = item.provider === 'cloudinary' ? 'cloudinary' : (item.provider === 'disk' ? 'disk' : '');
+  if (!url || !provider) return null;
+  const uploadedAt = validSocialIso(item.uploadedAt, new Date(0).toISOString());
+  const orphanedAt = item.orphanedAt == null ? null : validSocialIso(item.orphanedAt, uploadedAt);
+  const out = {
+    url, provider, type: item.type === 'video' ? 'video' : 'image',
+    mime: cleanSocialText(item.mime, 80), uploadedAt, orphanedAt,
+    deleteAttempts: Math.max(0, Math.min(1000000, Number.isInteger(item.deleteAttempts) ? item.deleteAttempts : 0)),
+    lastDeleteAttemptAt: item.lastDeleteAttemptAt == null ? null : validSocialIso(item.lastDeleteAttemptAt, null),
+  };
+  if (provider === 'cloudinary') {
+    out.publicId = cleanSocialText(item.publicId, 500);
+    out.resourceType = item.resourceType === 'video' || out.type === 'video' ? 'video' : 'image';
+  }
+  return out;
+}
+function cleanSocialModerationAudit(value) {
+  return (Array.isArray(value) ? value : []).slice(-2000).map((item) => {
+    const type = item && item.type === 'story' ? 'story' : (item && item.type === 'post' ? 'post' : '');
+    const decision = item && item.decision === 'remove' ? 'remove'
+      : (item && item.decision === 'keep' ? 'keep' : (item && item.decision === 'expired' ? 'expired' : ''));
+    const id = cleanSocialText(item && item.id, 80), at = validSocialIso(item && item.at);
+    if (!type || !decision || !id || !at) return null;
+    return { type, id, decision, at, actor: cleanSocialText(item.actor, 80) || 'staff-admin' };
+  }).filter(Boolean);
+}
 function normalizeSocialDoc(rawValue) {
   const raw = rawValue && typeof rawValue === 'object' ? rawValue : {};
   const posts = Array.isArray(raw.posts) ? raw.posts : [{ ...SOCIAL_EXAMPLE_POST, location: { ...SOCIAL_EXAMPLE_POST.location }, likes: [], saves: [], shares: [], reports: [], comments: [] }];
   return {
-    socialVersion: 2,
+    socialVersion: 3,
     posts,
     stories: Array.isArray(raw.stories) ? raw.stories : [],
     follows: (Array.isArray(raw.follows) ? raw.follows : []).filter((item) => item && typeof item.from === 'string' && typeof item.to === 'string' && item.from !== item.to)
       .map((item) => ({ from: item.from, to: item.to, createdAt: cleanSocialText(item.createdAt, 40) })),
+    assets: (Array.isArray(raw.assets) ? raw.assets : []).map(cleanSocialAssetRecord).filter(Boolean),
+    moderationAudit: cleanSocialModerationAudit(raw.moderationAudit),
   };
 }
 function readSocialDoc() {
   const raw = readCrm('__social') || {}, doc = normalizeSocialDoc(raw);
-  if (raw.socialVersion === 2 && Array.isArray(raw.posts) && Array.isArray(raw.stories) && Array.isArray(raw.follows)) return doc;
+  if (raw.socialVersion === 3 && Array.isArray(raw.posts) && Array.isArray(raw.stories) && Array.isArray(raw.follows)
+    && Array.isArray(raw.assets) && Array.isArray(raw.moderationAudit)) return doc;
   writeCrm('__social', doc);
   return doc;
 }
@@ -835,11 +983,257 @@ function readSocialDoc() {
 // store replace-all resta volutamente last-write-wins fra più ISTANZE: sarà da migrare prima dello scale-out.
 function writeSocialDoc(doc) {
   writeCrm('__social', {
-    socialVersion: 2,
+    socialVersion: 3,
     posts: Array.isArray(doc.posts) ? doc.posts : [],
     stories: Array.isArray(doc.stories) ? doc.stories : [],
     follows: Array.isArray(doc.follows) ? doc.follows : [],
+    assets: (Array.isArray(doc.assets) ? doc.assets : []).map(cleanSocialAssetRecord).filter(Boolean),
+    moderationAudit: cleanSocialModerationAudit(doc.moderationAudit),
   });
+}
+
+function socialContentMediaUrls(content) {
+  const urls = cleanSocialMedia(content && content.media).map((item) => item.url);
+  const legacy = cleanSocialText(content && content.mediaUrl, 2200);
+  if (legacy) urls.push(legacy);
+  return [...new Set(urls)];
+}
+function socialReferencedMediaUrls(doc) {
+  const urls = new Set();
+  for (const item of [...(Array.isArray(doc && doc.posts) ? doc.posts : []), ...(Array.isArray(doc && doc.stories) ? doc.stories : [])]) {
+    for (const url of socialContentMediaUrls(item)) urls.add(url);
+  }
+  return urls;
+}
+function inferSocialAsset(url, now = Date.now()) {
+  const value = cleanSocialText(url, 2200);
+  if (!value) return null;
+  const provider = value.startsWith('assets/media/social/') || value.startsWith('/assets/media/social/') ? 'disk'
+    : (/^https:\/\/res\.cloudinary\.com\//.test(value) ? 'cloudinary' : '');
+  if (!provider) return null;
+  return cleanSocialAssetRecord({ url: value.replace(/^\/(assets\/)/, '$1'), provider, uploadedAt: new Date(now).toISOString(), orphanedAt: null });
+}
+function upsertSocialAsset(doc, rawAsset, opts = {}) {
+  const asset = cleanSocialAssetRecord(rawAsset);
+  if (!asset) return null;
+  doc.assets = Array.isArray(doc.assets) ? doc.assets : [];
+  const existing = doc.assets.find((item) => item && item.url === asset.url);
+  if (existing) {
+    const preservedUploadedAt = validSocialIso(existing.uploadedAt, asset.uploadedAt);
+    Object.assign(existing, asset, { uploadedAt: preservedUploadedAt });
+    if (opts.orphanedAt !== undefined) existing.orphanedAt = opts.orphanedAt;
+    return existing;
+  }
+  if (opts.orphanedAt !== undefined) asset.orphanedAt = opts.orphanedAt;
+  doc.assets.push(asset);
+  return asset;
+}
+function registerUploadedSocialAsset(doc, uploaded, now = Date.now()) {
+  const at = new Date(now).toISOString();
+  return upsertSocialAsset(doc, {
+    url: uploaded && uploaded.url, provider: uploaded && uploaded.provider,
+    type: uploaded && uploaded.type, mime: uploaded && uploaded.mime,
+    publicId: uploaded && uploaded.publicId, resourceType: uploaded && uploaded.resourceType,
+    uploadedAt: at, orphanedAt: at,
+  }, { orphanedAt: at });
+}
+const socialMediaDeleting = new Set();
+function markSocialMediaReferenced(doc, media, now = Date.now(), deleting = socialMediaDeleting) {
+  const items = Array.isArray(media) ? media : [];
+  const urls = items.map((item) => cleanSocialText(item && item.url, 2200)).filter(Boolean);
+  // Il set copre la sola finestra asincrona delete: tutte le mutazioni API social passano qui e
+  // non possono rivendicare un asset mentre lo sweep lo sta rimuovendo.
+  if (deleting && urls.some((url) => deleting.has(url))) return false;
+  for (const item of items) {
+    const url = cleanSocialText(item && item.url, 2200); if (!url) continue;
+    const existing = (Array.isArray(doc.assets) ? doc.assets : []).find((asset) => asset && asset.url === url);
+    if (existing) { existing.orphanedAt = null; existing.deleteAttempts = 0; existing.lastDeleteAttemptAt = null; }
+    else {
+      const inferred = inferSocialAsset(url, now);
+      if (inferred) upsertSocialAsset(doc, inferred, { orphanedAt: null });
+    }
+  }
+  return true;
+}
+// Va invocata DOPO aver rimosso il contenuto dal documento: soltanto gli URL non più referenziati
+// iniziano ora la loro finestra di grazia. Questo evita di cancellare subito il media di un post vecchio.
+function markRemovedSocialMedia(doc, removedContent, now = Date.now()) {
+  const referenced = socialReferencedMediaUrls(doc), at = new Date(now).toISOString();
+  for (const content of Array.isArray(removedContent) ? removedContent : []) {
+    for (const url of socialContentMediaUrls(content)) {
+      if (referenced.has(url)) continue;
+      let asset = (Array.isArray(doc.assets) ? doc.assets : []).find((item) => item && item.url === url);
+      if (!asset) {
+        const inferred = inferSocialAsset(url, now);
+        if (inferred) asset = upsertSocialAsset(doc, inferred);
+      }
+      if (asset) { asset.orphanedAt = at; asset.deleteAttempts = 0; asset.lastDeleteAttemptAt = null; }
+    }
+  }
+}
+
+function purgeSocialAccount(doc, accountId, now = Date.now()) {
+  const id = String(accountId || '');
+  if (!id) return { changed: false, removedPosts: 0, removedStories: 0 };
+  const posts = Array.isArray(doc.posts) ? doc.posts : [], stories = Array.isArray(doc.stories) ? doc.stories : [];
+  const removed = [...posts.filter((post) => post && post.authorId === id), ...stories.filter((story) => story && story.authorId === id)];
+  let touched = removed.length > 0;
+  const keptPosts = posts.filter((post) => !post || post.authorId !== id).map((post) => {
+    const comments = Array.isArray(post.comments) ? post.comments : [], keptComments = comments.filter((comment) => !comment || comment.authorId !== id);
+    if (keptComments.length !== comments.length) touched = true;
+    post.comments = keptComments;
+    for (const key of ['likes', 'saves', 'shares', 'reports', 'reviewedReports']) {
+      const before = socialUniqueIds(post[key]), after = before.filter((actorId) => actorId !== id);
+      if (after.length !== before.length) touched = true;
+      post[key] = after;
+    }
+    const unresolved = socialUnresolvedReportIds(post);
+    if (unresolved.length === 0) delete post.pendingSince;
+    if (post.pendingModeration && unresolved.length < 3) { delete post.pendingModeration; touched = true; }
+    return post;
+  });
+  const keptStories = stories.filter((story) => !story || story.authorId !== id).map((story) => {
+    const viewsBefore = socialUniqueIds(story.views), reportsBefore = socialUniqueIds(story.reports);
+    const reviewedBefore = socialUniqueIds(story.reviewedReports);
+    story.views = viewsBefore.filter((actorId) => actorId !== id);
+    story.reports = reportsBefore.filter((actorId) => actorId !== id);
+    story.reviewedReports = reviewedBefore.filter((actorId) => actorId !== id);
+    if (story.views.length !== viewsBefore.length || story.reports.length !== reportsBefore.length
+      || story.reviewedReports.length !== reviewedBefore.length) touched = true;
+    const unresolved = socialUnresolvedReportIds(story);
+    if (unresolved.length === 0) delete story.pendingSince;
+    if (story.pendingModeration && unresolved.length < 3) { delete story.pendingModeration; touched = true; }
+    return story;
+  });
+  const followsBefore = Array.isArray(doc.follows) ? doc.follows.length : 0;
+  doc.posts = keptPosts; doc.stories = keptStories;
+  doc.follows = (Array.isArray(doc.follows) ? doc.follows : []).filter((follow) => follow.from !== id && follow.to !== id);
+  markRemovedSocialMedia(doc, removed, now);
+  return {
+    changed: touched || followsBefore !== doc.follows.length,
+    removedPosts: posts.length - keptPosts.length,
+    removedStories: stories.length - keptStories.length,
+  };
+}
+
+function appendSocialModerationAudit(doc, type, id, decision, req, now = Date.now()) {
+  const me = userOf(req);
+  const actor = me && me.id ? socialPublicId(me.id, sessionSecret()) : 'staff-admin';
+  doc.moderationAudit = cleanSocialModerationAudit([...(Array.isArray(doc.moderationAudit) ? doc.moderationAudit : []), {
+    type, id, decision, at: new Date(now).toISOString(), actor,
+  }]);
+  return doc.moderationAudit.at(-1);
+}
+function appendSocialSystemModerationAudit(doc, type, id, decision, now = Date.now()) {
+  doc.moderationAudit = cleanSocialModerationAudit([...(Array.isArray(doc.moderationAudit) ? doc.moderationAudit : []), {
+    type, id, decision, at: new Date(now).toISOString(), actor: 'system',
+  }]);
+  return doc.moderationAudit.at(-1);
+}
+
+function socialModerationItem(type, content) {
+  const media = cleanSocialMedia(content && content.media, type === 'story' ? 1 : 10);
+  const authorType = content && content.authorType === 'producer' ? 'producer' : 'person';
+  const author = {
+    name: socialDisplayName(content && content.authorName, authorType === 'producer' ? 'Produttore locale' : 'Membro Gaia'),
+    picture: cleanSocialText(content && content.authorPicture, 1200), type: authorType,
+  };
+  if (authorType === 'producer' && content && content.producerId) author.producerId = cleanSocialText(content.producerId, 80);
+  const reports = socialUnresolvedReportIds(content);
+  const out = {
+    id: cleanSocialText(content && content.id, 80), type,
+    text: cleanSocialText(content && content.text, type === 'story' ? 280 : 700),
+    createdAt: cleanSocialText(content && content.createdAt, 40), author,
+    location: socialLocation(content && content.location), media, format: socialMediaFormat(media),
+    reportCount: reports.length,
+    pendingSince: cleanSocialText(content && content.pendingSince, 40) || cleanSocialText(content && content.createdAt, 40),
+  };
+  if (type === 'story') out.expiresAt = cleanSocialText(content && content.expiresAt, 40);
+  return out;
+}
+
+async function sweepSocialOrphanMedia(opts = {}) {
+  const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+  const retentionMs = Number.isFinite(opts.retentionMs) && opts.retentionMs > 0 ? opts.retentionMs : SOCIAL_MEDIA_RETENTION_MS;
+  const batchSize = Math.max(1, Math.min(100, Number(opts.batchSize) || SOCIAL_MEDIA_SWEEP_BATCH));
+  const readDoc = typeof opts.readDoc === 'function' ? opts.readDoc : (opts.doc ? () => opts.doc : readSocialDoc);
+  const writeDoc = typeof opts.writeDoc === 'function' ? opts.writeDoc : (opts.doc ? () => {} : writeSocialDoc);
+  const listDisk = typeof opts.listDisk === 'function' ? opts.listDisk : listDiskMediaAssets;
+  const removeAsset = typeof opts.deleteAsset === 'function' ? opts.deleteAsset : deleteMediaAsset;
+  const deleting = opts.deleting instanceof Set ? opts.deleting : socialMediaDeleting;
+  const diskDir = opts.diskDir || SOCIALMEDIADIR, diskUrlBase = opts.diskUrlBase || 'assets/media/social';
+
+  // Fase 1: l'enumerazione disco è asincrona. Soltanto DOPO l'await leggiamo il documento corrente,
+  // così non riscriviamo uno snapshot precedente a post/commenti/follow arrivati nel frattempo.
+  const diskAssets = await listDisk({ diskDir, diskUrlBase });
+  let doc = readDoc();
+  const expiredStories = purgeExpiredSocialStories(doc, now);
+  for (const diskAsset of diskAssets) if (!(Array.isArray(doc.assets) ? doc.assets : []).some((item) => item.url === diskAsset.url)) {
+    upsertSocialAsset(doc, { ...diskAsset, orphanedAt: diskAsset.uploadedAt }, { orphanedAt: diskAsset.uploadedAt });
+  }
+  const referenced = socialReferencedMediaUrls(doc);
+  for (const asset of Array.isArray(doc.assets) ? doc.assets : []) {
+    if (referenced.has(asset.url)) asset.orphanedAt = null;
+    else if (!asset.orphanedAt) asset.orphanedAt = validSocialIso(asset.uploadedAt, new Date(now).toISOString());
+  }
+  writeDoc(doc); // persiste il momento d'inizio della retention prima di qualsiasi I/O remoto
+
+  const cutoff = now - retentionMs;
+  const candidates = (Array.isArray(doc.assets) ? doc.assets : [])
+    .filter((asset) => !referenced.has(asset.url) && (Date.parse(asset.orphanedAt) || Infinity) <= cutoff)
+    .sort((a, b) => (Date.parse(a.lastDeleteAttemptAt) || 0) - (Date.parse(b.lastDeleteAttemptAt) || 0)
+      || (Date.parse(a.orphanedAt) || 0) - (Date.parse(b.orphanedAt) || 0) || a.url.localeCompare(b.url))
+    .slice(0, batchSize).map((asset) => asset.url);
+  const scanned = (Array.isArray(doc.assets) ? doc.assets.length : 0), deleted = [], failed = [], skippedReferenced = [];
+  for (const url of candidates) {
+    // Fase 2: claim per URL. Rilettura fresca immediatamente prima dell'I/O distruttivo; il Set
+    // impedisce alle mutazioni API della stessa istanza di referenziare l'asset durante gli await.
+    let current = readDoc(), currentRefs = socialReferencedMediaUrls(current);
+    let asset = (Array.isArray(current.assets) ? current.assets : []).find((item) => item && item.url === url);
+    if (!asset || currentRefs.has(url) || (Date.parse(asset.orphanedAt) || Infinity) > cutoff || deleting.has(url)) {
+      if (currentRefs.has(url)) skippedReferenced.push(url);
+      continue;
+    }
+    deleting.add(url);
+    try {
+      const result = await removeAsset(asset, { diskDir, diskUrlBase, now });
+      // Mai riscrivere `current`: durante l'await possono essere nati post, commenti o follow.
+      const latest = readDoc(), latestRefs = socialReferencedMediaUrls(latest);
+      const latestAsset = (Array.isArray(latest.assets) ? latest.assets : []).find((item) => item && item.url === url);
+      if (result && result.deleted) {
+        if (latestRefs.has(url)) {
+          // Non dovrebbe accadere nella singola istanza (il claim blocca publish); preserviamo comunque
+          // il documento più recente e rendiamo osservabile il conflitto senza sovrascriverlo.
+          skippedReferenced.push(url);
+        } else {
+          latest.assets = (Array.isArray(latest.assets) ? latest.assets : []).filter((item) => item && item.url !== url);
+          deleted.push(url);
+        }
+      } else {
+        if (latestAsset && !latestRefs.has(url)) {
+          latestAsset.deleteAttempts = (Number(latestAsset.deleteAttempts) || 0) + 1;
+          latestAsset.lastDeleteAttemptAt = new Date(now).toISOString();
+        }
+        failed.push({ url, reason: result && result.reason || 'not_deleted' });
+      }
+      writeDoc(latest);
+    } catch (error) {
+      const latest = readDoc(), latestRefs = socialReferencedMediaUrls(latest);
+      const latestAsset = (Array.isArray(latest.assets) ? latest.assets : []).find((item) => item && item.url === url);
+      if (latestAsset && !latestRefs.has(url)) {
+        latestAsset.deleteAttempts = (Number(latestAsset.deleteAttempts) || 0) + 1;
+        latestAsset.lastDeleteAttemptAt = new Date(now).toISOString();
+      }
+      failed.push({ url, reason: cleanSocialText(error && error.message, 160) || 'delete_failed' });
+      writeDoc(latest);
+    } finally {
+      deleting.delete(url);
+    }
+  }
+  return {
+    scanned, expiredStories: expiredStories ? 1 : 0, candidates: candidates.length,
+    deleted: deleted.length, failed: failed.length, skippedReferenced: skippedReferenced.length, failedItems: failed,
+  };
 }
 const SOCIAL_MEDIA_REF_TTL_MS = 60 * 60 * 1000;
 function signSocialMediaRef(media, accountId, now = Date.now(), secret = sessionSecret()) {
@@ -868,20 +1262,25 @@ function socialFollowingIds(doc, viewerId) {
   return new Set((Array.isArray(doc && doc.follows) ? doc.follows : []).filter((item) => item.from === viewerId).map((item) => item.to));
 }
 function purgeExpiredSocialStories(doc, now = Date.now()) {
-  const before = Array.isArray(doc.stories) ? doc.stories.length : 0;
-  doc.stories = (Array.isArray(doc.stories) ? doc.stories : []).filter((story) => (Date.parse(story && story.expiresAt) || 0) > now);
-  return doc.stories.length !== before;
+  const stories = Array.isArray(doc.stories) ? doc.stories : [];
+  const removed = stories.filter((story) => (Date.parse(story && story.expiresAt) || 0) <= now);
+  if (!removed.length) return false;
+  doc.stories = stories.filter((story) => (Date.parse(story && story.expiresAt) || 0) > now);
+  markRemovedSocialMedia(doc, removed, now);
+  for (const story of removed) appendSocialSystemModerationAudit(doc, 'story', cleanSocialText(story && story.id, 80), 'expired', now);
+  return true;
 }
 function anchorProducerSocialLocation(producer) {
   const owner = producer && producer.ownerId ? readUsers().users.find((user) => user.id === producer.ownerId) : null;
   producer.socialLocation = socialLocation(owner);
   return producer.socialLocation;
 }
-function socialAuthorSnapshot(me) {
+function socialAuthorSnapshotFromSources(me, producerById) {
   let producer = null;
   if (me && me.producerId && me.producerStatus === 'published') {
-    producer = readStore().producers.find((p) => p.id === me.producerId && p.ownerId === me.id
-      && p.status === 'published' && Object.prototype.hasOwnProperty.call(p, 'socialLocation')) || null;
+    const candidate = producerById.get(me.producerId) || null;
+    producer = candidate && candidate.ownerId === me.id && candidate.status === 'published'
+      && Object.prototype.hasOwnProperty.call(candidate, 'socialLocation') ? candidate : null;
   }
   if (producer) return {
     authorId: me.id,
@@ -897,6 +1296,10 @@ function socialAuthorSnapshot(me) {
     authorType: 'person', authorVerified: false, producerId: null,
     location: socialLocation(me),
   };
+}
+function socialAuthorSnapshot(me) {
+  const producers = readStore().producers;
+  return socialAuthorSnapshotFromSources(me, new Map(producers.map((producer) => [producer.id, producer])));
 }
 function socialThrottle(bucket, req, me, max, windowMs) {
   const accountKey = crypto.createHash('sha256').update(String(me.id)).digest('hex').slice(0, 16);
@@ -939,6 +1342,108 @@ function socialDiscoverableAuthorIds(doc, now = Date.now()) {
   }
   return ids;
 }
+function socialSearchKey(value) {
+  return cleanSocialText(value, 2400).toLocaleLowerCase('it').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+function socialSearchMatch(queryKey, values, primaryValue) {
+  const query = socialSearchKey(queryKey), tokens = query.split(/\s+/).filter(Boolean);
+  if (!query || !tokens.length) return null;
+  const keys = (Array.isArray(values) ? values : [values]).map(socialSearchKey).filter(Boolean);
+  const combined = keys.join(' ');
+  if (!tokens.every((token) => combined.includes(token))) return null;
+  const primary = socialSearchKey(primaryValue == null ? keys[0] : primaryValue);
+  if (primary === query) return 0;
+  if (primary.startsWith(query)) return 1;
+  if (primary.split(/\s+/).some((word) => word.startsWith(query))) return 2;
+  if (keys.some((key) => key === query || key.startsWith(query))) return 3;
+  return 4;
+}
+function socialSearchLimit(value) {
+  const raw = String(value == null ? '' : value).trim();
+  const parsed = /^\d+$/.test(raw) ? Number(raw) : 20;
+  return Math.max(1, Math.min(30, parsed));
+}
+function socialSearchResults(doc, me, rawQuery, limit = 20, now = Date.now()) {
+  const query = cleanSocialText(rawQuery, 80), queryKey = socialSearchKey(query);
+  const users = readUsers().users, producers = readStore().producers;
+  const userById = new Map(users.map((user) => [user.id, user]));
+  const producerById = new Map(producers.map((producer) => [producer.id, producer]));
+  const following = socialFollowingIds(doc, me.id), viewerLocation = socialLocation(me);
+  const livePosts = revalidateSocialAuthors(doc.posts, users, producers);
+  const latestByAuthor = new Map();
+  for (const item of [...livePosts, ...(Array.isArray(doc.stories) ? doc.stories : [])]) {
+    if (!item || !item.authorId || (item.expiresAt && (Date.parse(item.expiresAt) || 0) <= now)) continue;
+    const at = Date.parse(item.createdAt) || 0;
+    if (at > (latestByAuthor.get(item.authorId) || 0)) latestByAuthor.set(item.authorId, at);
+  }
+
+  const authorCandidates = [...socialDiscoverableAuthorIds(doc, now)].map((rawId) => {
+    const user = userById.get(rawId); if (!user) return null;
+    const snapshot = socialAuthorSnapshotFromSources(user, producerById);
+    const match = socialSearchMatch(queryKey, [
+      snapshot.authorName, snapshot.location.city, snapshot.location.zoneLabel, snapshot.location.region,
+    ], snapshot.authorName);
+    if (match == null) return null;
+    const locality = socialLocality(snapshot.location, viewerLocation);
+    const author = {
+      id: socialPublicId(rawId, sessionSecret()), name: snapshot.authorName,
+      picture: snapshot.authorPicture, type: snapshot.authorType, verified: !!snapshot.authorVerified,
+    };
+    if (snapshot.authorType === 'producer' && snapshot.producerId) author.producerId = cleanSocialText(snapshot.producerId, 80);
+    return {
+      match, localityRank: socialLocalityRank(locality), followed: following.has(rawId),
+      latest: latestByAuthor.get(rawId) || 0,
+      value: { author, location: socialLocation(snapshot.location), locality, following: following.has(rawId) },
+    };
+  }).filter(Boolean).sort((a, b) => a.match - b.match || a.localityRank - b.localityRank
+    || Number(b.followed) - Number(a.followed) || b.latest - a.latest
+    || a.value.author.name.localeCompare(b.value.author.name, 'it', { sensitivity: 'base' }));
+
+  const producerCandidates = producers.filter(isPublished).map((producer) => {
+    const categories = (Array.isArray(producer.categories) ? producer.categories : []).slice(0, 20).map((item) => cleanSocialText(item, 60)).filter(Boolean);
+    const products = (Array.isArray(producer.products) ? producer.products : []).flatMap((item) => [item && item.name, item && item.label, item && item.category]);
+    const seasonal = (Array.isArray(producer.seasonal) ? producer.seasonal : []).map((item) => item && item.label);
+    const location = Object.prototype.hasOwnProperty.call(producer, 'socialLocation') ? socialLocation(producer.socialLocation) : socialLocation({});
+    const match = socialSearchMatch(queryKey, [producer.name, producer.place, producer.primary, ...categories, ...products, ...seasonal], producer.name);
+    if (match == null) return null;
+    const locality = socialLocality(location, viewerLocation);
+    return {
+      match, localityRank: socialLocalityRank(locality),
+      value: {
+        id: cleanSocialText(producer.id, 80), name: socialDisplayName(producer.name, 'Produttore locale'),
+        photo: cleanSocialText(producer.photo, 1200), place: cleanSocialText(producer.place, 160),
+        categories, primary: cleanSocialText(producer.primary, 60), location, locality,
+      },
+    };
+  }).filter(Boolean).sort((a, b) => a.match - b.match || a.localityRank - b.localityRank
+    || a.value.name.localeCompare(b.value.name, 'it', { sensitivity: 'base' }));
+
+  const postCandidates = livePosts.filter((post) => !socialContentReportedBy(post, me.id)).map((post) => {
+    const location = socialLocation(post && post.location), locality = socialLocality(location, viewerLocation);
+    const match = socialSearchMatch(queryKey, [
+      post && post.text, post && post.authorName, post && post.kind,
+      location.city, location.zoneLabel, location.region,
+    ], post && post.text);
+    if (match == null) return null;
+    const located = { ...post, location, locality };
+    return {
+      match, localityRank: socialLocalityRank(locality), followed: following.has(post && post.authorId),
+      createdAt: Date.parse(post && post.createdAt) || 0,
+      value: projectSocialPost(located, me.id, sessionSecret(), { following, now }),
+    };
+  }).filter(Boolean).sort((a, b) => a.match - b.match || a.localityRank - b.localityRank
+    || Number(b.followed) - Number(a.followed) || b.createdAt - a.createdAt
+    || String(a.value.id).localeCompare(String(b.value.id)));
+
+  return {
+    query, minChars: 2,
+    authors: authorCandidates.slice(0, limit).map((item) => item.value),
+    producers: producerCandidates.slice(0, limit).map((item) => item.value),
+    posts: postCandidates.slice(0, limit).map((item) => item.value),
+    hasMore: authorCandidates.length > limit || producerCandidates.length > limit || postCandidates.length > limit,
+  };
+}
 function resolveSocialAuthorPublicId(publicId, doc, now = Date.now()) {
   const wanted = cleanSocialText(publicId, 80), secret = sessionSecret();
   if (!wanted || wanted === 'gaia-food') return null;
@@ -966,7 +1471,7 @@ function rankSocialStories(stories, me, following, now = Date.now()) {
   const viewerLocation = socialLocation(me);
   return revalidateSocialAuthors(stories, readUsers().users, readStore().producers)
     .filter((story) => (Date.parse(story && story.expiresAt) || 0) > now)
-    .filter((story) => !(Array.isArray(story.reports) && story.reports.includes(me.id)))
+    .filter((story) => !socialContentReportedBy(story, me.id))
     .map((story) => ({ ...story, locality: socialLocality(story.location, viewerLocation) }))
     .sort((a, b) => {
       const aSeen = socialUniqueIds(a.views).includes(me.id), bSeen = socialUniqueIds(b.views).includes(me.id);
@@ -1006,11 +1511,11 @@ async function api(req, res, url) {
     const level = String(d.level || '').trim();
     if (!['cliente', 'produttore', 'verificatore', 'admin'].includes(level)) return send(res, 400, { error: 'livello non valido' });
     if (isOwnerEmail(uid)) return send(res, 400, { error: "L'owner è admin fisso: non modificabile." });
-    const target = readUsers().users.find(u => u.id === uid);
+    const target = readUsers().users.find(u => String(u.id).toLowerCase() === uid) || findUserByEmail(readUsers().users, uid);
     if (!target) return send(res, 404, { error: 'utente non trovato' });
     if (level === 'produttore') {
       if (target.staffRole) upsertUser({ id: target.id, staffRole: null });
-      const r = promoteToProducer(req, readUsers().users.find(u => u.id === uid), {});
+      const r = promoteToProducer(req, readUsers().users.find(u => u.id === target.id), {});
       if (r.error) return send(res, r.code || 400, { error: r.error });
       return send(res, 200, { ok: true, level, producer: r.producer || null });
     }
@@ -1035,15 +1540,86 @@ async function api(req, res, url) {
     const id = (new URLSearchParams(req.url.split('?')[1] || '').get('id') || '').trim().toLowerCase();
     if (!id) return send(res, 400, { error: 'id mancante' });
     if (isOwnerEmail(id)) return send(res, 400, { error: 'Non puoi eliminare un owner.' });
-    const db = readUsers(); const i = db.users.findIndex((u) => u.id === id);
+    const db = readUsers(); const i = db.users.findIndex((u) => String(u.id).toLowerCase() === id || normalizedAccountEmail(u.email) === id);
     if (i < 0) return send(res, 404, { error: 'utente non trovato' });
     const target = db.users[i];
+    if (isOwnerEmail(target.email || target.id)) return send(res, 400, { error: 'Non puoi eliminare un owner.' });
+    const avatarToDelete = target.picture;
     if (target.producerId) { // cascata: via anche la scheda produttore orfana
       const store = readStore(); const pi = store.producers.findIndex((p) => p.id === target.producerId);
       if (pi >= 0) { store.producers.splice(pi, 1); writeStore(store); }
     }
+    const social = readSocialDoc();
+    const purged = purgeSocialAccount(social, target.id);
+    writeSocialDoc(social);
+    rememberDeletedAccount(target.email || target.id);
     db.users.splice(i, 1); writeUsers(db);
-    return send(res, 200, { ok: true });
+    // In DB-mode le write sono accodate: il 200 certifica che purge social, tombstone, utente e
+    // cascata produttore hanno terminato la persistenza (o l'endpoint fallisce bounded con 503).
+    await flushPersistenceBounded();
+    await deleteOwnedLocalUserAvatar(target.id, avatarToDelete);
+    return send(res, 200, { ok: true, social: purged });
+  }
+
+  // Coda moderazione social: soltanto contenuti segnalati, mai ID/email dei reporter.
+  if (url === '/api/admin/social/moderation' && method === 'GET') {
+    if (!isAdminReq(req)) return send(res, 403, { error: 'Accesso riservato' });
+    const query = new URLSearchParams(req.url.split('?')[1] || '');
+    if (query.get('status') && query.get('status') !== 'pending') return send(res, 400, { error: 'status_non_valido' });
+    const doc = readSocialDoc();
+    if (purgeExpiredSocialStories(doc)) writeSocialDoc(doc);
+    const items = [
+      ...(Array.isArray(doc.posts) ? doc.posts : []).filter((post) => socialUnresolvedReportIds(post).length > 0 || post && post.pendingModeration)
+        .map((post) => socialModerationItem('post', post)),
+      ...(Array.isArray(doc.stories) ? doc.stories : []).filter((story) => socialUnresolvedReportIds(story).length > 0 || story && story.pendingModeration)
+        .map((story) => socialModerationItem('story', story)),
+    ].sort((a, b) => (Date.parse(a.pendingSince) || 0) - (Date.parse(b.pendingSince) || 0) || a.id.localeCompare(b.id));
+    return send(res, 200, { items, counts: { pending: items.length } });
+  }
+
+  if (url === '/api/admin/social/moderation/resolve' && method === 'POST') {
+    if (!isAdminReq(req)) return send(res, 403, { error: 'Accesso riservato' });
+    const d = await body(req), type = d.type === 'story' ? 'story' : (d.type === 'post' ? 'post' : '');
+    const id = cleanSocialText(d.id, 80), decision = d.decision === 'keep' ? 'keep' : (d.decision === 'remove' ? 'remove' : '');
+    if (!type || !id || !decision) return send(res, 400, { error: 'risoluzione_non_valida' });
+    const doc = readSocialDoc(), list = type === 'story' ? doc.stories : doc.posts;
+    const index = (Array.isArray(list) ? list : []).findIndex((item) => item && item.id === id);
+    const previous = [...(Array.isArray(doc.moderationAudit) ? doc.moderationAudit : [])].reverse()
+      .find((item) => item.type === type && item.id === id) || null;
+    if (index < 0) {
+      if (type === 'story' && previous && previous.decision === 'expired') return send(res, 410, { error: 'storia_scaduta', type, id });
+      if (decision === 'remove' && previous && previous.decision === 'remove') {
+        return send(res, 200, { ok: true, type, id, decision, alreadyResolved: true });
+      }
+      return send(res, 404, { error: 'contenuto_non_trovato', type, id });
+    }
+    const content = list[index];
+    if (type === 'story' && (Date.parse(content.expiresAt) || 0) <= Date.now()) {
+      list.splice(index, 1); markRemovedSocialMedia(doc, [content]);
+      appendSocialSystemModerationAudit(doc, type, id, 'expired'); writeSocialDoc(doc);
+      return send(res, 410, { error: 'storia_scaduta', type, id });
+    }
+    const unresolvedReports = socialUnresolvedReportIds(content);
+    const pending = unresolvedReports.length > 0 || !!content.pendingModeration;
+    if (!pending) {
+      if (decision === 'keep' && previous && previous.decision === 'keep') {
+        return send(res, 200, { ok: true, type, id, decision, alreadyResolved: true });
+      }
+      return send(res, 409, { error: 'nessuna_segnalazione_pending', type, id });
+    }
+    if (decision === 'keep') {
+      // `reports` resta lo storico interno necessario a nascondere il contenuto a chi lo ha
+      // segnalato. La pratica chiusa è il sottoinsieme `reviewedReports`; soltanto un NUOVO
+      // reporter potrà creare una nuova pratica pending sullo stesso contenuto.
+      content.reviewedReports = socialUniqueIds([...socialReviewedReportIds(content), ...socialUniqueIds(content.reports)]);
+      content.moderationState = 'kept'; content.reviewedAt = new Date().toISOString();
+      delete content.pendingModeration; delete content.pendingSince;
+      appendSocialModerationAudit(doc, type, id, decision, req); writeSocialDoc(doc);
+      return send(res, 200, { ok: true, type, id, decision, alreadyResolved: false });
+    }
+    list.splice(index, 1); markRemovedSocialMedia(doc, [content]);
+    appendSocialModerationAudit(doc, type, id, decision, req); writeSocialDoc(doc);
+    return send(res, 200, { ok: true, type, id, decision, alreadyResolved: false });
   }
 
   // Crea un invito → link che porta a creazione account + onboarding col livello scelto.
@@ -1143,8 +1719,8 @@ async function api(req, res, url) {
     if (info.email_verified !== 'true' && info.email_verified !== true) return send(res, 401, { error: 'email non verificata' });
     const email = String(info.email || '').trim().toLowerCase();
     if (!EMAIL_RE.test(email)) return send(res, 401, { error: 'email non valida' });
-    const isNew = !readUsers().users.some(x => x.id === email);
-    const user = upsertUser({ id: email, email, name: str(info.name, 160), picture: str(info.picture, 1200), provider: 'google' });
+    const existing = findUserByEmail(readUsers().users, email), isNew = !existing;
+    const user = upsertUser({ id: existing ? existing.id : accountIdForNewEmail(email), email, name: str(info.name, 160), picture: str(info.picture, 1200), provider: 'google' });
     if (isNew) linkReferral(user, gbody.seme);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(req, user.id) });
     return res.end(JSON.stringify({ user: publicUser(user) }));
@@ -1160,10 +1736,10 @@ async function api(req, res, url) {
     // così nessuno può "occupare" la tua email con un account password e ottenere l'admin.
     if (isOwnerEmail(email)) return send(res, 403, { error: 'Questa email è riservata: accedi con Google.' });
     if (pw.length < PW_MIN) return send(res, 400, { error: `La password deve avere almeno ${PW_MIN} caratteri` });
-    const existing = readUsers().users.find(x => x.id === email);
+    const existing = findUserByEmail(readUsers().users, email);
     if (existing && existing.passHash) return send(res, 409, { error: 'Esiste già un account con questa email. Accedi.' });
     const isNew = !existing;
-    const user = upsertUser({ id: email, email, provider: 'email', passHash: hashPassword(pw) });
+    const user = upsertUser({ id: existing ? existing.id : accountIdForNewEmail(email), email, provider: 'email', passHash: hashPassword(pw) });
     if (isNew) linkReferral(user, d.seme);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(req, user.id) });
     return res.end(JSON.stringify({ user: publicUser(user) }));
@@ -1175,7 +1751,7 @@ async function api(req, res, url) {
     const email = String(d.email || '').trim().toLowerCase();
     const pw = String(d.password || '');
     if (!EMAIL_RE.test(email) || !pw) return send(res, 400, { error: 'Email o password mancanti' });
-    const user = readUsers().users.find(x => x.id === email);
+    const user = findUserByEmail(readUsers().users, email);
     if (!user || !user.passHash || !verifyPassword(pw, user.passHash)) return send(res, 401, { error: 'Email o password non corretti' });
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': startUserSession(req, user.id) });
     return res.end(JSON.stringify({ user: publicUser(user) }));
@@ -1208,17 +1784,24 @@ async function api(req, res, url) {
     const user = upsertUser(upd);
     return send(res, 200, { user: publicUser(user) });
   }
-  // Upload avatar dell'utente finale (base64 → file su disco). Riusa il pattern dei produttori.
+  // Upload avatar dell'utente finale (base64 → file su disco). URL sempre nuovo: il browser
+  // non può riutilizzare dalla cache l'immagine precedente. Il vecchio file viene rimosso solo
+  // dopo che il nuovo file e il nuovo riferimento utente sono stati salvati con successo.
   if (url === '/api/auth/avatar' && method === 'POST') {
     const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
     const { dataUrl } = await body(req, BODY_MAX_MEDIA);
-    const m = /^data:image\/(png|jpe?g|webp);base64,(.+)$/.exec(dataUrl || '');
-    if (!m) return send(res, 400, { error: 'immagine non valida' });
-    const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
-    const safe = crypto.createHash('sha1').update(me.id).digest('hex').slice(0, 16); // id = email → hash per nome-file
-    const file = `${safe}.${ext}`;
-    fs.writeFileSync(path.join(USERPHOTODIR, file), Buffer.from(m[2], 'base64'));
-    const user = upsertUser({ id: me.id, picture: `assets/photos/users/${file}` });
+    const inspected = inspectDataUrl(dataUrl, {
+      allowedMimes: ['image/png', 'image/jpg', 'image/jpeg', 'image/webp'],
+      maxImageBytes: USER_AVATAR_MAX_BYTES,
+    });
+    const accountHash = userAvatarAccountHash(me.id), token = crypto.randomBytes(16).toString('hex');
+    const file = `${accountHash}-${token}.${extOf(inspected.mime)}`;
+    const picture = `${USER_AVATAR_DISK_URL_BASE}/${file}`, previousPicture = me.picture;
+    fs.writeFileSync(path.join(USERPHOTODIR, file), inspected.buf, { flag: 'wx' });
+    let user;
+    try { user = upsertUser({ id: me.id, picture }); }
+    catch (error) { await deleteOwnedLocalUserAvatar(me.id, picture); throw error; }
+    if (previousPicture && previousPicture !== picture) await deleteOwnedLocalUserAvatar(me.id, previousPicture);
     return send(res, 200, { user: publicUser(user) });
   }
 
@@ -1244,8 +1827,10 @@ async function api(req, res, url) {
           maxImageBytes: 8 * 1024 * 1024, maxVideoBytes: 18 * 1024 * 1024,
           diskQuotaBytes: SOCIAL_DISK_CAP_BYTES,
         });
+        const uploadedAt = Date.now(), socialDoc = readSocialDoc();
+        registerUploadedSocialAsset(socialDoc, uploaded, uploadedAt); writeSocialDoc(socialDoc);
         return send(res, 201, {
-          mediaRef: signSocialMediaRef(uploaded, me.id), type: uploaded.type, mime: uploaded.mime,
+          mediaRef: signSocialMediaRef(uploaded, me.id, uploadedAt), type: uploaded.type, mime: uploaded.mime,
           url: uploaded.url, expiresIn: Math.floor(SOCIAL_MEDIA_REF_TTL_MS / 1000),
         });
       } finally {
@@ -1270,6 +1855,23 @@ async function api(req, res, url) {
         context: { scope, city: viewerLocation.city, zone: { id: viewerLocation.zoneId, label: viewerLocation.zoneLabel }, region: viewerLocation.region },
         hasMore, nextOffset: hasMore ? offset + page.length : null, pagination: { limit, offset },
       });
+    }
+
+    if (seg[2] === 'search' && !seg[3] && method === 'GET') {
+      const me = userOf(req); if (!me) return send(res, 401, { error: 'non_autenticato' });
+      const t = socialThrottle(socialSearchHits, req, me, 60, LOGIN_WINDOW_MS);
+      if (t.limited) {
+        res.setHeader('Retry-After', String(t.retryAfter));
+        return send(res, 429, { error: 'Troppe ricerche, riprova tra poco', retryAfter: t.retryAfter });
+      }
+      const query = new URLSearchParams(req.url.split('?')[1] || '');
+      const rawQuery = String(query.get('q') || '').trim().normalize('NFC');
+      const queryLength = Array.from(rawQuery).length;
+      if (queryLength < 2) return send(res, 400, { error: 'query_troppo_breve', minChars: 2 });
+      if (queryLength > 80) return send(res, 400, { error: 'query_troppo_lunga', maxChars: 80 });
+      const limit = socialSearchLimit(query.get('limit'));
+      res.setHeader('Cache-Control', 'private, no-store');
+      return send(res, 200, socialSearchResults(readSocialDoc(), me, rawQuery, limit));
     }
 
     // Suggerimenti privacy-safe: solo persone che hanno già pubblicato post/story e produttori live.
@@ -1315,7 +1917,8 @@ async function api(req, res, url) {
       const storyId = seg[3], action = seg[4], me = userOf(req), admin = isAdminReq(req);
       if (!me && !(method === 'DELETE' && storyId && !action && admin)) return send(res, 401, { error: 'non_autenticato' });
       if (!storyId && method === 'GET') {
-        const doc = readSocialDoc(), following = socialFollowingIds(doc, me.id);
+        const doc = readSocialDoc(); if (purgeExpiredSocialStories(doc)) writeSocialDoc(doc);
+        const following = socialFollowingIds(doc, me.id);
         const stories = rankSocialStories(doc.stories, me, following).map((story) => projectSocialStory(story, me.id, sessionSecret(), { following }));
         return send(res, 200, { stories });
       }
@@ -1327,24 +1930,25 @@ async function api(req, res, url) {
         const mediaItem = ref ? verifySocialMediaRef(ref, me.id) : null;
         if (ref && !mediaItem) return send(res, 400, { error: 'mediaRef_non_valido_o_scaduto' });
         if (!text && !mediaItem) return send(res, 400, { error: 'contenuto_mancante' });
-        const now = Date.now(), doc = readSocialDoc(); purgeExpiredSocialStories(doc, now);
-        if (doc.stories.length >= 1000) return send(res, 409, { error: 'limite_storie_raggiunto' });
+        const now = Date.now(), doc = readSocialDoc(), purgedExpired = purgeExpiredSocialStories(doc, now);
+        if (doc.stories.length >= 1000) { if (purgedExpired) writeSocialDoc(doc); return send(res, 409, { error: 'limite_storie_raggiunto' }); }
         const story = {
           id: 'ss_' + crypto.randomBytes(10).toString('base64url'), text, createdAt: new Date(now).toISOString(),
           expiresAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(), media: mediaItem ? [mediaItem] : [],
           ...socialAuthorSnapshot(me), views: [], reports: [],
         };
+        if (!markSocialMediaReferenced(doc, story.media, now)) return send(res, 409, { error: 'media_in_eliminazione' });
         doc.stories.push(story); writeSocialDoc(doc);
         return send(res, 201, { story: socialStoryForViewer(story, me, doc) });
       }
       if (!storyId) return send(res, 405, { error: 'metodo_non_consentito' });
-      const doc = readSocialDoc(); purgeExpiredSocialStories(doc);
+      const doc = readSocialDoc(), purgedExpired = purgeExpiredSocialStories(doc);
       const index = doc.stories.findIndex((story) => story.id === storyId);
-      if (index < 0) return send(res, 404, { error: 'storia_non_trovata' });
+      if (index < 0) { if (purgedExpired) writeSocialDoc(doc); return send(res, 404, { error: 'storia_non_trovata' }); }
       const story = doc.stories[index];
       if (!action && method === 'DELETE') {
         if (!admin && (!me || story.authorId !== me.id)) return send(res, 403, { error: 'non_autorizzato' });
-        doc.stories.splice(index, 1); writeSocialDoc(doc);
+        doc.stories.splice(index, 1); markRemovedSocialMedia(doc, [story]); writeSocialDoc(doc);
         return send(res, 200, { ok: true, id: storyId });
       }
       if (action === 'view' && method === 'POST') {
@@ -1357,9 +1961,24 @@ async function api(req, res, url) {
         if (story.authorId === me.id) return send(res, 400, { error: 'non_puoi_segnalare_un_tuo_contenuto' });
         const t = socialThrottle(socialReportHits, req, me, 20, 60 * LOGIN_WINDOW_MS);
         if (t.limited) { res.setHeader('Retry-After', String(t.retryAfter)); return send(res, 429, { error: 'Troppe segnalazioni', retryAfter: t.retryAfter }); }
-        story.reports = socialUniqueIds(story.reports); if (!story.reports.includes(me.id)) story.reports.push(me.id);
-        if (story.reports.length >= 3) story.pendingModeration = true;
-        writeSocialDoc(doc); return send(res, 200, { ok: true, reported: true, pendingModeration: !!story.pendingModeration });
+        story.reports = socialUniqueIds(story.reports);
+        const alreadyReported = story.reports.includes(me.id);
+        const alreadyReviewed = alreadyReported && socialReviewedReportIds(story).includes(me.id);
+        if (!alreadyReported) {
+          const opensNewReview = socialUnresolvedReportIds(story).length === 0;
+          story.reports.push(me.id);
+          if (opensNewReview) {
+            story.pendingSince = new Date().toISOString();
+            story.moderationState = 'pending';
+          }
+        }
+        const unresolvedReports = socialUnresolvedReportIds(story);
+        if (unresolvedReports.length >= 3) story.pendingModeration = true;
+        else delete story.pendingModeration;
+        writeSocialDoc(doc); return send(res, 200, {
+          ok: true, reported: true, alreadyReported, alreadyReviewed,
+          pendingModeration: !!story.pendingModeration,
+        });
       }
       return send(res, 405, { error: 'metodo_non_consentito' });
     }
@@ -1382,6 +2001,7 @@ async function api(req, res, url) {
           createdAt: new Date().toISOString(), media, mediaUrl: media[0] ? media[0].url : '',
           ...socialAuthorSnapshot(me), likes: [], saves: [], shares: [], reports: [], comments: [],
         };
+        if (!markSocialMediaReferenced(doc, post.media)) return send(res, 409, { error: 'media_in_eliminazione' });
         doc.posts.push(post); writeSocialDoc(doc);
         return send(res, 201, { post: socialPostForViewer(post, me, doc) });
       }
@@ -1400,6 +2020,7 @@ async function api(req, res, url) {
         const actor = socialAuthorSnapshot(me), comment = {
           id: 'sc_' + crypto.randomBytes(9).toString('base64url'), text, createdAt: new Date().toISOString(),
           authorId: actor.authorId, authorName: actor.authorName, authorPicture: actor.authorPicture, authorType: actor.authorType,
+          producerId: actor.producerId || null,
         };
         post.comments.push(comment); writeSocialDoc(doc);
         const projectedPost = socialPostForViewer(post, me, doc);
@@ -1413,7 +2034,7 @@ async function api(req, res, url) {
         if (!admin && (!me || post.authorId !== me.id)) return send(res, 403, { error: 'non_autorizzato' });
         const limiterIdentity = me || { id: 'staff-admin' }, t = socialThrottle(socialPostHits, req, limiterIdentity, 30, LOGIN_WINDOW_MS);
         if (t.limited) { res.setHeader('Retry-After', String(t.retryAfter)); return send(res, 429, { error: 'Troppe richieste, riprova tra poco', retryAfter: t.retryAfter }); }
-        doc.posts.splice(index, 1); writeSocialDoc(doc); return send(res, 200, { ok: true, id: postId });
+        doc.posts.splice(index, 1); markRemovedSocialMedia(doc, [post]); writeSocialDoc(doc); return send(res, 200, { ok: true, id: postId });
       }
       if ((action === 'like' || action === 'save') && method === 'POST') {
         const t = socialThrottle(socialReactionHits, req, me, 120, LOGIN_WINDOW_MS);
@@ -1433,9 +2054,24 @@ async function api(req, res, url) {
         if (post.authorId === me.id) return send(res, 400, { error: 'non_puoi_segnalare_un_tuo_contenuto' });
         const t = socialThrottle(socialReportHits, req, me, 20, 60 * LOGIN_WINDOW_MS);
         if (t.limited) { res.setHeader('Retry-After', String(t.retryAfter)); return send(res, 429, { error: 'Troppe segnalazioni', retryAfter: t.retryAfter }); }
-        post.reports = socialUniqueIds(post.reports); if (!post.reports.includes(me.id)) post.reports.push(me.id);
-        if (post.reports.length >= 3) post.pendingModeration = true;
-        writeSocialDoc(doc); return send(res, 200, { ok: true, reported: true, pendingModeration: !!post.pendingModeration });
+        post.reports = socialUniqueIds(post.reports);
+        const alreadyReported = post.reports.includes(me.id);
+        const alreadyReviewed = alreadyReported && socialReviewedReportIds(post).includes(me.id);
+        if (!alreadyReported) {
+          const opensNewReview = socialUnresolvedReportIds(post).length === 0;
+          post.reports.push(me.id);
+          if (opensNewReview) {
+            post.pendingSince = new Date().toISOString();
+            post.moderationState = 'pending';
+          }
+        }
+        const unresolvedReports = socialUnresolvedReportIds(post);
+        if (unresolvedReports.length >= 3) post.pendingModeration = true;
+        else delete post.pendingModeration;
+        writeSocialDoc(doc); return send(res, 200, {
+          ok: true, reported: true, alreadyReported, alreadyReviewed,
+          pendingModeration: !!post.pendingModeration,
+        });
       }
       return send(res, 405, { error: 'metodo_non_consentito' });
     }
@@ -1616,7 +2252,7 @@ async function api(req, res, url) {
       // (logica estratta in promoteToProducer → riusata anche da Gestione livelli e accettazione invito)
       if (action === 'approve' || action === 'direct-unlock') {
         const uid = String(d.userId || '').trim().toLowerCase();
-        const target = readUsers().users.find(u => u.id === uid);
+        const target = readUsers().users.find(u => String(u.id).toLowerCase() === uid) || findUserByEmail(readUsers().users, uid);
         const r = promoteToProducer(req, target, { name: d.name });
         if (r.error) return send(res, r.code || 400, { error: r.error });
         return send(res, 200, r);
@@ -1903,12 +2539,30 @@ function requestHandler(req, res) {
   });
 }
 
+let socialMediaSweepRunning = false;
+function runSocialMediaSweep() {
+  if (socialMediaSweepRunning) return Promise.resolve({ skipped: true });
+  socialMediaSweepRunning = true;
+  return Promise.resolve().then(() => sweepSocialOrphanMedia())
+    .catch((error) => { console.error('Sweep media social fallito:', cleanSocialText(error && error.message, 200)); return { error: true }; })
+    .finally(() => { socialMediaSweepRunning = false; });
+}
+function startSocialMediaSweeper() {
+  // Primo controllo dopo il bootstrap, poi cadenza configurata. Timer unref: non trattiene il processo.
+  const first = setTimeout(() => { void runSocialMediaSweep(); }, 0); first.unref();
+  const timer = setInterval(() => { void runSocialMediaSweep(); }, SOCIAL_MEDIA_SWEEP_INTERVAL_MS); timer.unref();
+  return timer;
+}
+
 // Avvio del server SOLO quando eseguito direttamente (`node server.js`). Quando il file è
 // importato da un test (require/import), non ci si mette in ascolto: si espongono le funzioni pure
 // e l'handler HTTP, così i test possono creare un server usa-e-getta su porta effimera.
 if (require.main === module) {
   DB.init()
-    .then(() => http.createServer(requestHandler).listen(PORT, () => console.log(`Gaia Food App + API → http://localhost:${PORT} [store: ${DB.mode}]`)))
+    .then(() => {
+      startSocialMediaSweeper();
+      return http.createServer(requestHandler).listen(PORT, () => console.log(`Gaia Food App + API → http://localhost:${PORT} [store: ${DB.mode}]`));
+    })
     .catch((e) => { console.error('Avvio store fallito:', e); process.exit(1); });
   // Su deploy/stop Render manda SIGTERM: svuota la coda di persistenza prima di uscire.
   process.on('SIGTERM', () => { Promise.resolve(DB.flush && DB.flush()).finally(() => process.exit(0)); });
@@ -1924,5 +2578,7 @@ module.exports = {
   diversifySocialTier, rankSocialPosts, revalidateSocialAuthors, projectSocialPost, projectSocialStory,
   cleanSocialMedia, socialMediaFormat, socialPostVirality, socialProducerScores, socialViralityLabel,
   normalizeSocialDoc, signSocialMediaRef, verifySocialMediaRef, purgeExpiredSocialStories,
-  socialThrottle, acquireSocialUploadSlot,
+  socialThrottle, acquireSocialUploadSlot, socialReferencedMediaUrls, registerUploadedSocialAsset,
+  markSocialMediaReferenced, markRemovedSocialMedia, purgeSocialAccount, socialModerationItem,
+  sweepSocialOrphanMedia, runSocialMediaSweep, startSocialMediaSweeper, flushPersistenceBounded,
 };

@@ -442,3 +442,520 @@
   .prod-profile-hero,.prod-profile-content { max-width:1240px; }
   .prod-profile-content { grid-template-columns:minmax(0,1fr) 330px; gap:42px; }
 }
+
+/* ===========================================================
+   GAIA FOOD COMMUNITY · Variante A definitiva desktop
+   Breakpoint fedeli alla demo approvata: 2 colonne fino a
+   1120px, 3 colonne oltre. Mobile resta edge-to-edge.
+   =========================================================== */
+@media (min-width:821px){
+  body.app-social{ display:block;overflow-x:hidden; }
+  body.app-social #app{
+    display:block;
+    width:100%;
+    max-width:none;
+    height:100vh;
+    height:100dvh;
+    min-height:0;
+    margin:0;
+    overflow:hidden;
+  }
+  body.app-social .social-screen{
+    height:100vh;
+    height:100dvh;
+    min-height:0;
+    padding:0!important;
+  }
+  body.app-social .screen.social-screen.socialA-screen .scroll.socialA-scroll{
+    width:100%;
+    max-width:none;
+    min-height:0;
+    flex:1;
+    margin:0;
+    overflow-x:hidden;
+    overflow-y:auto;
+  }
+  body.app-social .socialA-mobile-head,
+  body.app-social .socialA-mobile-nav{ display:none; }
+  body.app-social .socialA-shell{
+    width:min(calc(100% - 32px),876px);
+    min-height:100vh;
+    min-height:100dvh;
+    display:grid;
+    grid-template-columns:190px minmax(0,650px);
+    gap:36px;
+    align-items:start;
+    margin:0 auto;
+    padding:0;
+  }
+  body.app-social .socialA-rail{
+    position:sticky;
+    top:0;
+    display:flex;
+    flex-direction:column;
+    align-self:start;
+    height:100vh;
+    height:100dvh;
+    min-width:0;
+    overflow-y:auto;
+    padding:18px 0 20px;
+  }
+  body.app-social .socialA-lockup{
+    min-height:66px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:8px 10px 22px;
+  }
+  body.app-social .socialA-lockup .gf-lockup{ font-size:20px; }
+  body.app-social .socialA-rail>nav{ display:grid;gap:5px; }
+  body.app-social .socialA-rail>nav>a,
+  body.app-social .socialA-rail>nav>button,
+  body.app-social .socialA-nav-item{
+    min-height:52px;
+    gap:16px;
+    padding:0 14px;
+    border-radius:16px;
+    color:var(--social-ink);
+    background:transparent;
+    font-family:var(--social-body);
+    font-size:15px;
+    font-weight:650;
+  }
+  body.app-social .socialA-rail>nav>a:hover,
+  body.app-social .socialA-rail>nav>button:hover{
+    background:var(--social-surface-2);
+    transform:translateX(3px);
+  }
+  body.app-social .socialA-rail>nav>a.active,
+  body.app-social .socialA-rail>nav>a[aria-current=page]{
+    background:var(--social-surface);
+    box-shadow:0 8px 28px rgba(24,52,40,.07);
+  }
+  body.app-social .socialA-rail>nav>a.active::before,
+  body.app-social .socialA-rail>nav>a[aria-current=page]::before{
+    width:4px;
+    height:24px;
+    border-radius:5px;
+    background:var(--social-accent);
+  }
+  body.app-social .socialA-back-app{
+    width:100%;
+    justify-content:flex-start;
+    margin:0 0 10px;
+    padding:0 13px;
+    border-color:transparent;
+    background:transparent;
+    box-shadow:none;
+  }
+  body.app-social .socialA-back-app:hover{ border-color:var(--social-line);background:var(--social-surface); }
+  body.app-social .socialA-rail-profile{
+    min-height:52px;
+    margin-top:auto;
+    padding:0 14px;
+    border-radius:16px;
+    font-size:15px;
+    font-weight:650;
+  }
+  body.app-social .socialA-center{
+    width:100%;
+    max-width:650px;
+    margin:0;
+    padding:24px 0 80px;
+  }
+  body.app-social .socialA-feed-head{
+    position:sticky;
+    top:0;
+    z-index:35;
+    padding:6px 0 0;
+    background:linear-gradient(to bottom,var(--social-bg) 76%,transparent);
+    -webkit-backdrop-filter:blur(14px);
+    backdrop-filter:blur(14px);
+  }
+  body.app-social .socialA-title-row{
+    min-height:48px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:18px;
+  }
+  body.app-social .socialA-title-row .eyebrow{ display:none; }
+  body.app-social .socialA-title-row h1{
+    margin:0;
+    color:var(--social-ink);
+    font:600 30px/1 var(--social-display);
+    letter-spacing:-.045em;
+  }
+  body.app-social .socialA-title-row h1 em,
+  body.app-social .socialA-title-row h1 span{ color:var(--social-accent);font-style:normal; }
+  body.app-social .socialA-location{
+    min-height:0;
+    padding:8px 11px;
+    border-color:var(--social-line);
+    border-radius:999px;
+    background:var(--social-surface);
+    color:var(--social-muted);
+    font-size:12px;
+    font-weight:400;
+  }
+  body.app-social .socialA-location>svg{ display:none; }
+  body.app-social .socialA-tabs button,
+  body.app-social .social-filter{
+    min-height:0;
+    padding:15px 4px 13px;
+    font-size:13px;
+  }
+  body.app-social .socialA-stories{
+    gap:14px;
+    margin:18px 0 14px;
+    padding:4px 3px 9px;
+  }
+  body.app-social .socialA-story{ flex-basis:75px; }
+  body.app-social .socialA-story-ring{ width:68px;height:68px; }
+  body.app-social .socialA-scope-note{ margin-inline:0; }
+  body.app-social .social-refreshing{ margin-right:0; }
+  body.app-social .social-feed{ gap:20px;margin-top:17px; }
+  body.app-social .social-post{
+    border-width:1px;
+    border-radius:var(--social-radius);
+    box-shadow:var(--social-shadow);
+    animation:socialA-post-in .48s both;
+  }
+  body.app-social .social-post:nth-child(even){ border-radius:var(--social-radius); }
+  body.app-social .socialA-post-head,
+  body.app-social .social-post-top{ min-height:70px;padding:13px 15px; }
+  body.app-social .social-locality{ padding-inline:17px; }
+  body.app-social .social-post-text{ padding-inline:17px; }
+  body.app-social .socialA-question-card{ min-height:340px;padding:48px; }
+  body.app-social .socialA-question-card blockquote{
+    margin:45px 0 36px;
+    font-size:clamp(27px,3.2vw,42px);
+  }
+  body.app-social .socialA-text-card .socialA-post-copy{
+    min-height:0;
+    display:block;
+    padding:0 17px 17px;
+    background:none;
+  }
+  body.app-social .social-comments{ border-radius:0 0 25px 25px; }
+  body.app-social .socialA-modal-backdrop,
+  body.app-social .socialA-story-viewer{ padding:20px; }
+  body.app-social .socialA-formats{ grid-template-columns:repeat(4,minmax(0,1fr)); }
+  body.app-social .socialA-load-more{ width:100%;margin-inline:0; }
+  @keyframes socialA-post-in{
+    from{ opacity:0;transform:translateY(13px); }
+    to{ opacity:1;transform:none; }
+  }
+}
+
+@media (min-width:1121px){
+  body.app-social .socialA-shell{
+    width:min(100%,1284px);
+    max-width:none;
+    grid-template-columns:228px minmax(0,660px) 300px;
+    gap:36px;
+  }
+  body.app-social .socialA-center{ max-width:660px; }
+  body.app-social .socialA-right{
+    position:sticky;
+    top:0;
+    display:block;
+    align-self:start;
+    height:100vh;
+    height:100dvh;
+    min-width:0;
+    overflow-y:auto;
+    padding:28px 0 24px;
+  }
+  body.app-social .socialA-self{
+    gap:11px;
+    padding:14px;
+    border-radius:20px;
+    background:color-mix(in srgb,var(--social-surface) 85%,transparent);
+  }
+  body.app-social .socialA-self .socialA-avatar{ width:48px;height:48px; }
+  body.app-social .socialA-suggest-head{ margin:25px 4px 12px; }
+  body.app-social .socialA-suggest-list{ gap:12px; }
+  body.app-social .socialA-suggestion{ padding:4px; }
+  body.app-social .socialA-suggestion .socialA-avatar{ width:42px;height:42px; }
+  body.app-social .socialA-right-foot{ margin:28px 5px 0;font-size:9px;line-height:1.7; }
+}
+
+/* Rifiniture emerse dal confronto 1:1 con la Variante A. */
+body.app-social .feed-title[tabindex="-1"]:focus,
+body.app-social .feed-title[tabindex="-1"]:focus-visible{ outline:none; }
+body.app-social .socialA-lockup .brand-copy{ flex:1; }
+body.app-social .socialA-lockup .brand-copy small{
+  overflow:visible;
+  line-height:1.35;
+  text-overflow:clip;
+  white-space:normal;
+}
+body.app-social .socialA-right-foot span{
+  display:inline-block;
+  margin-right:7px;
+}
+body.app-social .socialA-right-foot br{
+  display:block;
+  content:"";
+  margin-top:4px;
+}
+
+/* Sottosezioni Community: rail + superficie editoriale, senza colonna fantasma. */
+@media (min-width:821px){
+  body.app-social .socialA-subpage .socialA-shell{
+    width:min(calc(100% - 32px),972px);
+    grid-template-columns:190px minmax(0,720px);
+    gap:38px;
+    justify-content:center;
+  }
+  body.app-social .socialA-subpage .socialA-subpage-center{
+    width:100%;
+    max-width:720px;
+    padding:36px 0 96px;
+  }
+  body.app-social .socialA-subpage-head{
+    margin-bottom:25px;
+    padding:4px 4px 25px;
+  }
+  body.app-social .socialA-subpage-head h1{ font-size:50px; }
+  body.app-social .socialA-subpage-head p{ font-size:14px; }
+  body.app-social .socialA-search-box{ min-height:64px;border-radius:20px; }
+  body.app-social .socialA-search-box input{ height:62px;font-size:16px; }
+  body.app-social .socialA-search-output{ margin-top:19px; }
+  body.app-social .socialA-search-posts{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  body.app-social .socialA-search-post-copy p{ min-height:53px; }
+  body.app-social .socialA-profile-card{
+    display:grid;
+    grid-template-columns:210px minmax(0,1fr);
+  }
+  body.app-social .socialA-profile-photo{
+    min-height:100%;
+    align-self:stretch;
+    justify-content:flex-start;
+    padding:44px 24px;
+  }
+  body.app-social .socialA-profile-photo .socialA-avatar{ width:116px;height:116px;font-size:39px; }
+  body.app-social .socialA-profile-card form{ align-content:start;padding:30px 28px 27px; }
+  body.app-social .socialA-empty-panel{ min-height:390px;padding:54px 44px; }
+  body.app-social .socialA-empty-panel h2{ font-size:32px; }
+}
+
+@media (min-width:1121px){
+  body.app-social .socialA-subpage .socialA-shell{
+    width:min(calc(100% - 48px),1040px);
+    grid-template-columns:228px minmax(0,760px);
+    gap:44px;
+  }
+  body.app-social .socialA-subpage .socialA-subpage-center{ max-width:760px; }
+}
+
+@media (min-width:1440px){
+  body.app-social .socialA-subpage .socialA-shell{
+    width:1060px;
+    grid-template-columns:228px minmax(0,780px);
+    gap:52px;
+  }
+  body.app-social .socialA-subpage .socialA-subpage-center{ max-width:780px; }
+  body.app-social .socialA-subpage-head h1{ font-size:56px; }
+}
+
+/* ===========================================================
+   ATLANTE LOCALE · breakpoint condiviso
+   Mobile/tablet fino a 1023px, shell desktop da 1024px.
+   =========================================================== */
+@media (min-width:821px) and (max-width:1023px){
+  body.app-social .socialA-mobile-head{ display:flex; }
+  body.app-social .socialA-mobile-nav{ display:grid; }
+  body.app-social .socialA-shell,
+  body.app-social .socialA-subpage .socialA-shell{
+    width:100%;
+    min-height:100vh;
+    min-height:100dvh;
+    display:block;
+    margin:0;
+    padding:0;
+  }
+  body.app-social .socialA-rail,
+  body.app-social .socialA-right{ display:none; }
+  body.app-social .socialA-center,
+  body.app-social .socialA-subpage .socialA-subpage-center{
+    width:min(100%,680px);
+    max-width:680px;
+    margin:0 auto;
+    padding-top:0;
+    padding-bottom:calc(92px + env(safe-area-inset-bottom));
+  }
+  body.app-social .socialA-feed-head{ padding-inline:14px; }
+  body.app-social .socialA-stories,
+  body.app-social .socialA-scope-note,
+  body.app-social .socialA-quick-compose{ margin-inline:14px; }
+  body.app-social .social-feed{ padding-inline:14px; }
+  body.app-social .social-post,
+  body.app-social .social-post:nth-child(even){ border-width:1px;border-radius:var(--r-card); }
+}
+
+@media (min-width:1024px){
+  body{
+    background-color:var(--canvas);
+    background-image:var(--atlas-topo);
+  }
+  #rail{
+    width:236px;
+    padding:22px 14px;
+    gap:4px;
+    border-right:1px solid var(--bd2);
+    background:color-mix(in srgb,var(--bianco) 91%,transparent);
+    -webkit-backdrop-filter:blur(18px);
+    backdrop-filter:blur(18px);
+  }
+  #rail .rl-logo{ min-height:70px;padding:8px 12px 22px; }
+  #rail .rl-logo .gf-lockup{ font-size:20px; }
+  #rail a.rl{
+    min-height:50px;
+    padding:0 13px;
+    border-radius:var(--r-btn);
+    color:var(--ink-soft);
+    font-family:var(--sans);
+    font-size:13.5px;
+    font-weight:650;
+  }
+  #rail a.rl:hover{ background:var(--carta-scura); }
+  #rail a.rl.active{
+    color:var(--verde-deep);
+    background:var(--carta-scura);
+    box-shadow:inset 3px 0 0 var(--verde);
+  }
+  #rail .rl-sep{ background:var(--bd2); }
+  #app{
+    background-color:var(--carta);
+    background-image:linear-gradient(rgba(240,236,220,.94),rgba(240,236,220,.97)),var(--atlas-topo);
+  }
+  .toprow{ padding-top:20px; }
+
+  body.app-social .socialA-shell{
+    width:min(calc(100% - 40px),944px);
+    max-width:none;
+    grid-template-columns:220px minmax(0,680px);
+    gap:32px;
+    justify-content:center;
+    padding:0;
+  }
+  body.app-social .socialA-rail{
+    height:100vh;
+    height:100dvh;
+    padding:20px 0;
+  }
+  body.app-social .socialA-lockup{
+    min-height:70px;
+    padding:8px 12px 22px;
+  }
+  body.app-social .socialA-lockup .gf-lockup{ font-size:20px; }
+  body.app-social .socialA-rail>nav{ gap:4px; }
+  body.app-social .socialA-rail>nav>a,
+  body.app-social .socialA-rail>nav>button,
+  body.app-social .socialA-nav-item,
+  body.app-social .socialA-rail-profile{
+    min-height:50px;
+    padding:0 13px;
+    border-radius:var(--r-btn);
+    font-family:var(--sans);
+    font-size:13.5px;
+    font-weight:650;
+  }
+  body.app-social .socialA-rail>nav>a:hover,
+  body.app-social .socialA-rail>nav>button:hover{ background:var(--carta-scura);transform:none; }
+  body.app-social .socialA-rail>nav>a.active,
+  body.app-social .socialA-rail>nav>a[aria-current=page]{
+    color:var(--verde-deep);
+    background:var(--carta-scura);
+    box-shadow:inset 3px 0 0 var(--verde);
+  }
+  body.app-social .socialA-rail>nav>a.active::before,
+  body.app-social .socialA-rail>nav>a[aria-current=page]::before{ display:none; }
+  body.app-social .socialA-back-app{
+    min-height:50px;
+    margin-bottom:8px;
+    padding:0 13px;
+    border-radius:var(--r-btn);
+  }
+  body.app-social .socialA-center{ width:100%;max-width:680px;padding:24px 0 80px; }
+  body.app-social .socialA-title-row h1{ font-family:var(--serif);font-size:34px;letter-spacing:-.035em; }
+  body.app-social .socialA-location{ border-radius:var(--r-btn);background:var(--bianco); }
+  body.app-social .socialA-quick-compose,
+  body.app-social .social-post,
+  body.app-social .social-post:nth-child(even){ border-radius:var(--r-card); }
+  body.app-social .social-post{ box-shadow:var(--sh-card); }
+  body.app-social .social-comments{ border-radius:0 0 calc(var(--r-card) - 1px) calc(var(--r-card) - 1px); }
+
+  body.app-social .socialA-subpage .socialA-shell{
+    width:min(calc(100% - 40px),980px);
+    grid-template-columns:220px minmax(0,728px);
+    gap:32px;
+  }
+  body.app-social .socialA-subpage .socialA-subpage-center{ max-width:728px;padding-top:36px; }
+  body.app-social .socialA-subpage-head h1{ font-family:var(--serif);font-size:50px;letter-spacing:-.045em; }
+}
+
+@media (min-width:1024px) and (max-width:1279px){
+  body.app-social .socialA-right{ display:none; }
+}
+
+@media (min-width:1280px){
+  body.app-social .socialA-shell{
+    width:min(calc(100% - 48px),1260px);
+    grid-template-columns:220px minmax(0,680px) minmax(260px,296px);
+    gap:32px;
+  }
+  body.app-social .socialA-right{
+    display:block;
+    height:100vh;
+    height:100dvh;
+    padding:28px 0 24px;
+  }
+  body.app-social .socialA-self{ border-radius:var(--r-card); }
+}
+
+@media (min-width:1440px){
+  body.app-social .socialA-shell{
+    width:1280px;
+    grid-template-columns:228px minmax(0,680px) 300px;
+    gap:36px;
+  }
+  body.app-social .socialA-subpage .socialA-shell{
+    width:1040px;
+    grid-template-columns:228px minmax(0,776px);
+    gap:36px;
+  }
+  body.app-social .socialA-subpage .socialA-subpage-center{ max-width:776px; }
+}
+
+/* Lockup Community: Gaia Food resta il marchio; il contesto vive sotto, leggibile. */
+@media (min-width:1024px){
+  body.app-social .socialA-lockup{
+    min-height:86px;
+    flex-direction:column;
+    align-items:flex-start;
+    justify-content:center;
+    gap:7px;
+    padding:8px 12px 20px;
+  }
+  body.app-social .socialA-lockup .gf-lockup{ flex:none; }
+  body.app-social .socialA-lockup .brand-copy{
+    width:100%;
+    flex:none;
+    min-width:0;
+  }
+  body.app-social .socialA-lockup .brand-copy small{
+    display:block;
+    width:100%;
+    margin:0;
+    overflow:hidden;
+    color:var(--social-muted);
+    font-size:9px;
+    line-height:1.2;
+    letter-spacing:.075em;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+}

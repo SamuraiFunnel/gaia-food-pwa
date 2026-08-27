@@ -17,7 +17,8 @@ const jsDir = fileURLToPath(new URL('../js', import.meta.url));
 
 test('service worker: tutte le API sono network-only e mai cache/fallback cross-account', () => {
   const source = fs.readFileSync(fileURLToPath(new URL('../sw.js', import.meta.url)), 'utf8');
-  assert.match(source, /const VERSION = 'gaia-food-v46'/);
+  const version = source.match(/const VERSION = 'gaia-food-v(\d+)'/);
+  assert.ok(version && Number(version[1]) >= 50, 'Atlante richiede un nuovo namespace cache (v50+)');
   const fetchSource = source.slice(source.indexOf("self.addEventListener('fetch'"));
   const apiStart = fetchSource.indexOf("if (sameOrigin && /\\/api");
   const apiEnd = fetchSource.indexOf('// 1) Navigazioni', apiStart);
@@ -25,6 +26,38 @@ test('service worker: tutte le API sono network-only e mai cache/fallback cross-
   const apiBranch = fetchSource.slice(apiStart, apiEnd);
   assert.match(apiBranch, /fetch\(new Request\(req, \{ cache: 'no-store' \}\)\)/);
   assert.doesNotMatch(apiBranch, /caches\.|\.catch\s*\(/, 'il ramo API non deve avere cache o fallback offline');
+});
+
+test('service worker: shell Atlante disponibile offline, senza le vecchie hero fotografiche', () => {
+  const source = fs.readFileSync(fileURLToPath(new URL('../sw.js', import.meta.url)), 'utf8');
+  for (const asset of ['./css/app.css', './css/desktop.css', './js/main.js', './js/screens.js']) assert.ok(source.includes(`'${asset}'`), `${asset} deve essere nella shell offline`);
+  assert.doesNotMatch(source, /assets\/community\/gaia-(?:emersione|abbraccio|panteleia|stagioni)/, 'Atlante non deve precaricare le hero legacy');
+});
+
+test('Atlante: un solo contratto condiviso per app e Community, senza intro legacy', () => {
+  const screens = fs.readFileSync(fileURLToPath(new URL('../js/screens.js', import.meta.url)), 'utf8');
+  const main = fs.readFileSync(fileURLToPath(new URL('../js/main.js', import.meta.url)), 'utf8');
+  const authModal = fs.readFileSync(fileURLToPath(new URL('../js/screens/AuthModal.js', import.meta.url)), 'utf8');
+  const appCss = fs.readFileSync(fileURLToPath(new URL('../css/app.css', import.meta.url)), 'utf8');
+  const desktopCss = fs.readFileSync(fileURLToPath(new URL('../css/desktop.css', import.meta.url)), 'utf8');
+  const combined = [screens, main, appCss, desktopCss].join('\n');
+
+  assert.match(screens, /data-gaia-atlas-transition/);
+  assert.match(screens, /data-gaia-atlas-target="\$\{community \? 'community' : 'app'\}"/);
+  assert.equal((screens.match(/data-gaia-atlas-node="[0-2]"/g) || []).length, 3, 'la mappa deve avere esattamente tre nodi');
+  assert.match(screens, /class="gaia-atlas-progress" role="progressbar"/);
+  assert.match(screens, /aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"/);
+  assert.match(screens, /Lockup\(''\)/, 'il loader deve riusare il lockup canonico');
+  assert.match(main, /transitionForRealm/);
+  assert.match(main, /renderedRealm !== 'community'/);
+  assert.match(main, /renderedRealm === 'community'/);
+  assert.match(authModal, /if \(location\.hash === targetHash\)[\s\S]*dispatchEvent\(new Event\('hashchange'\)\)[\s\S]*else[\s\S]*location\.hash = targetHash/,
+    'AuthModal deve lasciare al browser il cambio hash e ridisegnare manualmente solo la stessa rotta');
+  assert.equal((authModal.match(/dispatchEvent\(new Event\('hashchange'\)\)/g) || []).length, 1, 'un solo fallback hashchange manuale');
+  assert.match(appCss, /--atlas-topo:/, 'app e Community devono condividere il token topografico');
+  assert.match(appCss, /\.gf-lockup\s*\{/, 'il lockup canonico deve vivere nel sistema comune');
+  assert.match(combined, /prefers-reduced-motion\s*:\s*reduce/);
+  assert.doesNotMatch(combined, /\.socialA-intro(?:[\s,{.:#]|$)/, 'il vecchio loader Community deve essere rimosso da JS e CSS');
 });
 
 test('SUPPORTED / LANGS coerenti', () => {

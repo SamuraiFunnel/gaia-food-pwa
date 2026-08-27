@@ -1,8 +1,9 @@
 import { Icon } from './icons.js';
 import { StatusBar, Photo, VerifyBadge, ProducerCard, VideoBlock, BottomNav, catGlyph, catLabel, Lockup, toast, confirmSheet } from './components.js';
 import { getState, results, regionalResults, producersInUserRegion, userRegion, producerRegion, producerById, toggleSaved, hubSeen, lastFunction, resetHub, currentUser, userZone, updateProfile, uploadAvatar, signOut, producerStatusNotice, socialState, loadSocialFeed, createSocialPost, likeSocialPost, saveSocialPost, commentSocialPost } from './store.js';
-import { loadSocialSurface, loadSocialStories, loadSocialSuggestions, uploadSocialMedia, createSocialStory, followSocialAuthor, viewSocialStory, reportSocialStory, deleteSocialStory, shareSocialPost, reportSocialPost, deleteSocialPost } from './store.js';
+import { loadSocialSurface, loadSocialStories, loadSocialSuggestions, searchSocial, uploadSocialMedia, createSocialStory, followSocialAuthor, viewSocialStory, reportSocialStory, deleteSocialStory, shareSocialPost, reportSocialPost, deleteSocialPost } from './store.js';
 import { t, getLang, setLang, LANGS, locDate } from './i18n.js';
+import { openAuthModal } from './screens/AuthModal.js';
 
 // Escape HTML a livello modulo (per valori dinamici inseriti nell'HTML, es. nome del verificatore).
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -296,10 +297,11 @@ export function Home() {
    Una piazza editoriale local-first: persone e produttori si incontrano intorno al cibo.
    La quantità di pubblicazione non è un segnale di merito: utilità, relazione e vicinanza sì. */
 let communityScope = 'for-you';
-let communityDraft = '';
 let communityKind = 'question';
-let communityRouteActive = /^#\/(comunita|cibovero)$/.test(location.hash);
-let communityEntryToken = communityRouteActive ? 1 : 0;
+const socialAIsFeedRoute = (hash = location.hash) => /^#\/(comunita|cibovero)$/.test(hash);
+const socialAIsRealmRoute = (hash = location.hash) => /^#\/comunita(?:\/|$)/.test(hash) || hash === '#/cibovero';
+let communityRealmActive = socialAIsRealmRoute();
+let communityEntryToken = communityRealmActive ? 1 : 0;
 let communityHandledEntryToken = 0;
 let socialARootController = null;
 const communityOpenComments = new Set();
@@ -309,7 +311,6 @@ const SOCIAL_KIND_KEYS = { question: 'social.kind.question', tip: 'social.kind.t
 const SOCIAL_LOCALITY_KEYS = { city: 'social.locality.city', zone: 'social.locality.zone', region: 'social.locality.region', other: 'social.locality.other' };
 
 function clearCommunityDrafts() {
-  communityDraft = '';
   communityKind = 'question';
   communityOpenComments.clear();
   communityCommentDrafts.clear();
@@ -317,10 +318,13 @@ function clearCommunityDrafts() {
 try { window.addEventListener('gf:social-context-changed', clearCommunityDrafts); } catch (_) {}
 try {
   window.addEventListener('hashchange', () => {
-    const active = /^#\/(comunita|cibovero)$/.test(location.hash);
-    if (active && !communityRouteActive) communityEntryToken += 1;
-    if (!active) { socialARootController?.abort(); socialARootController = null; socialAPostMenus.clear(); }
-    communityRouteActive = active;
+    const nextRealm = socialAIsRealmRoute();
+    const nextFeed = socialAIsFeedRoute();
+    if (nextRealm && !communityRealmActive) communityEntryToken += 1;
+    if (!nextFeed) {
+      socialARootController?.abort(); socialARootController = null; socialAPostMenus.clear();
+    }
+    communityRealmActive = nextRealm;
   });
 } catch (_) {}
 
@@ -328,9 +332,6 @@ try {
 // lo scroll del contenitore e il controllo attivo; dopo il render lo stesso controllo torna nello
 // stesso punto visivo. È importante soprattutto quando un nuovo commento allunga la card.
 const SOCIAL_FOCUS_SELECTORS = {
-  draft: '[data-social-draft]',
-  kind: '[data-social-kind]',
-  publish: '[data-social-publish]',
   scope: '[data-social-scope]',
   retry: '[data-social-retry]',
   like: '[data-social-like]',
@@ -457,14 +458,13 @@ function socialAViralityLabel(score) {
 }
 
 /* Variante A · la superficie sociale scelta: gesto familiare, identita organica Gaia. */
-const SOCIAL_A_SCOPES = ['for-you', 'following', 'nearby', 'producers'];
+const SOCIAL_A_SCOPES = ['for-you', 'nearby', 'producers'];
 const SOCIAL_A_FILTER_KEYS = {
-  'for-you': 'social.filter.for-you', following: 'social.filter.following',
+  'for-you': 'social.filter.for-you',
   nearby: 'social.filter.nearby', producers: 'social.filter.producers',
 };
 const SOCIAL_A_EMPTY_KEYS = {
   'for-you': ['social.empty.for-you.title', 'social.empty.for-you.body'],
-  following: ['social.empty.following.title', 'social.empty.following.body'],
   nearby: ['social.empty.nearby.title', 'social.empty.nearby.body'],
   producers: ['social.empty.producers.title', 'social.empty.producers.body'],
 };
@@ -490,6 +490,229 @@ try {
   });
 } catch (_) {}
 
+/* ---------------- TRANSIZIONE CONDIVISA · ATLANTE LOCALE ----------------
+   Un solo linguaggio di accesso per Gaia Food e Community. Il controller vive fuori
+   dalle singole schermate: può quindi accompagnare sia il bootstrap autenticato sia
+   il passaggio tra i due realm senza ripartire durante la navigazione interna. */
+let gaiaAtlasState = null;
+
+function gaiaAtlasStages(target) {
+  return target === 'community'
+    ? [t('transition.stageTerritory'), t('transition.stageVoices'), t('transition.stageCommunity')]
+    : [t('transition.stageTerritory'), t('transition.stageProducers'), t('transition.stageHome')];
+}
+
+function gaiaAtlasMarkup(target, mode) {
+  const community = target === 'community';
+  const title = t(community ? 'transition.titleCommunity' : 'transition.titleApp');
+  const subtitle = t(community ? 'transition.subtitleCommunity' : 'transition.subtitleApp');
+  const kicker = t(mode === 'return' ? 'transition.kickerReturn' : 'transition.kickerAccess');
+  const firstStage = gaiaAtlasStages(target)[0];
+  return `<section class="gaia-atlas-transition ${community ? 'is-community' : 'is-app'}" data-gaia-atlas-transition data-gaia-atlas-target="${community ? 'community' : 'app'}" role="status" aria-live="polite" aria-atomic="false" aria-label="${esc(t('transition.loadingAria', { title }))}" style="--gaia-atlas-progress:0%">
+    <div class="gaia-atlas-field">
+      <div class="gaia-atlas-map" aria-hidden="true">
+        <svg class="gaia-atlas-contours" viewBox="0 0 720 430" focusable="false" style="position:absolute;inset:0;width:100%;height:100%;opacity:.2">
+          <g fill="none" stroke="currentColor" stroke-linecap="round">
+            <path d="M34 91c87-78 188-37 255 6s157 68 244 19 127-13 151 25"/>
+            <path d="M8 153c110-70 183-39 253 10s168 69 271 19 142-3 170 31"/>
+            <path d="M22 222c93-52 177-25 244 18s165 58 260 18 142 0 173 35"/>
+            <path d="M54 296c78-39 152-20 221 16s161 46 243 12 125-7 163 23"/>
+            <path d="M99 360c66-25 124-15 184 11s142 33 211 9 107-9 145 8"/>
+          </g>
+        </svg>
+        <div class="gaia-atlas-route"></div>
+        <i class="gaia-atlas-node" data-node="1" data-gaia-atlas-node="0"></i>
+        <i class="gaia-atlas-node" data-node="2" data-gaia-atlas-node="1"></i>
+        <i class="gaia-atlas-node" data-node="3" data-gaia-atlas-node="2"></i>
+        <span class="gaia-atlas-pin">${Icon('map-pin', { size: 20 })}</span>
+      </div>
+      <div class="gaia-atlas-content">
+        <div class="gaia-atlas-brand">${Lockup('')}${community ? `<span>${t('transition.contextCommunity')}</span>` : ''}</div>
+        <div class="gaia-atlas-copy">
+          <p class="gaia-atlas-kicker">${kicker}</p>
+          <h1 class="gaia-atlas-title">${title}</h1>
+          <p class="gaia-atlas-subtitle">${subtitle}</p>
+        </div>
+        <div class="gaia-atlas-loading">
+          <div class="gaia-atlas-progress" role="progressbar" aria-label="${t('transition.progressLabel')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="${esc(firstStage)}"><span class="gaia-atlas-progress-bar"></span></div>
+          <div class="gaia-atlas-progress-meta"><span data-gaia-atlas-stage>${firstStage}</span><strong class="gaia-atlas-percent tnum" data-gaia-atlas-percent aria-hidden="true">0%</strong></div>
+        </div>
+      </div>
+    </div>
+    <button class="gaia-atlas-skip" type="button" data-gaia-atlas-skip>${t('transition.skip')}</button>
+  </section>`;
+}
+
+function gaiaAtlasRestoreShell(state) {
+  (state.shells || []).forEach(({ node, inert, ariaHidden }) => {
+    if (!node || !node.isConnected) return;
+    if ('inert' in node) node.inert = !!inert;
+    if (inert) node.setAttribute('inert', ''); else node.removeAttribute('inert');
+    if (ariaHidden == null) node.removeAttribute('aria-hidden'); else node.setAttribute('aria-hidden', ariaHidden);
+  });
+}
+
+function gaiaAtlasFocusSurface(target) {
+  const selectors = target === 'community'
+    ? ['#app .feed-title', '#app .socialA-subpage-head h1', '#app [data-social-home]', '#app .mobile-brand', '#app .socialA-scroll', '#app']
+    : ['#app main h1', '#app .discover-title', '#app h1', '#app main', '#app .scroll', '#app'];
+  const visible = node => {
+    if (!node || node.hidden || node.closest('[inert]') || !node.getClientRects().length) return false;
+    const style = getComputedStyle(node);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  };
+  let focusTarget = null;
+  for (const selector of selectors) {
+    focusTarget = [...document.querySelectorAll(selector)].find(visible) || null;
+    if (focusTarget) break;
+  }
+  if (!focusTarget) return false;
+  const hadTabindex = focusTarget.hasAttribute('tabindex');
+  const naturallyFocusable = focusTarget.matches('a[href],button,input,select,textarea,[contenteditable="true"]');
+  const addedTabindex = !hadTabindex && !naturallyFocusable;
+  if (addedTabindex) focusTarget.setAttribute('tabindex', '-1');
+  try { focusTarget.focus({ preventScroll: true }); } catch (_) { try { focusTarget.focus(); } catch (_) {} }
+  if (addedTabindex) focusTarget.addEventListener('blur', () => focusTarget.removeAttribute('tabindex'), { once: true });
+  return document.activeElement === focusTarget;
+}
+
+function gaiaAtlasPaint(state, value) {
+  if (gaiaAtlasState !== state || !state.root?.isConnected) return;
+  const progress = Math.max(0, Math.min(100, Math.round(value)));
+  const nextProgress = Math.max(state.progress, progress);
+  if (state.painted && nextProgress === state.progress) return;
+  state.progress = nextProgress;
+  state.painted = true;
+  const stages = gaiaAtlasStages(state.target);
+  const stageIndex = state.progress >= 68 ? 2 : state.progress >= 34 ? 1 : 0;
+  const stage = stages[stageIndex];
+  state.root.style.setProperty('--gaia-atlas-progress', `${state.progress}%`);
+  const bar = state.root.querySelector('.gaia-atlas-progress-bar');
+  if (bar) bar.style.width = `${state.progress}%`;
+  const meter = state.root.querySelector('.gaia-atlas-progress');
+  if (meter) { meter.setAttribute('aria-valuenow', String(state.progress)); meter.setAttribute('aria-valuetext', stage); }
+  const percent = state.root.querySelector('[data-gaia-atlas-percent]');
+  if (percent) percent.textContent = `${state.progress}%`;
+  const label = state.root.querySelector('[data-gaia-atlas-stage]');
+  if (label && label.textContent !== stage) label.textContent = stage;
+  state.root.querySelectorAll('[data-gaia-atlas-node]').forEach((node, index) => node.classList.toggle('is-active', index <= stageIndex));
+}
+
+function gaiaAtlasFinish(state, { skipped = false, forced = false } = {}) {
+  if (gaiaAtlasState !== state || state.finishing) return;
+  if (!skipped && !forced && (state.pending > 0 || performance.now() - state.startedAt < state.minimum)) return;
+  state.finishing = true;
+  cancelAnimationFrame(state.frame);
+  clearTimeout(state.maximumTimer);
+  gaiaAtlasPaint(state, 100);
+  const hold = state.reduced || skipped ? 20 : (state.mode === 'return' ? 80 : 150);
+  state.finishTimer = setTimeout(() => {
+    if (gaiaAtlasState !== state) return;
+    state.root.classList.add('is-leaving');
+    state.exitTimer = setTimeout(() => {
+      if (gaiaAtlasState !== state) return;
+      state.controller.abort();
+      gaiaAtlasRestoreShell(state);
+      state.root.remove();
+      // Il feed Community può completare un ultimo rerender subito dopo i Promise iniziali.
+      // Rifocalizziamo quindi la heading CORRENTE per alcuni frame bounded: niente polling
+      // aperto, niente focus perso su BODY, nessuna interferenza se nel frattempo parte
+      // una nuova transizione di realm.
+      let stableFocusFrames = 0;
+      const settleFocus = (attempt = 0) => {
+        if (gaiaAtlasState !== state) return;
+        const focused = gaiaAtlasFocusSurface(state.target);
+        stableFocusFrames = focused ? stableFocusFrames + 1 : 0;
+        // Tre osservazioni consecutive coprono sia il paint che l'eventuale rerender
+        // asincrono del feed; otto tentativi sono il limite rigido (~250 ms).
+        if (stableFocusFrames < 3 && attempt < 7) {
+          state.focusTimer = setTimeout(() => settleFocus(attempt + 1), 34);
+          return;
+        }
+        gaiaAtlasState = null;
+        try { window.dispatchEvent(new CustomEvent('gf:gaia-transition-finished', { detail: { target: state.target, mode: state.mode, skipped, forced } })); } catch (_) {}
+      };
+      state.focusFrame = requestAnimationFrame(() => settleFocus(0));
+    }, state.reduced ? 30 : (state.mode === 'return' ? 180 : 300));
+  }, hold);
+}
+
+export function addGaiaTransitionWork(work) {
+  const state = gaiaAtlasState;
+  const tasks = (Array.isArray(work) ? work : [work]).filter(Boolean);
+  if (!state || state.finishing || !tasks.length) return;
+  state.pending += tasks.length;
+  tasks.forEach(task => Promise.resolve(task).catch(() => null).finally(() => {
+    if (gaiaAtlasState !== state || state.finishing) return;
+    state.pending = Math.max(0, state.pending - 1);
+    if (!state.pending) gaiaAtlasFinish(state);
+  }));
+}
+
+export function cancelGaiaTransition({ restoreFocus = false } = {}) {
+  const state = gaiaAtlasState;
+  if (!state) return;
+  cancelAnimationFrame(state.frame);
+  cancelAnimationFrame(state.focusFrame);
+  clearTimeout(state.maximumTimer); clearTimeout(state.finishTimer); clearTimeout(state.exitTimer); clearTimeout(state.focusTimer);
+  state.controller.abort(); gaiaAtlasRestoreShell(state); state.root.remove(); gaiaAtlasState = null;
+  if (restoreFocus) gaiaAtlasFocusSurface(state.target);
+}
+
+export function startGaiaTransition({ target = 'app', mode = 'entry', work = [] } = {}) {
+  const normalizedTarget = target === 'community' ? 'community' : 'app';
+  const normalizedMode = mode === 'return' ? 'return' : 'entry';
+  if (gaiaAtlasState && !gaiaAtlasState.finishing && gaiaAtlasState.target === normalizedTarget && gaiaAtlasState.mode === normalizedMode) {
+    addGaiaTransitionWork(work); return gaiaAtlasState.root;
+  }
+  cancelGaiaTransition();
+  const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const holder = document.createElement('div');
+  holder.innerHTML = gaiaAtlasMarkup(normalizedTarget, normalizedMode).trim();
+  const root = holder.firstElementChild;
+  const shells = [document.getElementById('app'), document.getElementById('rail')].filter(Boolean).map(node => ({
+    node, inert: node.hasAttribute('inert'), ariaHidden: node.getAttribute('aria-hidden'),
+  }));
+  shells.forEach(({ node }) => { if ('inert' in node) node.inert = true; node.setAttribute('inert', ''); node.setAttribute('aria-hidden', 'true'); });
+  document.body.appendChild(root);
+  const controller = new AbortController();
+  const state = {
+    root, controller, shells, target: normalizedTarget, mode: normalizedMode, reduced,
+    startedAt: performance.now(), minimum: reduced ? 650 : (normalizedMode === 'return' ? 2100 : 2900),
+    maximum: reduced ? 1100 : (normalizedMode === 'return' ? 4800 : 6500),
+    progress: 0, painted: false, pending: 0, finishing: false, frame: 0, focusFrame: 0,
+    maximumTimer: 0, finishTimer: 0, exitTimer: 0, focusTimer: 0,
+  };
+  gaiaAtlasState = state;
+  addGaiaTransitionWork(work);
+  const tick = now => {
+    if (gaiaAtlasState !== state || state.finishing) return;
+    const elapsed = now - state.startedAt;
+    const timeProgress = Math.min(94, (elapsed / state.minimum) * 94);
+    const ceiling = state.pending ? 82 : 94;
+    gaiaAtlasPaint(state, Math.min(ceiling, timeProgress));
+    if (elapsed >= state.minimum && !state.pending) { gaiaAtlasFinish(state); return; }
+    state.frame = requestAnimationFrame(tick);
+  };
+  state.frame = requestAnimationFrame(tick);
+  state.maximumTimer = setTimeout(() => gaiaAtlasFinish(state, { forced: true }), state.maximum);
+  const skip = root.querySelector('[data-gaia-atlas-skip]');
+  if (skip) skip.addEventListener('click', () => gaiaAtlasFinish(state, { skipped: true }), { signal: controller.signal });
+  root.addEventListener('keydown', event => {
+    if (event.key === 'Tab') {
+      // La shell è inert e Salta è l'unico comando: il focus resta nel loader finché
+      // l'utente completa o interrompe il percorso.
+      event.preventDefault(); if (skip) skip.focus(); return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault(); gaiaAtlasFinish(state, { skipped: true });
+    }
+  }, { signal: controller.signal });
+  window.addEventListener('pagehide', () => cancelGaiaTransition(), { once: true, signal: controller.signal });
+  requestAnimationFrame(() => { if (skip?.isConnected) try { skip.focus({ preventScroll: true }); } catch (_) { skip.focus(); } });
+  return root;
+}
+
 function socialAMedia(post) {
   const raw = Array.isArray(post && post.media) ? post.media.slice(0, 10) : [];
   if (!raw.length && post && post.mediaUrl) raw.push({ type: 'image', url: post.mediaUrl, mime: 'image/jpeg' });
@@ -508,19 +731,27 @@ function socialAMediaMarkup(post, id) {
   const authorName = String(post.author && post.author.name || t('social.member'));
   const alt = esc(t('social.mediaAlt', { name: authorName }));
   const render = (item, hidden = false) => item.type === 'video'
-    ? `<video class="socialA-media video" src="${item.url}" controls preload="metadata" playsinline muted${hidden ? ' tabindex="-1"' : ''}></video>`
+    ? `<video class="socialA-media" src="${item.url}" controls preload="metadata" playsinline muted${hidden ? ' tabindex="-1"' : ''}></video>`
     : `<img class="socialA-media" src="${item.url}" alt="${alt}" loading="lazy">`;
-  if (media.length === 1) return `<figure class="socialA-media-wrap ${media[0].type}">${render(media[0])}</figure>`;
+  if (media.length === 1) {
+    const item = media[0];
+    return `<div class="media-frame socialA-media-wrap ${item.type}">${render(item)}<span class="format-tag">${Icon(item.type === 'video' ? 'video' : 'image', { size: 14 })}${item.type === 'video' ? t('social.format.video') : t('social.format.image')}</span></div>`;
+  }
   const index = Math.max(0, Math.min(media.length - 1, socialACarousels.get(id) || 0));
-  return `<div class="socialA-carousel" data-social-carousel data-social-carousel-index="${index}">
-    <div class="socialA-carousel-track" style="transform:translateX(-${index * 100}%)">${media.map((item, at) => `<div class="socialA-slide" aria-hidden="${at !== index}">${render(item, at !== index)}</div>`).join('')}</div>
-    <button type="button" class="socialA-carousel-arrow prev" data-social-carousel-prev aria-label="${t('social.carouselPrev')}"${index === 0 ? ' disabled' : ''}>${Icon('chevron-right', { size: 20 })}</button>
-    <button type="button" class="socialA-carousel-arrow next" data-social-carousel-next aria-label="${t('social.carouselNext')}"${index === media.length - 1 ? ' disabled' : ''}>${Icon('chevron-right', { size: 20 })}</button>
-    <span class="socialA-carousel-count tnum" data-social-carousel-count>${index + 1} / ${media.length}</span>
-    <div class="socialA-carousel-dots" aria-hidden="true">${media.map((_, at) => `<i class="${at === index ? 'active' : ''}"></i>`).join('')}</div>
+  return `<div class="carousel socialA-carousel" data-social-carousel data-social-carousel-index="${index}">
+    <div class="carousel-track socialA-carousel-track" style="transform:translateX(-${index * 100}%)">${media.map((item, at) => `<div class="carousel-slide socialA-slide" aria-hidden="${at !== index}">${render(item, at !== index)}${item.type === 'video' ? `<span class="format-tag">${Icon('video', { size: 14 })}${t('social.format.video')}</span>` : ''}</div>`).join('')}</div>
+    <span class="format-tag socialA-carousel-format">${Icon('images', { size: 14 })}${t('social.format.carousel')}</span>
+    <span class="carousel-count socialA-carousel-count tnum" data-social-carousel-count>${index + 1} / ${media.length}</span>
+    <button type="button" class="carousel-arrow socialA-carousel-arrow prev" data-social-carousel-prev aria-label="${t('social.carouselPrev')}"${index === 0 ? ' disabled' : ''}>${Icon('chevron-right', { size: 20 })}</button>
+    <button type="button" class="carousel-arrow socialA-carousel-arrow next" data-social-carousel-next aria-label="${t('social.carouselNext')}"${index === media.length - 1 ? ' disabled' : ''}>${Icon('chevron-right', { size: 20 })}</button>
+    <div class="carousel-dots socialA-carousel-dots" aria-hidden="true">${media.map((_, at) => `<i class="carousel-dot ${at === index ? 'is-active active' : ''}"></i>`).join('')}</div>
   </div>`;
 }
 
+function socialAHandle(value) {
+  const handle = String(value || t('social.member')).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('it').replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '');
+  return esc(handle || 'gaia.community');
+}
 function socialAPostCard(post) {
   const id = String(post && post.id || '');
   const author = post && post.author || {};
@@ -533,57 +764,70 @@ function socialAPostCard(post) {
   const canReport = !isSystem && !viewer.ownAuthor;
   const canDelete = !isSystem && !!viewer.ownAuthor;
   const canMenu = canReport || canDelete;
-  const authorName = esc(author.name || t('social.member'));
+  const rawAuthorName = String(author.name || t('social.member'));
+  const authorName = esc(rawAuthorName);
   const producerHref = isProducer && author.producerId ? `#/produttore/${encodeURIComponent(author.producerId)}` : '';
   const expanded = communityOpenComments.has(id);
   const menuOpen = socialAPostMenus.has(id);
   const comments = Array.isArray(post.comments) ? post.comments : [];
   const text = String(post.text || '');
-  const role = isProducer ? t('social.producer') : (isSystem ? t('social.networkName') : t('social.member'));
-  const authorMeta = [esc(role), socialLocation(post), post.createdAt ? esc(socialWhen(post.createdAt)) : ''].filter(Boolean).join(' · ');
-  const authorCopy = `<span class="socialA-author-name social-author-name">${authorName}${author.verified ? `<span title="${t('social.verified')}">${Icon('check-circle', { size: 14 })}</span>` : ''}</span><span class="socialA-author-meta social-author-meta">${authorMeta}</span>`;
-  const authorEl = producerHref
-    ? `<a class="socialA-author" href="${producerHref}" data-link>${socialAvatar(author, 'socialA-avatar')}<span>${authorCopy}</span></a>`
-    : `<div class="socialA-author">${socialAvatar(author, 'socialA-avatar')}<span>${authorCopy}</span></div>`;
+  const media = socialAMedia(post);
+  const commentCount = Number(counts.comments == null ? comments.length : counts.comments);
+  const role = isProducer ? t('social.producer') : (isSystem ? t('social.networkName') : t('social.person'));
+  const authorMeta = [socialLocation(post), post.createdAt ? esc(socialWhen(post.createdAt)) : ''].filter(Boolean).join(' · ');
+  const avatar = `${socialAvatar(author, 'avatar socialA-avatar')}${isProducer ? `<span class="producer-leaf">${Icon('leaf', { size: 12 })}</span>` : ''}`;
+  const authorAvatar = producerHref ? `<a class="post-avatar-wrap" href="${producerHref}" data-link aria-label="${authorName}">${avatar}</a>` : `<div class="post-avatar-wrap">${avatar}</div>`;
+  const authorTitle = `${authorName}${author.verified ? `<span class="verified-mark" title="${t('social.verified')}">${Icon('check-circle', { size: 14 })}</span>` : ''}`;
+  const authorIdentity = producerHref ? `<a class="post-name" href="${producerHref}" data-link>${authorTitle}</a>` : `<span class="post-name">${authorTitle}</span>`;
   const commentRows = comments.map((comment) => {
     const ca = comment.author || {};
-    return `<li class="social-comment">${socialAvatar(ca, 'small socialA-avatar')}<div><div class="social-comment-meta"><b>${esc(ca.name || t('social.member'))}</b>${comment.createdAt ? `<span>${esc(socialWhen(comment.createdAt))}</span>` : ''}</div><p>${esc(comment.text)}</p></div></li>`;
+    return `<li class="social-comment">${socialAvatar(ca, 'avatar small socialA-avatar')}<div><div class="social-comment-meta"><b>${esc(ca.name || t('social.member'))}</b>${comment.createdAt ? `<span>${esc(socialWhen(comment.createdAt))}</span>` : ''}</div><p>${esc(comment.text)}</p></div></li>`;
   }).join('');
-  const virality = post.virality && communityScope === 'producers' ? post.virality : null;
+  const commentsBlock = expanded ? `<div class="social-comments" data-social-comment-box><div class="social-comments-title">${t('social.commentsTitle')}</div>${comments.length ? `<ul>${commentRows}</ul>` : `<p class="social-no-comments">${t('social.noComments')}</p>`}<form class="social-comment-form" data-social-comment-form>${socialAvatar(currentUser() || {}, 'avatar small socialA-avatar')}<label class="sr-only" for="social-comment-${esc(id.replace(/[^a-zA-Z0-9_-]/g, ''))}">${t('social.writeComment')}</label><input id="social-comment-${esc(id.replace(/[^a-zA-Z0-9_-]/g, ''))}" maxlength="280" value="${esc(communityCommentDrafts.get(id) || '')}" placeholder="${t('social.writeComment')}" autocomplete="off" data-social-comment-input><button type="submit" data-social-comment-submit aria-label="${t('social.sendComment')}">${Icon('arrow-right', { size: 18 })}</button></form><p class="social-inline-error" role="alert" data-social-comment-error></p></div>` : '';
+  const virality = isProducer && post.virality ? post.virality : null;
   const menuId = `social-menu-${id.replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  return `<article class="social-post socialA-post ${!socialAMedia(post).length ? 'socialA-text-card' : ''}" data-social-post="${esc(id)}">
-    <header class="socialA-post-head">${authorEl}<div class="socialA-post-controls">
-      ${canFollow ? `<button type="button" class="socialA-follow ${following ? 'following' : ''}" data-social-follow="${esc(author.id)}" data-social-following="${following}" aria-label="${following ? t('social.unfollowAria', { name: authorName }) : t('social.followAria', { name: authorName })}">${following ? t('social.following') : t('social.follow')}</button>` : ''}
-      ${canMenu ? `<button type="button" class="socialA-post-menu" data-social-menu aria-haspopup="menu" aria-controls="${menuId}" aria-expanded="${menuOpen}" aria-label="${t('social.more')}">${Icon('more-horizontal', { size: 21 })}</button>` : ''}
+  const kindLabel = t(SOCIAL_KIND_KEYS[SOCIAL_KINDS.includes(post.kind) ? post.kind : 'story']);
+  const responseCount = t(post.kind === 'question' ? 'social.answersCount' : 'social.commentsCount', { count: commentCount });
+  const textContent = !media.length ? `<div class="text-card socialA-question-card"><span class="quote-mark" aria-hidden="true">“</span><blockquote>${esc(text)}</blockquote><div class="text-topic"><span>${kindLabel}</span><span>${responseCount}</span></div></div>` : '';
+  const captionText = media.length ? esc(text) : t(post.kind === 'question' ? 'social.questionCaption' : 'social.sharedCaption');
+  const likes = Number(counts.likes || 0);
+  const likedBy = t(!likes ? 'social.likesNone' : likes === 1 ? 'social.likesOne' : 'social.likesMany', { count: likes });
+  const viewConversation = expanded ? t('social.hideConversation') : t(post.kind === 'question'
+    ? (commentCount ? 'social.viewAnswersCount' : 'social.viewAnswers')
+    : (commentCount ? 'social.viewCommentsCount' : 'social.viewComments'), { count: commentCount });
+  return `<article class="post social-post socialA-post ${!media.length ? 'socialA-text-card' : ''}" data-social-post="${esc(id)}">
+    ${virality && virality.rank ? `<span class="producer-rank" aria-label="${t('social.producerRankAria', { rank: Number(virality.rank) })}">${Number(virality.rank)}</span>` : ''}
+    <header class="post-head socialA-post-head">${authorAvatar}<div class="post-who"><div class="post-name-row">${authorIdentity}<span class="role-tag">${esc(role)}</span></div><div class="post-meta">${authorMeta}</div></div><div class="socialA-post-controls">
+      ${canFollow ? `<button type="button" class="follow-chip socialA-follow ${following ? 'is-following following' : ''}" data-social-follow="${esc(author.id)}" data-social-following="${following}" aria-label="${esc(following ? t('social.unfollowAria', { name: rawAuthorName }) : t('social.followAria', { name: rawAuthorName }))}">${following ? t('social.following') : t('social.follow')}</button>` : ''}
+      ${canMenu ? `<button type="button" class="post-menu socialA-post-menu" data-social-menu aria-haspopup="menu" aria-controls="${menuId}" aria-expanded="${menuOpen}" aria-label="${t('social.more')}">${Icon('more-horizontal', { size: 21 })}</button>` : ''}
       ${canMenu && menuOpen ? `<div class="socialA-menu-pop" id="${menuId}" role="menu">${canDelete
         ? `<button type="button" role="menuitem" data-social-delete>${Icon('trash', { size: 16 })}${t('social.deletePost')}</button>`
         : `<button type="button" role="menuitem" data-social-report ${viewer.reported ? 'disabled' : ''}>${Icon('flag', { size: 16 })}${viewer.reported ? t('social.reported') : t('social.report')}</button>`}</div>` : ''}
     </div></header>
-    ${virality ? `<div class="socialA-virality"><strong>${virality.rank ? '#' + Number(virality.rank) : t('social.virality')}</strong><span>${socialAViralityLabel(virality.score)}</span><b class="tnum">${Number(virality.score || 0)}</b></div>` : ''}
-    ${text ? `<div class="socialA-post-copy"><p class="social-post-text">${esc(text)}</p></div>` : ''}
-    ${socialAMediaMarkup(post, id)}
+    ${textContent || socialAMediaMarkup(post, id)}
     ${post.pendingModeration ? `<p class="socialA-moderation-note">${Icon('info', { size: 14 })}${t('social.pendingModeration')}</p>` : ''}
-    <div class="social-actions" role="group" aria-label="${t('social.actionsAria')}">
-      <button type="button" class="social-action ${viewer.liked ? 'on' : ''}" data-social-like aria-pressed="${!!viewer.liked}" aria-label="${t('social.like')}">${Icon('heart', { size: 21, fill: viewer.liked ? 'currentColor' : 'none' })}<b class="tnum">${Number(counts.likes || 0)}</b></button>
-      <button type="button" class="social-action ${expanded ? 'on' : ''}" data-social-comments aria-expanded="${expanded}" aria-label="${t('social.comment')}">${Icon('message-circle', { size: 21 })}<b class="tnum">${Number(counts.comments == null ? comments.length : counts.comments)}</b></button>
-      <button type="button" class="social-action" data-social-share aria-label="${t('social.share')}">${Icon('send', { size: 21 })}<b class="tnum">${Number(counts.shares || 0)}</b></button>
-      <button type="button" class="social-action social-save ${viewer.saved ? 'on' : ''}" data-social-save aria-pressed="${!!viewer.saved}" aria-label="${t('social.save')}">${Icon('bookmark', { size: 21, fill: viewer.saved ? 'currentColor' : 'none' })}</button>
+    <div class="post-actions social-actions" role="group" aria-label="${t('social.actionsAria')}">
+      <button type="button" class="action-button social-action ${viewer.liked ? 'is-liked on' : ''}" data-social-like aria-pressed="${!!viewer.liked}" aria-label="${t('social.like')}">${Icon('heart', { size: 23, fill: viewer.liked ? 'currentColor' : 'none' })}<span class="action-count tnum">${Number(counts.likes || 0)}</span></button>
+      <button type="button" class="action-button social-action ${expanded ? 'on' : ''}" data-social-comments aria-expanded="${expanded}" aria-label="${t('social.comment')}">${Icon('message-circle', { size: 23 })}<span class="action-count tnum">${commentCount}</span></button>
+      <button type="button" class="action-button social-action" data-social-share aria-label="${t('social.share')}">${Icon('send', { size: 23 })}<span class="action-count tnum">${Number(counts.shares || 0)}</span></button>
+      <button type="button" class="action-button save-action social-action social-save ${viewer.saved ? 'is-saved on' : ''}" data-social-save aria-pressed="${!!viewer.saved}" aria-label="${t('social.save')}">${Icon('bookmark', { size: 23, fill: viewer.saved ? 'currentColor' : 'none' })}</button>
     </div>
-    ${expanded ? `<div class="social-comments" data-social-comment-box><div class="social-comments-title">${t('social.commentsTitle')}</div>${comments.length ? `<ul>${commentRows}</ul>` : `<p class="social-no-comments">${t('social.noComments')}</p>`}<form class="social-comment-form" data-social-comment-form>${socialAvatar(currentUser() || {}, 'small socialA-avatar')}<label class="sr-only" for="social-comment-${esc(id.replace(/[^a-zA-Z0-9_-]/g, ''))}">${t('social.writeComment')}</label><input id="social-comment-${esc(id.replace(/[^a-zA-Z0-9_-]/g, ''))}" maxlength="280" value="${esc(communityCommentDrafts.get(id) || '')}" placeholder="${t('social.writeComment')}" autocomplete="off" data-social-comment-input><button type="submit" data-social-comment-submit aria-label="${t('social.sendComment')}">${Icon('arrow-right', { size: 18 })}</button></form><p class="social-inline-error" role="alert" data-social-comment-error></p></div>` : ''}
+    ${virality ? `<div class="virality socialA-virality">${Icon('sprout', { size: 15 })}<span>${socialAViralityLabel(virality.score)}</span><span class="viral-score tnum">${Number(virality.score || 0)}</span></div>` : ''}
+    <div class="post-copy socialA-post-copy"><div class="liked-by">${likedBy}</div><p class="caption"><strong>${socialAHandle(rawAuthorName)}</strong>${captionText ? ` ${captionText}` : ''}</p><button type="button" class="view-comments" data-social-comments aria-expanded="${expanded}">${viewConversation}</button>${commentsBlock}<div class="time">${post.createdAt ? esc(socialWhen(post.createdAt)) : ''}</div></div>
   </article>`;
 }
 
 function socialAStories(social, user) {
   const stories = Array.isArray(social.stories) ? social.stories : [];
-  const own = `<button type="button" class="socialA-story is-you" data-social-create-story aria-label="${t('social.addStory')}"><span class="socialA-story-ring">${socialAvatar(user, 'socialA-avatar')}<span class="socialA-story-plus">+</span></span><span class="socialA-story-label">${t('social.yourStory')}</span></button>`;
+  const own = `<button type="button" class="story socialA-story is-you" data-social-create-story aria-label="${t('social.addStory')}"><span class="story-ring socialA-story-ring">${socialAvatar(user, 'avatar socialA-avatar')}<span class="story-plus socialA-story-plus">+</span></span><span class="story-label socialA-story-label">${t('social.yourStory')}</span></button>`;
   const rows = stories.map((story) => {
     const author = story.author || {};
     const media = socialAMedia(story);
     const thumb = media.find(item => item.type === 'image');
-    const avatar = thumb ? `<img src="${thumb.url}" alt="" loading="lazy">` : socialAvatar(author, 'socialA-avatar');
-    return `<button type="button" class="socialA-story ${story.viewer && story.viewer.seen ? 'is-seen' : ''}" data-social-story="${esc(story.id)}" aria-label="${t('social.openStoryAria', { name: esc(author.name || t('social.member')) })}"><span class="socialA-story-ring">${avatar}</span><span class="socialA-story-label">${esc(author.name || t('social.member'))}</span></button>`;
+    const avatar = thumb ? `<img src="${thumb.url}" alt="" loading="lazy">` : socialAvatar(author, 'avatar socialA-avatar');
+    return `<button type="button" class="story socialA-story ${story.viewer && story.viewer.seen ? 'is-seen' : ''}" data-social-story="${esc(story.id)}" aria-label="${t('social.openStoryAria', { name: esc(author.name || t('social.member')) })}"><span class="story-ring socialA-story-ring">${avatar}</span><span class="story-label socialA-story-label">${esc(author.name || t('social.member'))}</span></button>`;
   }).join('');
-  return `<div class="socialA-stories" aria-label="${t('social.storiesAria')}">${own}${rows}${social.storiesStatus === 'loading' ? `<span class="socialA-stories-loading" role="status">${t('social.loadingStories')}</span>` : ''}</div>`;
+  return `<section class="stories-wrap" aria-label="${t('social.storiesAria')}"><div class="stories socialA-stories">${own}${rows}${social.storiesStatus === 'loading' ? `<span class="socialA-stories-loading" role="status">${t('social.loadingStories')}</span>` : ''}</div></section>`;
 }
 
 function socialASuggestions(social) {
@@ -596,9 +840,9 @@ function socialASuggestions(social) {
     const authorName = String(author.name || t('social.member'));
     const location = socialLocation(item) || socialLocality(item.locality);
     const producerHref = author.type === 'producer' && author.producerId ? `#/produttore/${encodeURIComponent(author.producerId)}` : '';
-    const copy = `<span class="socialA-suggest-copy"><strong>${esc(authorName)}</strong><small>${location}</small></span>`;
+    const copy = `<span class="suggest-copy socialA-suggest-copy"><strong>${esc(authorName)}</strong><small class="${author.type === 'producer' ? 'producer-mini' : ''}">${location}</small></span>`;
     const followLabel = item.following ? t('social.unfollowAria', { name: authorName }) : t('social.followAria', { name: authorName });
-    return `<div class="socialA-suggestion">${producerHref ? `<a href="${producerHref}" data-link>${socialAvatar(author, 'socialA-avatar')}${copy}</a>` : `<div>${socialAvatar(author, 'socialA-avatar')}${copy}</div>`}<button type="button" class="socialA-follow ${item.following ? 'following' : ''}" data-social-follow="${esc(author.id)}" data-social-following="${!!item.following}" aria-label="${esc(followLabel)}">${item.following ? t('social.following') : t('social.follow')}</button></div>`;
+    return `<div class="suggestion socialA-suggestion">${producerHref ? `<a href="${producerHref}" data-link>${socialAvatar(author, 'avatar socialA-avatar')}${copy}</a>` : `<div>${socialAvatar(author, 'avatar socialA-avatar')}${copy}</div>`}<button type="button" class="text-link socialA-follow ${item.following ? 'is-following following' : ''}" data-social-follow="${esc(author.id)}" data-social-following="${!!item.following}" aria-label="${esc(followLabel)}">${item.following ? t('social.following') : t('social.follow')}</button></div>`;
   }).join('');
 }
 
@@ -650,17 +894,19 @@ function socialAOpenStory(screen, story, opener) {
   const canReport = author.type !== 'system' && !(story.viewer && story.viewer.ownAuthor);
   const canDelete = author.type !== 'system' && !!(story.viewer && story.viewer.ownAuthor);
   const media = socialAMedia(story)[0] || null;
+  const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const back = document.createElement('div');
   back.className = 'socialA-story-viewer open';
   const mediaMarkup = media ? (media.type === 'video'
     ? `<video class="socialA-story-media" src="${media.url}" controls autoplay playsinline muted></video>`
     : `<img class="socialA-story-media" src="${media.url}" alt="${esc(t('social.mediaAlt', { name: author.name || t('social.member') }))}">`)
     : `<div class="socialA-story-media socialA-story-text-bg" aria-hidden="true"></div>`;
-  back.innerHTML = `<section class="socialA-story-dialog" role="dialog" aria-modal="true" aria-labelledby="social-story-name"><div class="socialA-story-progress"><span></span></div>${mediaMarkup}<div class="socialA-story-shade"></div><header class="socialA-story-top">${socialAvatar(author, 'socialA-avatar')}<div><strong id="social-story-name">${esc(author.name || t('social.member'))}</strong><small>${esc(socialWhen(story.createdAt))}</small></div>${canReport ? `<button type="button" data-social-story-report ${story.viewer && story.viewer.reported ? 'disabled' : ''} aria-label="${story.viewer && story.viewer.reported ? t('social.reported') : t('social.report')}">${Icon('flag', { size: 18 })}</button>` : ''}${canDelete ? `<button type="button" data-social-story-delete aria-label="${t('social.deleteStory')}">${Icon('trash', { size: 18 })}</button>` : ''}<button type="button" data-social-close-story aria-label="${t('social.closeStory')}">${Icon('x', { size: 22 })}</button></header>${story.text ? `<p class="socialA-story-message" style="overflow-wrap:anywhere">${esc(story.text)}</p>` : ''}</section>`;
-  let closed = false, release = () => {};
+  back.innerHTML = `<section class="socialA-story-dialog" role="dialog" aria-modal="true" aria-labelledby="social-story-name"><div class="socialA-story-progress"${reduced ? ' hidden' : ''}><span></span></div>${mediaMarkup}<div class="socialA-story-shade"></div><header class="socialA-story-top">${socialAvatar(author, 'socialA-avatar')}<div><strong id="social-story-name">${esc(author.name || t('social.member'))}</strong><small>${esc(socialWhen(story.createdAt))}</small></div>${canReport ? `<button type="button" data-social-story-report ${story.viewer && story.viewer.reported ? 'disabled' : ''} aria-label="${story.viewer && story.viewer.reported ? t('social.reported') : t('social.report')}">${Icon('flag', { size: 18 })}</button>` : ''}${canDelete ? `<button type="button" data-social-story-delete aria-label="${t('social.deleteStory')}">${Icon('trash', { size: 18 })}</button>` : ''}<button type="button" data-social-close-story aria-label="${t('social.closeStory')}">${Icon('x', { size: 22 })}</button></header>${story.text ? `<p class="socialA-story-message" style="overflow-wrap:anywhere">${esc(story.text)}</p>` : ''}</section>`;
+  let closed = false, release = () => {}, autoCloseTimer = null;
   const forceClose = ({ restoreFocus = true } = {}) => {
     if (closed) return;
     closed = true;
+    clearTimeout(autoCloseTimer);
     back.querySelectorAll('video').forEach(video => video.pause());
     release({ restoreFocus }); back.remove(); socialAFlushDeferredRender(screen);
   };
@@ -691,6 +937,16 @@ function socialAOpenStory(screen, story, opener) {
   };
   screen.appendChild(back);
   release = socialATrap(back, opener, close, forceClose, back.querySelector('[data-social-close-story]'));
+  const storyVideo = back.querySelector('video');
+  const progress = back.querySelector('.socialA-story-progress span');
+  if (storyVideo) {
+    storyVideo.addEventListener('loadedmetadata', () => {
+      if (progress && Number.isFinite(storyVideo.duration) && storyVideo.duration > 0) progress.style.animationDuration = `${storyVideo.duration}s`;
+    }, { once: true });
+    storyVideo.addEventListener('play', () => { if (progress) progress.style.animationPlayState = 'running'; });
+    storyVideo.addEventListener('pause', () => { if (progress) progress.style.animationPlayState = 'paused'; });
+    storyVideo.addEventListener('ended', () => forceClose());
+  } else if (!reduced) autoCloseTimer = setTimeout(() => forceClose(), 6000);
   opener.classList.add('is-seen');
   viewSocialStory(story.id).catch(() => {});
 }
@@ -874,10 +1130,86 @@ function socialAOpenCreate(screen, destination, opener) {
 }
 
 function socialAScopeNote(scope, place) {
-  if (scope === 'following') return t('social.scopeNoteFollowing');
   if (scope === 'nearby') return t('social.scopeNoteNearby', { place: esc(place) });
   if (scope === 'producers') return t('social.scopeNoteProducers');
   return t('social.scopeNoteForYou', { place: esc(place) });
+}
+function socialAScopeLabel(scope) {
+  return t(SOCIAL_A_FILTER_KEYS[SOCIAL_A_SCOPES.includes(scope) ? scope : 'for-you']);
+}
+
+const SOCIAL_A_ROUTE_HREFS = {
+  home: '#/comunita', search: '#/comunita/cerca', messages: '#/comunita/messaggi',
+  notifications: '#/comunita/notifiche', profile: '#/comunita/profilo',
+};
+function socialANavClass(active, item, base = '') {
+  return `${base}${active === item ? ' is-active active' : ''}`.trim();
+}
+function socialAAriaCurrent(active, item) { return active === item ? ' aria-current="page"' : ''; }
+function socialALeftRail(active, user) {
+  const link = (item, icon, label) => `<a class="${socialANavClass(active, item, 'nav-item socialA-nav-item')}" href="${SOCIAL_A_ROUTE_HREFS[item]}" data-link${item === 'home' ? ' data-social-home' : ''}${socialAAriaCurrent(active, item)}>${Icon(icon, { size: 22 })}<span>${label}</span></a>`;
+  return `<aside class="left-rail socialA-rail" aria-label="${t('nav.primary')}">
+    <a class="socialA-back-app" href="#/home" data-social-back-app data-link>${Icon('arrow-left', { size: 18 })}<span>${t('social.backToApp')}</span></a>
+    <a class="brand socialA-lockup" href="#/comunita" data-link data-social-home aria-label="${t('transition.titleCommunity')}">${Lockup('')}<span class="brand-copy"><small>${t('social.contextLabel')}</small></span></a>
+    <nav class="primary-nav">
+      ${link('home', 'home', t('social.home'))}
+      ${link('search', 'search', t('social.search'))}
+      ${link('messages', 'message-circle', t('social.messages'))}
+      ${link('notifications', 'heart', t('social.notifications'))}
+      <button type="button" class="nav-item socialA-nav-item" data-social-open-create>${Icon('plus', { size: 22 })}<span>${t('social.create')}</span></button>
+    </nav>
+    <a class="${socialANavClass(active, 'profile', 'nav-item profile-nav socialA-rail-profile')}" href="#/comunita/profilo" data-link${socialAAriaCurrent(active, 'profile')}>${socialAvatar(user, 'avatar small socialA-avatar')}<span>${t('social.myProfile')}</span></a>
+  </aside>`;
+}
+function socialAMobileHeader(active, hidden = false) {
+  return `<header class="mobile-head socialA-mobile-head"${hidden ? ' inert aria-hidden="true"' : ''}><a class="socialA-back-app" href="#/home" data-social-back-app data-link aria-label="${t('social.backToApp')}">${Icon('arrow-left', { size: 21 })}<span>${t('social.backToApp')}</span></a><a class="mobile-brand" href="#/comunita" data-link data-social-home aria-label="${t('transition.titleCommunity')}">${Lockup('')}<small>${t('social.contextLabel')}</small></a><div class="mobile-actions"><a class="${socialANavClass(active, 'notifications')}" href="#/comunita/notifiche" data-link aria-label="${t('social.notifications')}"${socialAAriaCurrent(active, 'notifications')}>${Icon('heart', { size: 21 })}</a><a class="${socialANavClass(active, 'messages')}" href="#/comunita/messaggi" data-link aria-label="${t('social.messages')}"${socialAAriaCurrent(active, 'messages')}>${Icon('message-circle', { size: 21 })}</a></div></header>`;
+}
+function socialAMobileNav(active, hidden = false) {
+  const link = (item, icon, label) => `<a class="${socialANavClass(active, item)}" href="${SOCIAL_A_ROUTE_HREFS[item]}" data-link${item === 'home' ? ' data-social-home' : ''}${socialAAriaCurrent(active, item)}>${Icon(icon, { size: 21 })}<span>${label}</span></a>`;
+  return `<nav class="mobile-nav socialA-mobile-nav" aria-label="${t('social.mobileNavAria')}"${hidden ? ' inert aria-hidden="true"' : ''}>${link('home', 'home', t('social.home'))}${link('search', 'search', t('social.search'))}<button type="button" class="is-create" data-social-open-create aria-label="${t('social.create')}">${Icon('plus', { size: 24 })}</button>${link('messages', 'message-circle', t('social.messages'))}${link('profile', 'user', t('social.profile'))}</nav>`;
+}
+function socialARightRail(social, user) {
+  const rawProfileName = String(user.name || t('social.member'));
+  const place = socialPlace(social.context);
+  return `<aside class="right-rail socialA-right" aria-label="${t('social.profileAndSuggestions')}"><a class="self-card socialA-self" href="#/comunita/profilo" data-link>${socialAvatar(user, 'avatar socialA-avatar')}<span class="self-copy"><strong>${socialAHandle(rawProfileName)}</strong><small>${esc(rawProfileName)} · ${esc(place)}</small></span><b class="text-link">${t('social.viewProfile')}</b></a><div class="suggest-head socialA-suggest-head"><strong>${t('social.suggestionsTitle')}</strong><button type="button" data-social-show-nearby>${t('social.showNearby')}</button></div><div class="suggest-list socialA-suggest-list">${socialASuggestions(social)}</div><footer class="rail-foot socialA-right-foot"><span>${t('social.aboutGaia')}</span><span>${t('social.communityRules')}</span><span>Privacy</span><span>${t('social.territories')}</span><br>${t('social.footerCopyright')}</footer></aside>`;
+}
+function socialAShell({ active, center, social = socialState(), user = currentUser() || {}, screenClass = '', centerClass = '', right = true }) {
+  return `<div class="screen social-screen socialA-screen ${screenClass}">
+    ${socialAMobileHeader(active)}
+    <div class="scroll socialA-scroll"><div class="app-shell socialA-shell">
+      ${socialALeftRail(active, user)}
+      <main class="feed-shell socialA-center ${centerClass}">${center}</main>
+      ${right ? socialARightRail(social, user) : ''}
+    </div></div>
+    ${socialAMobileNav(active)}
+  </div>`;
+}
+function socialABindChrome(el) {
+  el.querySelectorAll('[data-social-open-create]').forEach(button => button.onclick = () => socialAOpenCreate(el, 'post', button));
+  el.querySelectorAll('[data-social-home]').forEach(link => link.onclick = event => {
+    if (!socialAIsFeedRoute()) return;
+    event.preventDefault();
+    const scroller = el.querySelector('.socialA-scroll');
+    if (scroller) scroller.scrollTo({ top: 0, behavior: 'auto' });
+    Promise.allSettled([loadSocialFeed(communityScope, { force: true }), loadSocialSurface({ force: true })])
+      .then(() => { if (socialAIsFeedRoute()) socialARequestRerender(); });
+  });
+  const nearby = el.querySelector('[data-social-show-nearby]');
+  if (nearby) nearby.onclick = () => {
+    communityScope = 'nearby';
+    if (!socialAIsFeedRoute()) { location.hash = '#/comunita'; return; }
+    loadSocialFeed('nearby', { force: true }).then(() => { if (socialAIsFeedRoute()) socialARequestRerender({ action: 'scope', scope: 'nearby' }); }).catch(() => {});
+  };
+  el.querySelectorAll('.socialA-right [data-social-follow]').forEach(button => button.onclick = async () => {
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      await followSocialAuthor(button.dataset.socialFollow, button.dataset.socialFollowing !== 'true');
+      await Promise.allSettled([loadSocialSuggestions({ force: true }), loadSocialStories({ force: true })]);
+      if (socialAIsFeedRoute()) socialARequestRerender({ action: 'follow', authorId: button.dataset.socialFollow });
+      else if (socialAIsRealmRoute()) rerender();
+    } catch (_) { button.disabled = false; toast(t('social.followError'), 'error'); }
+  });
 }
 
 export function Comunita() {
@@ -886,7 +1218,8 @@ export function Comunita() {
   if (social.scope !== communityScope && social.status !== 'loading' && SOCIAL_A_SCOPES.includes(social.scope)) communityScope = social.scope;
   const user = currentUser() || {};
   const place = socialPlace(social.context);
-  const filters = SOCIAL_A_SCOPES.map(scope => `<button type="button" role="tab" tabindex="${communityScope === scope ? '0' : '-1'}" class="${communityScope === scope ? 'active' : ''}" data-social-scope="${scope}" aria-selected="${communityScope === scope}" aria-controls="social-feed">${t(SOCIAL_A_FILTER_KEYS[scope])}</button>`).join('');
+  const radius = Math.max(1, Math.round(Number(getState().radius) || 25));
+  const filters = SOCIAL_A_SCOPES.map(scope => `<button type="button" role="tab" tabindex="${communityScope === scope ? '0' : '-1'}" class="feed-tab socialA-tab ${communityScope === scope ? 'is-active active' : ''}" data-social-scope="${scope}" aria-selected="${communityScope === scope}" aria-controls="social-feed">${t(SOCIAL_A_FILTER_KEYS[scope])}</button>`).join('');
   let feed = '';
   if ((social.status === 'idle' || social.status === 'loading') && !(social.posts || []).length) feed = `<div class="sr-only" role="status">${t('social.loading')}</div>${socialSkeleton()}`;
   else if (social.status === 'error' && !(social.posts || []).length) feed = `<div class="social-state" role="alert">${Icon('sprout', { size: 36 })}<h2>${t('social.loadErrorTitle')}</h2><p>${t('social.loadErrorBody')}</p><button class="btn btn-outline" type="button" data-social-retry>${t('social.retry')}</button></div>`;
@@ -894,39 +1227,16 @@ export function Comunita() {
     const keys = SOCIAL_A_EMPTY_KEYS[communityScope];
     feed = `<div class="social-state">${Icon('message-circle', { size: 38 })}<h2>${t(keys[0])}</h2><p>${t(keys[1])}</p></div>`;
   } else feed = social.posts.map(socialAPostCard).join('');
-  const profileName = esc(user.name || t('social.member'));
-  const quickKinds = SOCIAL_KINDS.map(kind => `<option value="${kind}"${communityKind === kind ? ' selected' : ''}>${t(SOCIAL_KIND_KEYS[kind])}</option>`).join('');
+  const center = `<header class="feed-head socialA-feed-head"><div class="feed-title-row socialA-title-row"><h1 class="feed-title" tabindex="-1">${t('social.feedTitlePrefix')} <span>${t('social.feedTitleEmphasis')}</span></h1><div class="location-pill socialA-location"><span class="location-dot"></span>${t('social.radius', { place: esc(place), radius })}</div></div><div class="feed-tabs socialA-tabs" role="tablist" aria-label="${t('social.filtersAria')}">${filters}</div></header>
+    ${socialAStories(social, user)}
+    <div class="scope-context socialA-scope-note"><span class="scope-icon">${Icon('leaf', { size: 13 })}</span><span><strong>${socialAScopeLabel(communityScope)}</strong> · ${socialAScopeNote(communityScope, place)}</span></div>
+    ${social.status === 'loading' && (social.posts || []).length ? `<p class="social-refreshing" role="status">${t('social.refreshing')}</p>` : ''}
+    <section id="social-feed" class="feed social-feed" role="feed" aria-label="${t('social.feedAria')}" aria-busy="${social.status === 'loading'}">${feed}</section>
+    ${social.hasMore ? `<button type="button" class="socialA-load-more" data-social-load-more>${t('social.loadMore')}</button>` : ''}`;
   return {
-    html: `<div class="screen social-screen socialA-screen">${StatusBar()}
-      <header class="socialA-mobile-head"><a href="#/comunita" data-link aria-label="${t('social.networkName')}">${Lockup()}</a><div><button type="button" data-social-open-create aria-label="${t('social.create')}">${Icon('plus', { size: 22 })}</button><button type="button" data-social-soon="messages" aria-label="${t('social.messages')}">${Icon('send', { size: 22 })}</button></div></header>
-      <div class="scroll socialA-scroll"><div class="socialA-shell">
-        <aside class="socialA-rail" aria-label="${t('nav.primary')}"><a class="socialA-lockup" href="#/comunita" data-link>${Lockup()}</a><nav>
-          <a class="socialA-nav-item active" href="#/comunita" data-link aria-current="page">${Icon('home', { size: 22 })}<span>${t('nav.rete')}</span></a>
-          <a class="socialA-nav-item" href="#/mappa" data-link>${Icon('map-pin', { size: 22 })}<span>${t('rail.map')}</span></a>
-          <a class="socialA-nav-item" href="#/ricerca" data-link>${Icon('search', { size: 22 })}<span>${t('social.searchProducers')}</span></a>
-          <button type="button" class="socialA-nav-item" data-social-soon="messages">${Icon('send', { size: 22 })}<span>${t('social.messages')}</span><small class="socialA-soon">${t('social.comingSoon')}</small></button>
-          <button type="button" class="socialA-nav-item" data-social-soon="notifications">${Icon('bell', { size: 22 })}<span>${t('social.notifications')}</span><small class="socialA-soon">${t('social.comingSoon')}</small></button>
-          <button type="button" class="socialA-nav-item" data-social-open-create>${Icon('plus', { size: 22 })}<span>${t('social.create')}</span></button>
-        </nav><a class="socialA-rail-profile" href="#/profilo" data-link>${socialAvatar(user, 'socialA-avatar')}<span>${t('nav.tu')}</span></a></aside>
-
-        <main class="socialA-center">
-          <header class="socialA-feed-head"><div class="socialA-title-row"><div><span class="eyebrow">${t('social.eyebrow')}</span><h1>${t('social.networkName')}</h1></div><span class="socialA-location">${Icon('map-pin', { size: 15 })}${esc(place)}</span></div>
-            <div class="socialA-tabs" role="tablist" aria-label="${t('social.filtersAria')}">${filters}</div>
-          </header>
-          ${socialAStories(social, user)}
-          <section class="socialA-quick-compose" aria-label="${t('social.composerAria')}">${socialAvatar(user, 'socialA-avatar')}<label class="sr-only" for="social-post-text-a">${t('social.composerAria')}</label><textarea id="social-post-text-a" rows="1" maxlength="700" data-social-draft placeholder="${t('social.quickPlaceholder')}">${esc(communityDraft)}</textarea><label class="socialA-quick-kind"><span class="sr-only">${t('social.kindLabel')}</span><select data-social-kind>${quickKinds}</select></label><button type="button" class="socialA-quick-media" data-social-open-create aria-label="${t('social.addMedia')}">${Icon('image', { size: 20 })}</button><button type="button" class="socialA-quick-publish" data-social-publish>${t('social.publish')}</button><p class="social-inline-error" role="alert" data-social-publish-error></p></section>
-          <p class="socialA-scope-note">${socialAScopeNote(communityScope, place)}</p>
-          ${social.status === 'loading' && (social.posts || []).length ? `<p class="social-refreshing" role="status">${t('social.refreshing')}</p>` : ''}
-          <section id="social-feed" class="social-feed" role="feed" aria-label="${t('social.feedAria')}" aria-busy="${social.status === 'loading'}">${feed}</section>
-          ${social.hasMore ? `<button type="button" class="socialA-load-more" data-social-load-more>${t('social.loadMore')}</button>` : ''}
-        </main>
-
-        <aside class="socialA-right" aria-label="${t('social.profileAndSuggestions')}"><a class="socialA-self" href="#/profilo" data-link>${socialAvatar(user, 'socialA-avatar')}<span><strong>${profileName}</strong><small>${esc(place)}</small></span><b>${t('social.viewProfile')}</b></a><div class="socialA-suggest-head"><strong>${t('social.suggestionsTitle')}</strong><button type="button" data-social-show-nearby>${t('social.showNearby')}</button></div><div class="socialA-suggest-list">${socialASuggestions(social)}</div><footer class="socialA-right-foot"><strong>${t('social.localCommunityTitle')}</strong><p>${t('social.localCommunityBody')}</p></footer></aside>
-      </div></div>
-      <div class="socialA-mobile-nav">${BottomNav('comunita')}</div>
-    </div>`,
+    html: socialAShell({ active: 'home', center, social, user, screenClass: 'community-screen' }),
     onMount(el) {
-      const onThisScreen = () => /^#\/(comunita|cibovero)$/.test(location.hash);
+      const onThisScreen = () => socialAIsFeedRoute();
       const finishLoad = () => { if (onThisScreen()) socialARequestRerender(); };
       const initial = [];
       const refreshEntry = communityHandledEntryToken !== communityEntryToken;
@@ -937,32 +1247,14 @@ export function Comunita() {
         if (social.status === 'idle' || social.scope !== communityScope) initial.push(loadSocialFeed(communityScope));
         if (social.storiesStatus === 'idle' || social.suggestionsStatus === 'idle') initial.push(loadSocialSurface());
       }
-      if (initial.length) Promise.allSettled(initial).then(finishLoad);
+      if (initial.length) {
+        addGaiaTransitionWork(initial);
+        Promise.allSettled(initial).then(finishLoad);
+      }
 
-      const draft = el.querySelector('[data-social-draft]');
-      if (draft) draft.oninput = () => { communityDraft = draft.value; };
-      const kind = el.querySelector('[data-social-kind]');
-      if (kind) kind.onchange = () => { communityKind = SOCIAL_KINDS.includes(kind.value) ? kind.value : 'question'; };
-      const publish = el.querySelector('[data-social-publish]');
-      if (publish) publish.onclick = async () => {
-        const text = (draft ? draft.value : communityDraft).trim();
-        const error = el.querySelector('[data-social-publish-error]');
-        if (!text) { if (error) error.textContent = t('social.emptyPost'); if (draft) draft.focus(); return; }
-        publish.disabled = true; publish.textContent = t('social.publishing'); if (error) error.textContent = '';
-        const scopeAtPublish = communityScope;
-        try { await createSocialPost({ text, kind: communityKind }); }
-        catch (_) { publish.disabled = false; publish.textContent = t('social.publish'); if (error) error.textContent = t('social.publishError'); return; }
-        communityDraft = ''; toast(t('social.published'), 'success');
-        if (onThisScreen()) socialARequestRerender({ action: 'publish' });
-        if (onThisScreen() && communityScope === scopeAtPublish) {
-          loadSocialFeed(scopeAtPublish, { force: true }).then(() => { if (onThisScreen() && communityScope === scopeAtPublish) socialARequestRerender(); }).catch(() => {});
-        }
-      };
-
-      el.querySelectorAll('[data-social-open-create]').forEach(button => button.onclick = () => socialAOpenCreate(el, 'post', button));
+      socialABindChrome(el);
       const createStory = el.querySelector('[data-social-create-story]');
       if (createStory) createStory.onclick = () => socialAOpenCreate(el, 'story', createStory);
-      el.querySelectorAll('[data-social-soon]').forEach(button => button.onclick = () => socialAOpenSoon(el, button.dataset.socialSoon === 'notifications' ? t('social.notifications') : t('social.messages'), button));
       el.querySelectorAll('[data-social-story]').forEach(button => button.onclick = () => {
         const story = (socialState().stories || []).find(item => String(item.id) === button.dataset.socialStory);
         if (story) socialAOpenStory(el, story, button);
@@ -1074,7 +1366,7 @@ export function Comunita() {
             }
           } catch (error) { if (!(error && error.name === 'AbortError')) toast(t('social.shareError'), 'error'); }
         };
-        const comments = card.querySelector('[data-social-comments]'); if (comments) comments.onclick = () => { if (communityOpenComments.has(id)) communityOpenComments.delete(id); else communityOpenComments.add(id); socialARequestRerender({ action: 'comments', postId: id }); };
+        card.querySelectorAll('[data-social-comments]').forEach(comments => comments.onclick = () => { if (communityOpenComments.has(id)) communityOpenComments.delete(id); else communityOpenComments.add(id); socialARequestRerender({ action: 'comments', postId: id }); });
         const commentInput = card.querySelector('[data-social-comment-input]'); if (commentInput) commentInput.oninput = () => communityCommentDrafts.set(id, commentInput.value);
         const form = card.querySelector('[data-social-comment-form]'); if (form) form.onsubmit = async event => {
           event.preventDefault(); const text = (commentInput && commentInput.value || '').trim(); const formError = card.querySelector('[data-social-comment-error]');
@@ -1100,7 +1392,7 @@ export function Comunita() {
             if (at === slides.length - 1 && next && document.activeElement === next && prev) try { prev.focus({ preventScroll: true }); } catch (_) { prev.focus(); }
             if (prev) prev.disabled = at === 0; if (next) next.disabled = at === slides.length - 1;
             const count = carousel.querySelector('[data-social-carousel-count]'); if (count) count.textContent = `${at + 1} / ${slides.length}`;
-            carousel.querySelectorAll('.socialA-carousel-dots i').forEach((dot, index) => dot.classList.toggle('active', index === at));
+            carousel.querySelectorAll('.socialA-carousel-dots i').forEach((dot, index) => { dot.classList.toggle('active', index === at); dot.classList.toggle('is-active', index === at); });
           };
           const prev = carousel.querySelector('[data-social-carousel-prev]'), next = carousel.querySelector('[data-social-carousel-next]'); if (prev) prev.onclick = () => move(-1); if (next) next.onclick = () => move(1);
           let touchStart = null;
@@ -1114,6 +1406,200 @@ export function Comunita() {
       });
     },
   };
+}
+
+/* ---------------- SOTTOSEZIONI RETE GAIA ---------------- */
+let socialASearchQuery = '';
+let socialASearchState = { status: 'idle', minChars: 2, data: null, error: null };
+let socialASearchTimer = null;
+let socialASearchController = null;
+
+function socialACancelSearch() {
+  clearTimeout(socialASearchTimer); socialASearchTimer = null;
+  if (socialASearchController) socialASearchController.abort();
+  socialASearchController = null;
+}
+function socialAResetSearchContext() {
+  socialACancelSearch();
+  socialASearchQuery = '';
+  socialASearchState = { status: 'idle', minChars: 2, data: null, error: null };
+}
+// Lo store emette questo evento anche quando cambia identità (logout/login): query e
+// risultati appartengono sempre alla sessione corrente e non devono passare alla successiva.
+try { window.addEventListener('gf:social-context-changed', socialAResetSearchContext); } catch (_) {}
+function socialASearchAuthorRow(item) {
+  const author = item && item.author || item || {};
+  const rawName = String(author.name || t('social.member'));
+  const producerId = author.producerId || (item && item.producerId) || '';
+  const location = socialLocation(item || {}) || [author.city, author.region].filter(Boolean).map(esc).join(' · ') || t('social.searchUnknownPlace');
+  const body = `${socialAvatar(author, 'avatar socialA-avatar')}<span><strong>${esc(rawName)}</strong><small>${location}</small></span>`;
+  return `<li class="socialA-search-person">${producerId ? `<a href="#/produttore/${encodeURIComponent(producerId)}" data-link>${body}</a>` : `<div>${body}</div>`}</li>`;
+}
+function socialASearchProducerRow(producer) {
+  const item = producer || {};
+  const rawName = String(item.name || t('social.producer'));
+  const nestedLocation = item.location && typeof item.location === 'object' ? item.location : {};
+  const location = [...new Set([item.place, item.city, nestedLocation.city, item.region, nestedLocation.region].filter(Boolean).map(String))].slice(0, 2).join(' · ') || t('social.searchUnknownPlace');
+  const body = `${socialAvatar({ name: rawName, picture: item.photo || item.picture }, 'avatar socialA-avatar')}<span><strong>${esc(rawName)}</strong><small>${esc(location)}</small></span>${Icon('chevron-right', { size: 18 })}`;
+  return item.id ? `<li class="socialA-search-producer"><a href="#/produttore/${encodeURIComponent(item.id)}" data-link>${body}</a></li>` : '';
+}
+function socialASearchPostPreview(post) {
+  const item = post || {}, author = item.author || {};
+  const media = socialAMedia(item)[0] || null;
+  const location = socialLocation(item);
+  const meta = location || esc(socialWhen(item.createdAt) || t('social.searchUnknownPlace'));
+  const mediaMarkup = media ? (media.type === 'video'
+    ? `<video src="${media.url}" controls preload="metadata" playsinline muted aria-label="${esc(t('social.searchPostMedia', { name: author.name || t('social.member') }))}"></video>`
+    : `<img src="${media.url}" alt="${esc(t('social.searchPostMedia', { name: author.name || t('social.member') }))}" loading="lazy">`) : '';
+  return `<article class="socialA-search-post" data-social-search-post>${mediaMarkup}<div class="socialA-search-post-copy"><div>${socialAvatar(author, 'avatar small socialA-avatar')}<span><strong>${esc(author.name || t('social.member'))}</strong><small>${meta}</small></span></div><p>${esc(item.text || t('social.searchPostWithoutText'))}</p></div></article>`;
+}
+function socialASearchResultsMarkup() {
+  const query = socialASearchQuery.trim(), state = socialASearchState;
+  if (query.length < state.minChars) return `<div class="socialA-subpage-state socialA-search-hint">${Icon('search', { size: 34 })}<h2>${t('social.searchStartTitle')}</h2><p>${t('social.searchMinChars', { count: state.minChars })}</p></div>`;
+  if (state.status === 'loading') return `<div class="socialA-subpage-state" role="status">${Icon('sprout', { size: 34 })}<h2>${t('social.searchLoading')}</h2><p>${t('social.searchLoadingBody')}</p></div>`;
+  if (state.status === 'error') return `<div class="socialA-subpage-state" role="alert">${Icon('search', { size: 34 })}<h2>${t('social.searchErrorTitle')}</h2><p>${t('social.searchErrorBody')}</p><button type="button" class="btn btn-outline" data-social-search-retry>${t('social.retry')}</button></div>`;
+  const data = state.data || {};
+  const authors = (Array.isArray(data.authors) ? data.authors : []).filter(item => (item && item.author || item || {}).type !== 'producer');
+  const producers = Array.isArray(data.producers) ? data.producers : [], posts = Array.isArray(data.posts) ? data.posts : [];
+  if (!authors.length && !producers.length && !posts.length) return `<div class="socialA-subpage-state">${Icon('search', { size: 34 })}<h2>${t('social.searchEmptyTitle')}</h2><p>${t('social.searchEmptyBody', { query: esc(query) })}</p></div>`;
+  return `<div class="socialA-search-results" aria-live="polite">
+    ${producers.length ? `<section class="socialA-search-group"><h2>${t('social.searchProducersTitle')}</h2><ul>${producers.map(socialASearchProducerRow).join('')}</ul></section>` : ''}
+    ${authors.length ? `<section class="socialA-search-group"><h2>${t('social.searchPeopleTitle')}</h2><ul>${authors.map(socialASearchAuthorRow).join('')}</ul></section>` : ''}
+    ${posts.length ? `<section class="socialA-search-group"><h2>${t('social.searchPostsTitle')}</h2><div class="socialA-search-posts">${posts.map(socialASearchPostPreview).join('')}</div></section>` : ''}
+    ${data.hasMore ? `<p class="socialA-search-more">${t('social.searchMoreHint')}</p>` : ''}
+  </div>`;
+}
+function socialAPaintSearch(el) {
+  const results = el.querySelector('[data-social-search-results]');
+  if (!results) return;
+  results.innerHTML = socialASearchResultsMarkup();
+  const retry = results.querySelector('[data-social-search-retry]');
+  if (retry) retry.onclick = () => socialARunSearch(el, { immediate: true });
+}
+function socialARunSearch(el, { immediate = false } = {}) {
+  socialACancelSearch();
+  const query = socialASearchQuery.trim();
+  if (query.length < socialASearchState.minChars) {
+    socialASearchState = { ...socialASearchState, status: 'idle', data: null, error: null };
+    socialAPaintSearch(el); return;
+  }
+  socialASearchState = { ...socialASearchState, status: 'loading', error: null };
+  socialAPaintSearch(el);
+  const run = async () => {
+    const controller = new AbortController(); socialASearchController = controller;
+    try {
+      const data = await searchSocial(query, { limit: 30, signal: controller.signal });
+      if (controller.signal.aborted || !el.isConnected || location.hash !== '#/comunita/cerca' || query !== socialASearchQuery.trim()) return;
+      socialASearchState = { status: 'ready', minChars: Math.max(1, Number(data && data.minChars) || 2), data: data || {}, error: null };
+    } catch (error) {
+      if (controller.signal.aborted || error && error.name === 'AbortError') return;
+      socialASearchState = { ...socialASearchState, status: 'error', data: null, error };
+    } finally {
+      if (socialASearchController === controller) socialASearchController = null;
+      if (el.isConnected && location.hash === '#/comunita/cerca') socialAPaintSearch(el);
+    }
+  };
+  socialASearchTimer = setTimeout(run, immediate ? 0 : 280);
+}
+
+export function ComunitaCerca() {
+  const center = `<header class="socialA-subpage-head"><span>${t('social.networkName')}</span><h1 id="social-search-title">${t('social.searchTitle')}</h1><p>${t('social.searchSubtitle')}</p></header><div class="socialA-search-box">${Icon('search', { size: 20 })}<label class="sr-only" for="social-search-input">${t('social.searchLabel')}</label><input id="social-search-input" type="search" value="${esc(socialASearchQuery)}" maxlength="80" autocomplete="off" enterkeyhint="search" placeholder="${t('social.searchPlaceholder')}" data-social-search-input><button type="button" data-social-search-clear aria-label="${t('social.searchClear')}"${socialASearchQuery ? '' : ' hidden'}>${Icon('x', { size: 18 })}</button></div><div class="socialA-search-output" data-social-search-results>${socialASearchResultsMarkup()}</div>`;
+  return {
+    html: socialAShell({ active: 'search', center, right: false, screenClass: 'socialA-subpage socialA-search-screen', centerClass: 'socialA-subpage-center' }),
+    onMount(el) {
+      socialABindChrome(el); socialACancelSearch();
+      const input = el.querySelector('[data-social-search-input]'), clear = el.querySelector('[data-social-search-clear]');
+      if (input) {
+        input.oninput = () => { socialASearchQuery = input.value; if (clear) clear.hidden = !input.value; socialARunSearch(el); };
+        input.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); socialASearchQuery = input.value; socialARunSearch(el, { immediate: true }); } };
+        requestAnimationFrame(() => { if (input.isConnected) input.focus({ preventScroll: true }); });
+      }
+      if (clear) clear.onclick = () => { socialASearchQuery = ''; input.value = ''; clear.hidden = true; socialARunSearch(el); input.focus(); };
+      if (socialASearchQuery.trim().length >= socialASearchState.minChars) socialARunSearch(el, { immediate: socialASearchState.status !== 'ready' });
+      else socialAPaintSearch(el);
+      window.addEventListener('hashchange', socialACancelSearch, { once: true });
+    },
+  };
+}
+
+function socialAProfileZoneLabel() {
+  const zone = userZone();
+  if (!zone) return t('profile.zone');
+  if (typeof zone === 'string') return zone;
+  return (zone.comuni && zone.comuni[0]) || zone.label || zone.region || t('profile.zone');
+}
+export function ComunitaProfilo() {
+  const user = currentUser() || {};
+  const displayName = user.name || (user.email ? user.email.split('@')[0] : t('social.member'));
+  const center = `<header class="socialA-subpage-head"><span>${t('social.networkName')}</span><h1 id="social-profile-title">${t('social.profileTitle')}</h1><p>${t('social.profileSubtitle')}</p></header><section class="socialA-profile-card" aria-labelledby="social-profile-title"><div class="socialA-profile-photo"><div data-social-profile-avatar>${socialAvatar(user, 'socialA-avatar')}</div><button type="button" data-social-profile-photo>${Icon('camera', { size: 17 })}<span>${t('profile.changePhoto')}</span></button><input type="file" accept="image/png,image/jpeg,image/webp" data-social-profile-file hidden></div><form data-social-profile-form><label><span>${t('profile.name')}</span><input name="name" maxlength="80" required value="${esc(user.name || '')}" placeholder="${t('profile.namePlaceholder')}" autocomplete="name"></label><label><span>${t('profile.city')}</span><input name="city" maxlength="120" value="${esc(user.city || '')}" placeholder="${t('profile.cityPlaceholder')}" autocomplete="address-level2"></label><label><span>${t('profile.phone')}</span><input name="phone" maxlength="40" value="${esc(user.phone || '')}" placeholder="${t('profile.add')}" inputmode="tel" autocomplete="tel"></label><label class="is-readonly"><span>${t('profile.email')}</span><input value="${esc(user.email || '')}" readonly aria-readonly="true"></label><button class="socialA-territory-button" type="button" data-open-auth="zone">${Icon('map-pin', { size: 18 })}<span><small>${t('social.profileTerritory')}</small><strong>${esc(socialAProfileZoneLabel())}</strong></span>${Icon('chevron-right', { size: 18 })}</button><p class="socialA-profile-note">${t('social.profileSyncNote')}</p><p class="socialA-profile-feedback" role="status" aria-live="polite" data-social-profile-feedback></p><button class="socialA-profile-save" type="submit" data-social-profile-save>${t('social.profileSave')}</button></form></section>`;
+  return {
+    html: socialAShell({ active: 'profile', center, user, right: false, screenClass: 'socialA-subpage socialA-profile-screen', centerClass: 'socialA-subpage-center' }),
+    onMount(el) {
+      socialABindChrome(el);
+      const form = el.querySelector('[data-social-profile-form]'), feedback = el.querySelector('[data-social-profile-feedback]'), save = el.querySelector('[data-social-profile-save]');
+      const territory = el.querySelector('[data-open-auth="zone"]');
+      let profileSavePending = false;
+      const flash = (message, ok = true) => { feedback.textContent = message; feedback.classList.toggle('is-error', !ok); };
+      const setProfileBusy = busy => {
+        if (save) { save.disabled = busy; save.textContent = busy ? t('social.profileSaving') : t('social.profileSave'); }
+        if (territory) territory.disabled = busy;
+      };
+      const persistProfile = async ({ openTerritory = false } = {}) => {
+        if (!form || profileSavePending) return false;
+        if (typeof form.reportValidity === 'function' && !form.reportValidity()) return false;
+        const fields = new FormData(form);
+        profileSavePending = true; setProfileBusy(true); flash('');
+        try {
+          await updateProfile({ name: String(fields.get('name') || '').trim(), city: String(fields.get('city') || '').trim(), phone: String(fields.get('phone') || '').trim() });
+          flash(t('social.profileSaved'));
+          if (openTerritory) openAuthModal({ step: 'zone', redirect: '#/comunita/profilo' });
+          return true;
+        } catch (_) { flash(t('profile.saveError'), false); return false; }
+        finally { profileSavePending = false; setProfileBusy(false); }
+      };
+      if (form) form.onsubmit = event => { event.preventDefault(); persistProfile(); };
+      if (territory) territory.onclick = event => {
+        // Ferma il listener delegato globale: il modale si apre soltanto dopo la PATCH riuscita.
+        event.preventDefault(); event.stopPropagation();
+        persistProfile({ openTerritory: true });
+      };
+      const file = el.querySelector('[data-social-profile-file]'), pick = el.querySelector('[data-social-profile-photo]');
+      if (pick && file) pick.onclick = () => file.click();
+      if (file) file.onchange = () => {
+        const selected = file.files && file.files[0]; file.value = '';
+        if (!selected) return;
+        if (!/^image\/(png|jpe?g|webp)$/i.test(selected.type)) { flash(t('profile.photoError'), false); return; }
+        if (selected.size > 5 * 1024 * 1024) { flash(t('profile.photoTooBig'), false); return; }
+        const reader = new FileReader();
+        reader.onload = async () => {
+          pick.disabled = true; flash(t('social.profilePhotoUploading'));
+          try {
+            await uploadAvatar(reader.result);
+            const avatar = el.querySelector('[data-social-profile-avatar]');
+            if (avatar) avatar.innerHTML = socialAvatar(currentUser() || { name: displayName }, 'socialA-avatar');
+            el.querySelectorAll('.socialA-rail-profile .social-avatar').forEach(node => { node.outerHTML = socialAvatar(currentUser() || { name: displayName }, 'avatar small socialA-avatar'); });
+            flash(t('social.profileSaved'));
+          } catch (_) { flash(t('profile.photoError'), false); }
+          finally { pick.disabled = false; }
+        };
+        reader.readAsDataURL(selected);
+      };
+    },
+  };
+}
+
+function socialAEmptySubpage(active, icon, titleKey, bodyKey, actions) {
+  const center = `<header class="socialA-subpage-head"><span>${t('social.networkName')}</span><h1>${t(titleKey)}</h1></header><section class="socialA-subpage-state socialA-empty-panel">${Icon(icon, { size: 42 })}<h2>${t(titleKey)}</h2><p>${t(bodyKey)}</p><div class="socialA-empty-actions">${actions}</div></section>`;
+  return {
+    html: socialAShell({ active, center, right: false, screenClass: `socialA-subpage socialA-${active}-screen`, centerClass: 'socialA-subpage-center' }),
+    onMount(el) { socialABindChrome(el); },
+  };
+}
+export function ComunitaMessaggi() {
+  return socialAEmptySubpage('messages', 'message-circle', 'social.messagesTitle', 'social.messagesEmptyBody', `<a class="btn btn-outline" href="#/comunita/cerca" data-link>${Icon('search', { size: 17 })}${t('social.messagesSearchCta')}</a><button class="btn btn-primary" type="button" data-social-open-create>${Icon('plus', { size: 17 })}${t('social.messagesCreateCta')}</button>`);
+}
+export function ComunitaNotifiche() {
+  return socialAEmptySubpage('notifications', 'heart', 'social.notificationsTitle', 'social.notificationsEmptyBody', `<a class="btn btn-primary" href="#/comunita" data-link data-social-home>${Icon('home', { size: 17 })}${t('social.notificationsFeedCta')}</a>`);
 }
 
 /* ---------------- SCHEDA PRODUTTORE ---------------- */

@@ -169,6 +169,13 @@ function socialLocationOf(user) {
   const zoneRegion = typeof zone === 'object' && zone ? (zone.region || '') : '';
   return JSON.stringify([user.city || '', user.region || '', zoneId, zoneLabel, zoneRegion]);
 }
+function socialPresentationOf(user) {
+  if (!user) return '';
+  return JSON.stringify([
+    user.name || '', user.picture || '', user.producerId || '', user.producerStatus || '',
+    user.role || '', user.status || '',
+  ]);
+}
 
 // Invalida sia i dati visibili sia ogni risposta in volo. L'evento permette alla schermata
 // di cancellare bozze locali senza accoppiare lo store ai dettagli della UI.
@@ -192,8 +199,11 @@ function assignUser(nextUser) {
   const next = nextUser || null;
   const identityChanged = socialIdentityOf(previous) !== socialIdentityOf(next);
   const locationChanged = socialLocationOf(previous) !== socialLocationOf(next);
+  const presentationChanged = socialPresentationOf(previous) !== socialPresentationOf(next);
   state.user = next;
-  if (identityChanged || locationChanged) invalidateSocialState(identityChanged ? 'identity' : 'location');
+  if (identityChanged || locationChanged || presentationChanged) {
+    invalidateSocialState(identityChanged ? 'identity' : (locationChanged ? 'location' : 'profile'));
+  }
   return state.user;
 }
 function replaceSocialPost(post, { prepend = false } = {}) {
@@ -283,6 +293,12 @@ export async function loadSocialSuggestions({ force = false } = {}) {
 
 export async function loadSocialSurface({ force = false } = {}) {
   return Promise.allSettled([loadSocialStories({ force }), loadSocialSuggestions({ force })]);
+}
+
+export async function searchSocial(query, { limit = 20, signal } = {}) {
+  const q = String(query == null ? '' : query).trim();
+  const safeLimit = Math.max(1, Math.min(30, Number.isFinite(Number(limit)) ? Math.trunc(Number(limit)) : 20));
+  return ja('./api/social/search?q=' + encodeURIComponent(q) + '&limit=' + encodeURIComponent(safeLimit), { signal });
 }
 
 export async function uploadSocialMedia(dataUrl, { signal } = {}) {
@@ -437,7 +453,7 @@ export async function updateProfile(fields) {
 // Carica un avatar (dataURL base64) per l'utente loggato → aggiorna user.picture.
 export async function uploadAvatar(dataUrl) {
   const d = await ja(`${API_BASE}/api/auth/avatar`, { method: 'POST', body: JSON.stringify({ dataUrl }) });
-  state.user = d.user; return state.user;
+  assignUser(d.user); return state.user;
 }
 // Zona scelta dall'utente (dal profilo). null finché non l'ha scelta.
 export const userZone = () => (state.user && state.user.zone) || null;
@@ -480,6 +496,17 @@ export async function adminSetLevel(userId, level) { return ja('./api/admin/user
 export async function adminDeleteUser(userId) { return ja('./api/admin/users?id=' + encodeURIComponent(userId), { method: 'DELETE' }); }
 export async function adminCreateInvite(email, level) { return ja('./api/admin/invites', { method: 'POST', body: JSON.stringify({ email, level }) }); }
 export async function adminRevokeInvite(token) { return ja('./api/admin/invites?token=' + encodeURIComponent(token), { method: 'DELETE' }); }
+export async function adminListSocialModeration({ status = 'pending', signal } = {}) {
+  const queueStatus = status === 'pending' ? status : 'pending';
+  return ja('./api/admin/social/moderation?status=' + encodeURIComponent(queueStatus), { signal });
+}
+export async function adminResolveSocialModeration(type, id, decision, { signal } = {}) {
+  const itemType = type === 'story' ? 'story' : 'post';
+  const outcome = decision === 'remove' ? 'remove' : 'keep';
+  return ja('./api/admin/social/moderation/resolve', {
+    method: 'POST', signal, body: JSON.stringify({ type: itemType, id: String(id || ''), decision: outcome }),
+  });
+}
 export async function inviteInfo(token) { return ja('./api/invite/' + encodeURIComponent(token)); }
 export async function acceptInvite(token) { const d = await ja('./api/invite/' + encodeURIComponent(token) + '/accept', { method: 'POST' }); if (d.user) assignUser(d.user); await syncRole(); return d; }
 

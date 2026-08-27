@@ -14,11 +14,14 @@ const {
   cleanSocialText, cleanSocialKind, socialPageParams, socialPublicId, socialLocation, socialLocality,
   diversifySocialTier, rankSocialPosts, revalidateSocialAuthors, projectSocialPost, projectSocialStory,
   socialPostVirality, socialProducerScores, normalizeSocialDoc, signSocialMediaRef, verifySocialMediaRef,
-  socialThrottle, acquireSocialUploadSlot,
+  socialThrottle, acquireSocialUploadSlot, socialReferencedMediaUrls, registerUploadedSocialAsset,
+  markSocialMediaReferenced, markRemovedSocialMedia, purgeSocialAccount, socialModerationItem,
+  sweepSocialOrphanMedia, flushPersistenceBounded,
 } = await import('../server.js');
 const {
   inspectDataUrl, stripJpegMetadata, stripPngMetadata, stripWebpMetadata,
   hasSensitiveVideoMetadata, diskDirectoryBytes, ensureDiskCapacity,
+  safeDiskMediaPath, listDiskMediaAssets, deleteMediaAsset,
 } = await import('../media.js');
 
 // ---------------------------------------------------------------- password (scrypt)
@@ -288,6 +291,21 @@ test('revalidateSocialAuthors: produttore live resta verified; scheda sospesa de
   assert.equal(demoted.authorName, 'Profilo attuale');
   assert.equal(demoted.authorPicture, 'utente.jpg');
   assert.equal(stored[0].authorType, 'producer'); // rivalidazione non muta lo storico
+
+  const personStored = [{
+    id: 'sp_person', authorId: 'persona', authorType: 'person', authorName: 'Nome vecchio', authorPicture: 'old.jpg',
+    location: { city: 'Roma', zoneId: 'rm', region: 'Lazio' },
+    comments: [{ id: 'sc_person', authorId: 'commentatore', authorType: 'person', authorName: 'Commento vecchio', authorPicture: 'old-comment.jpg' }],
+  }];
+  const personUsers = [
+    { id: 'persona', name: 'Nome live', picture: 'live.jpg', city: 'Terni', zone: { id: 'tr', label: 'Conca', region: 'Umbria' } },
+    { id: 'commentatore', name: 'Commento live', picture: 'live-comment.jpg' },
+  ];
+  const personLive = revalidateSocialAuthors(personStored, personUsers, [])[0];
+  assert.equal(personLive.authorName, 'Nome live'); assert.equal(personLive.authorPicture, 'live.jpg');
+  assert.deepEqual(personLive.location, { city: 'Terni', zoneId: 'tr', zoneLabel: 'Conca', region: 'Umbria' });
+  assert.equal(personLive.comments[0].authorName, 'Commento live'); assert.equal(personLive.comments[0].authorPicture, 'live-comment.jpg');
+  assert.equal(personStored[0].authorName, 'Nome vecchio'); assert.equal(personStored[0].comments[0].authorName, 'Commento vecchio');
 });
 
 test('projectSocialPost: nessun ID/email interno, counts e flag viewer corretti', () => {
@@ -310,13 +328,15 @@ test('projectSocialPost: nessun ID/email interno, counts e flag viewer corretti'
   assert.ok(!json.includes('altro@example.test'));
 });
 
-test('social v2: migra il documento v1 preservando i post e inizializza stories/follows', () => {
+test('social v3: migra il documento v1 preservando i post e inizializza code/asset', () => {
   const legacyPost = { id: 'legacy', text: 'Preservato' };
   const migrated = normalizeSocialDoc({ socialVersion: 1, posts: [legacyPost] });
-  assert.equal(migrated.socialVersion, 2);
+  assert.equal(migrated.socialVersion, 3);
   assert.equal(migrated.posts[0], legacyPost);
   assert.deepEqual(migrated.stories, []);
   assert.deepEqual(migrated.follows, []);
+  assert.deepEqual(migrated.assets, []);
+  assert.deepEqual(migrated.moderationAudit, []);
 });
 
 test('mediaRef: HMAC account-bound, scadenza 60m e manomissione rifiutata', () => {
@@ -381,6 +401,212 @@ test('fallback disk quota: misura solo file e rifiuta prima di superare il cap',
     assert.doesNotThrow(() => ensureDiskCapacity(dir, 5, 15));
     assert.throws(() => ensureDiskCapacity(dir, 6, 15), (error) => error.code === 507);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('retention social: la finestra riparte quando un media pubblicato diventa orfano', () => {
+  const uploadedAt = Date.parse('2026-08-20T10:00:00Z');
+  const removedAt = Date.parse('2026-08-26T10:00:00Z');
+  const media = { type: 'image', mime: 'image/png', url: 'assets/media/social/retention.png' };
+  const doc = normalizeSocialDoc({ socialVersion: 3, posts: [], stories: [], follows: [], assets: [], moderationAudit: [] });
+  registerUploadedSocialAsset(doc, { ...media, provider: 'disk' }, uploadedAt);
+  assert.equal(doc.assets[0].orphanedAt, new Date(uploadedAt).toISOString());
+  markSocialMediaReferenced(doc, [media], uploadedAt + 1000);
+  assert.equal(doc.assets[0].orphanedAt, null);
+  const post = { id: 'p-retention', authorId: 'owner', media: [media] };
+  doc.posts.push(post);
+  assert.deepEqual([...socialReferencedMediaUrls(doc)], [media.url]);
+  doc.posts.splice(0, 1);
+  markRemovedSocialMedia(doc, [post], removedAt);
+  assert.equal(doc.assets[0].orphanedAt, new Date(removedAt).toISOString());
+});
+
+test('purge account social: rimuove ownership, contributi, reazioni, follow e rende i media orfani', () => {
+  const account = 'deleted@example.test', now = Date.parse('2026-08-26T12:00:00Z');
+  const ownedMedia = { type: 'image', mime: 'image/png', url: 'assets/media/social/owned.png' };
+  const doc = normalizeSocialDoc({
+    socialVersion: 3,
+    posts: [
+      { id: 'owned', authorId: account, media: [ownedMedia], comments: [], likes: [], saves: [], shares: [], reports: [] },
+      { id: 'kept', authorId: 'other', comments: [{ id: 'c', authorId: account }, { id: 'c2', authorId: 'other' }],
+        likes: [account, 'other'], saves: [account], shares: [account], reports: [account], reviewedReports: [account], pendingModeration: true },
+    ],
+    stories: [
+      { id: 'owned-story', authorId: account, media: [], views: [], reports: [] },
+      { id: 'kept-story', authorId: 'other', media: [], views: [account, 'other'], reports: [account], reviewedReports: [account], pendingModeration: true },
+    ],
+    follows: [{ from: account, to: 'other' }, { from: 'other', to: account }, { from: 'a', to: 'b' }],
+    assets: [{ ...ownedMedia, provider: 'disk', uploadedAt: '2026-08-20T00:00:00Z', orphanedAt: null }], moderationAudit: [],
+  });
+  const result = purgeSocialAccount(doc, account, now);
+  assert.deepEqual(result, { changed: true, removedPosts: 1, removedStories: 1 });
+  assert.deepEqual(doc.posts.map((post) => post.id), ['kept']);
+  assert.deepEqual(doc.posts[0].comments.map((comment) => comment.id), ['c2']);
+  assert.deepEqual(doc.posts[0].likes, ['other']);
+  assert.deepEqual(doc.posts[0].saves, []); assert.deepEqual(doc.posts[0].shares, []); assert.deepEqual(doc.posts[0].reports, []);
+  assert.deepEqual(doc.posts[0].reviewedReports, []);
+  assert.equal(doc.posts[0].pendingModeration, undefined);
+  assert.deepEqual(doc.stories[0].views, ['other']); assert.deepEqual(doc.stories[0].reports, []); assert.deepEqual(doc.stories[0].reviewedReports, []);
+  assert.deepEqual(doc.follows, [{ from: 'a', to: 'b', createdAt: '' }]);
+  assert.equal(doc.assets[0].orphanedAt, new Date(now).toISOString());
+  assert.ok(!JSON.stringify(doc).includes(account));
+});
+
+test('moderation projection: contratto utile senza reporter IDs/email né coordinate fini', () => {
+  const item = socialModerationItem('post', {
+    id: 'reported', text: 'Contenuto', createdAt: '2026-08-26T10:00:00Z', pendingSince: '2026-08-26T11:00:00Z',
+    authorId: 'owner@example.test', authorName: 'Azienda', authorType: 'producer', producerId: 'azienda-1',
+    location: { city: 'Terni', zoneId: 'tr', zoneLabel: 'Conca', region: 'Umbria', lat: 42.5, lng: 12.6 },
+    reports: ['r1@example.test', 'r2@example.test'], reviewedReports: ['r1@example.test'], media: [],
+  });
+  assert.equal(item.type, 'post'); assert.equal(item.reportCount, 1);
+  assert.deepEqual(item.location, { city: 'Terni', zoneId: 'tr', zoneLabel: 'Conca', region: 'Umbria' });
+  assert.deepEqual(item.author, { name: 'Azienda', picture: '', type: 'producer', producerId: 'azienda-1' });
+  const json = JSON.stringify(item);
+  assert.ok(!json.includes('owner@example.test')); assert.ok(!json.includes('r1@example.test'));
+});
+
+test('normalizzazione moderazione: conserva audit expired senza esporre dati extra', () => {
+  const doc = normalizeSocialDoc({
+    socialVersion: 3, posts: [], stories: [], follows: [], assets: [],
+    moderationAudit: [{ type: 'story', id: 'expired-1', decision: 'expired', at: '2026-08-26T12:00:00Z', actor: 'system', email: 'private@example.test' }],
+  });
+  assert.deepEqual(doc.moderationAudit, [{ type: 'story', id: 'expired-1', decision: 'expired', at: '2026-08-26T12:00:00.000Z', actor: 'system' }]);
+});
+
+test('sweep media disco: 24h minime, bounded/idempotente, nessun symlink o traversal', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-social-sweep-'));
+  const outside = path.join(path.dirname(dir), `gf-outside-${Date.now()}.bin`);
+  const now = Date.parse('2026-08-26T12:00:00Z'), old = new Date(now - 25 * 36e5), young = new Date(now - 23 * 36e5);
+  try {
+    for (const name of ['old-a.png', 'old-b.png', 'young.png', 'referenced.png']) fs.writeFileSync(path.join(dir, name), Buffer.from(name));
+    fs.writeFileSync(outside, Buffer.from('outside'));
+    for (const name of ['old-a.png', 'old-b.png', 'referenced.png']) fs.utimesSync(path.join(dir, name), old, old);
+    fs.utimesSync(path.join(dir, 'young.png'), young, young);
+    fs.symlinkSync(outside, path.join(dir, 'link.png'));
+    const doc = normalizeSocialDoc({
+      socialVersion: 3,
+      posts: [{ id: 'p', media: [{ type: 'image', url: 'assets/media/social/referenced.png' }] }], stories: [], follows: [],
+      assets: [{ url: 'assets/media/social/../' + path.basename(outside), provider: 'disk', type: 'image', uploadedAt: old.toISOString(), orphanedAt: old.toISOString() }],
+      moderationAudit: [],
+    });
+    const first = await sweepSocialOrphanMedia({ doc, now, retentionMs: 24 * 36e5, batchSize: 1, diskDir: dir, diskUrlBase: 'assets/media/social' });
+    assert.equal(first.candidates, 1); // bounded: una sola cancellazione/tentativo per ciclo
+    assert.equal(fs.existsSync(path.join(dir, 'referenced.png')), true);
+    assert.equal(fs.existsSync(path.join(dir, 'young.png')), true); // 23h: mai rimossa prima delle 24h
+    assert.equal(fs.existsSync(path.join(dir, 'link.png')), true); // symlink ignorato
+    assert.equal(fs.existsSync(outside), true); // traversal confinato
+    await sweepSocialOrphanMedia({ doc, now, retentionMs: 24 * 36e5, batchSize: 10, diskDir: dir, diskUrlBase: 'assets/media/social' });
+    assert.equal(fs.existsSync(path.join(dir, 'old-a.png')) || fs.existsSync(path.join(dir, 'old-b.png')), false);
+    const again = await sweepSocialOrphanMedia({ doc, now, retentionMs: 24 * 36e5, batchSize: 10, diskDir: dir, diskUrlBase: 'assets/media/social' });
+    assert.equal(again.deleted, 0); // idempotente
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(outside, { force: true });
+  }
+});
+
+test('sweep concorrente: rilegge dopo il listing e non cancella né sovrascrive un post appena pubblicato', async () => {
+  const now = Date.parse('2026-08-26T12:00:00Z'), old = new Date(now - 25 * 36e5).toISOString();
+  const media = { type: 'image', mime: 'image/png', url: 'assets/media/social/race-list.png' };
+  let store = normalizeSocialDoc({
+    socialVersion: 3, posts: [], stories: [], follows: [], moderationAudit: [],
+    assets: [{ ...media, provider: 'disk', uploadedAt: old, orphanedAt: old }],
+  });
+  let releaseList;
+  const listing = new Promise((resolve) => { releaseList = resolve; });
+  let deleteCalls = 0;
+  const sweep = sweepSocialOrphanMedia({
+    now, retentionMs: 24 * 36e5,
+    readDoc: () => structuredClone(store),
+    writeDoc: (next) => { store = structuredClone(next); },
+    listDisk: () => listing,
+    deleteAsset: async () => { deleteCalls += 1; return { deleted: true }; },
+  });
+  await Promise.resolve(); // lo sweep è sospeso sul listing
+  store.posts.push({ id: 'published-during-list', authorId: 'owner', media: [media], comments: [{ id: 'kept-comment' }] });
+  store.follows.push({ from: 'a', to: 'b', createdAt: new Date(now).toISOString() });
+  releaseList([]);
+  const result = await sweep;
+  assert.equal(deleteCalls, 0); assert.equal(result.deleted, 0);
+  assert.deepEqual(store.posts.map((post) => post.id), ['published-during-list']);
+  assert.equal(store.posts[0].comments[0].id, 'kept-comment'); assert.equal(store.follows.length, 1);
+  assert.equal(store.assets[0].orphanedAt, null);
+});
+
+test('sweep concorrente: il claim rifiuta publish durante delete e il merge conserva mutazioni estranee', async () => {
+  const now = Date.parse('2026-08-26T12:00:00Z'), old = new Date(now - 25 * 36e5).toISOString();
+  const media = { type: 'image', mime: 'image/png', url: 'assets/media/social/race-delete.png' };
+  let store = normalizeSocialDoc({
+    socialVersion: 3, posts: [], stories: [], follows: [], moderationAudit: [],
+    assets: [{ ...media, provider: 'disk', uploadedAt: old, orphanedAt: old }],
+  });
+  const deleting = new Set();
+  let deletionStarted, finishDelete;
+  const started = new Promise((resolve) => { deletionStarted = resolve; });
+  const sweep = sweepSocialOrphanMedia({
+    now, retentionMs: 24 * 36e5, deleting,
+    readDoc: () => structuredClone(store),
+    writeDoc: (next) => { store = structuredClone(next); },
+    listDisk: async () => [],
+    deleteAsset: async () => {
+      deletionStarted();
+      return new Promise((resolve) => { finishDelete = resolve; });
+    },
+  });
+  await started;
+  assert.equal(deleting.has(media.url), true);
+  const attemptedPublish = structuredClone(store);
+  assert.equal(markSocialMediaReferenced(attemptedPublish, [media], now, deleting), false);
+  store.posts.push({ id: 'unrelated-during-delete', authorId: 'other', media: [], comments: [] });
+  finishDelete({ deleted: true });
+  const result = await sweep;
+  assert.equal(result.deleted, 1); assert.equal(deleting.has(media.url), false);
+  assert.deepEqual(store.posts.map((post) => post.id), ['unrelated-during-delete']);
+  assert.equal(store.assets.some((asset) => asset.url === media.url), false);
+});
+
+test('flush persistenza bounded: attende il completamento strict e trasforma errore/timeout in 503', async () => {
+  let release, settled = false;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const pending = flushPersistenceBounded({
+    timeoutMs: 100,
+    flush: async (opts) => { assert.equal(opts.strict, true); await gate; },
+  }).then(() => { settled = true; });
+  await Promise.resolve(); assert.equal(settled, false);
+  release(); await pending; assert.equal(settled, true);
+  await assert.rejects(
+    flushPersistenceBounded({ timeoutMs: 100, flush: async () => { throw new Error('db down'); } }),
+    (error) => error && error.code === 503 && error.message === 'persistenza_non_confermata',
+  );
+  await assert.rejects(
+    flushPersistenceBounded({ timeoutMs: 5, flush: () => new Promise(() => {}) }),
+    (error) => error && error.code === 503 && error.message === 'persistenza_timeout',
+  );
+});
+
+test('Cloudinary destroy: endpoint firmato, resource type corretto e public_id confinato', async () => {
+  const oldEnv = {
+    cloud: process.env.CLOUDINARY_CLOUD_NAME, key: process.env.CLOUDINARY_API_KEY,
+    secret: process.env.CLOUDINARY_API_SECRET, url: process.env.CLOUDINARY_URL,
+  };
+  const oldFetch = globalThis.fetch; let call = null;
+  try {
+    process.env.CLOUDINARY_CLOUD_NAME = 'gaia-test'; process.env.CLOUDINARY_API_KEY = 'key'; process.env.CLOUDINARY_API_SECRET = 'secret'; delete process.env.CLOUDINARY_URL;
+    globalThis.fetch = async (url, opts) => { call = { url, opts }; return { ok: true, json: async () => ({ result: 'ok' }) }; };
+    const result = await deleteMediaAsset({
+      provider: 'cloudinary', publicId: 'gaia-food/social/gf_account/social-abc', resourceType: 'video', type: 'video',
+    }, { now: Date.parse('2026-08-26T12:00:00Z') });
+    assert.equal(result.deleted, true); assert.match(call.url, /\/video\/destroy$/);
+    assert.equal(call.opts.body.get('public_id'), 'gaia-food/social/gf_account/social-abc');
+    assert.ok(call.opts.body.get('signature'));
+    call = null;
+    const unsafe = await deleteMediaAsset({ provider: 'cloudinary', publicId: 'gaia-food/producers/private', type: 'image' });
+    assert.equal(unsafe.deleted, false); assert.equal(unsafe.reason, 'unsafe_public_id'); assert.equal(call, null);
+  } finally {
+    globalThis.fetch = oldFetch;
+    for (const [key, value] of Object.entries({ CLOUDINARY_CLOUD_NAME: oldEnv.cloud, CLOUDINARY_API_KEY: oldEnv.key, CLOUDINARY_API_SECRET: oldEnv.secret, CLOUDINARY_URL: oldEnv.url })) {
+      if (value == null) delete process.env[key]; else process.env[key] = value;
+    }
+  }
 });
 
 test('viralità utile: pesi, auto-engagement escluso, decay 72h e top3 produttore', () => {
