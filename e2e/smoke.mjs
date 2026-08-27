@@ -544,8 +544,8 @@ async function main() {
   await rpc('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await sleep(260);
   const mainDesktopFrame = await ev(`(()=>{const rail=document.querySelector('#rail').getBoundingClientRect(),app=document.querySelector('#app').getBoundingClientRect();return {left:rail.left,right:app.right,width:app.right-rail.left,railWidth:rail.width,appWidth:app.width,scrollWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth)};})()`);
-  if (Math.abs(mainDesktopFrame.left - 80) > 1 || Math.abs(mainDesktopFrame.width - 1280) > 1 || mainDesktopFrame.scrollWidth > 1441) {
-    throw new Error('frame desktop Gaia Food non stabile: ' + JSON.stringify(mainDesktopFrame));
+  if (Math.abs(mainDesktopFrame.left) > 1 || Math.abs(mainDesktopFrame.right - 1440) > 1 || Math.abs(mainDesktopFrame.width - 1440) > 1 || mainDesktopFrame.scrollWidth > 1441) {
+    throw new Error('canvas desktop Gaia Food non fluido: ' + JSON.stringify(mainDesktopFrame));
   }
   await shot(path.join(os.tmpdir(), 'gf-e2e-main-frame-1440.png'));
   const externalPost = await ev(`fetch('/api/social/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:${JSON.stringify(reentryText)},kind:'question'})}).then(r=>r.json()).then(d=>d.post&&d.post.id)`, true);
@@ -555,14 +555,14 @@ async function main() {
   await finishAtlasAudit(reentryCommunityAtlas);
   await waitFor(`document.querySelector('.socialA-shell')`, 'Community dopo il rientro Atlante');
   await waitFor(`[...document.querySelectorAll('[data-social-post]')].some(p=>[...p.querySelectorAll('.social-post-text,.text-card blockquote,.caption')].some(n=>n.textContent.includes(${JSON.stringify(reentryText)})))`, 'feed aggiornato al rientro SPA');
-  const socialDesktopFrame = await ev(`(()=>{const top=document.querySelector('.socialA-topbar-frame').getBoundingClientRect(),shell=document.querySelector('.socialA-shell').getBoundingClientRect();return {left:top.left,right:top.right,width:top.width,shellLeft:shell.left,shellRight:shell.right,scrollWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth)};})()`);
+  const socialDesktopFrame = await ev(`(()=>{const app=document.querySelector('#app').getBoundingClientRect(),top=document.querySelector('.socialA-topbar-frame').getBoundingClientRect(),shell=document.querySelector('.socialA-shell').getBoundingClientRect();return {left:app.left,right:app.right,width:app.width,topLeft:top.left,topRight:top.right,topWidth:top.width,shellLeft:shell.left,shellRight:shell.right,scrollWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth)};})()`);
   if (Math.abs(socialDesktopFrame.left - mainDesktopFrame.left) > 1 || Math.abs(socialDesktopFrame.right - mainDesktopFrame.right) > 1 || Math.abs(socialDesktopFrame.width - mainDesktopFrame.width) > 1 || socialDesktopFrame.scrollWidth > 1441) {
-    throw new Error('frame Community disallineato da Gaia Food: ' + JSON.stringify({ mainDesktopFrame, socialDesktopFrame }));
+    throw new Error('canvas Community disallineato da Gaia Food: ' + JSON.stringify({ mainDesktopFrame, socialDesktopFrame }));
   }
   await shot(path.join(os.tmpdir(), 'gf-e2e-community-frame-1440.png'));
   await rpc('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await sleep(200);
-  ok('Community ↔ Gaia Food: stesso frame 1280px, Atlante coerente, ritorno breve e feed rivalidata');
+  ok('Community ↔ Gaia Food: stesso canvas fluido, Atlante coerente, ritorno breve e feed rivalidata');
 
   // Salta deve completare semanticamente il 100% e ripristinare focus/shell.
   await ev(`document.querySelector('[data-social-back-app],.socialA-back-app').click()`);

@@ -968,16 +968,16 @@ body.app-social .socialA-right-foot br{
    =========================================================== */
 @media (min-width:1024px){
   body:not(.app-social):not(.app-bare):not(.app-splash){
-    justify-content:center;
+    justify-content:flex-start;
   }
   body:not(.app-social):not(.app-bare):not(.app-splash) #rail{
     flex:0 0 236px;
   }
   body:not(.app-social):not(.app-bare):not(.app-splash) #app{
-    flex:1 1 0;
+    flex:1 1 auto;
     min-width:0;
     width:auto;
-    max-width:1044px;
+    max-width:none;
   }
 
   body.app-social .socialA-topbar{
