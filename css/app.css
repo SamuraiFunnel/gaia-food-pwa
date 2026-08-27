@@ -2173,6 +2173,10 @@ body:not(.app-social) :is(button,a,input,textarea,select):focus-visible{
   }
 }
 
+/* Community desktop: la variante "Cerca al centro" usa una chrome propria.
+   Su mobile rimangono testata e navigazione compatte già esistenti. */
+.socialA-topbar{ display:none; }
+
 /* -----------------------------------------------------------
    Transizione Atlante condivisa
    Contract JS: --gaia-atlas-progress: 0%..100% sulla root.

@@ -1146,6 +1146,28 @@ function socialANavClass(active, item, base = '') {
   return `${base}${active === item ? ' is-active active' : ''}`.trim();
 }
 function socialAAriaCurrent(active, item) { return active === item ? ' aria-current="page"' : ''; }
+function socialATopbar(active, user) {
+  const profileName = String(user.name || t('social.member'));
+  return `<header class="socialA-topbar" data-social-topbar>
+    <div class="socialA-topbar-frame">
+      <div class="socialA-topbar-start">
+        <a class="socialA-topbar-back" href="#/home" data-social-back-app data-link aria-label="${t('social.backToApp')}">${Icon('arrow-left', { size: 19 })}<span>${t('social.backToApp')}</span></a>
+        <a class="socialA-topbar-brand" href="#/comunita" data-link data-social-home aria-label="${t('transition.titleCommunity')}">${Lockup('')}<small>${t('social.contextLabel')}</small></a>
+      </div>
+      <form class="socialA-topbar-search" role="search" data-social-global-search>
+        ${Icon('search', { size: 19 })}
+        <label class="sr-only" for="social-global-search">${t('social.searchLabel')}</label>
+        <input id="social-global-search" type="search" value="${esc(socialASearchQuery)}" maxlength="80" autocomplete="off" enterkeyhint="search" placeholder="${t('social.searchPlaceholder')}">
+      </form>
+      <nav class="socialA-topbar-nav" aria-label="${t('nav.primary')}">
+        <a class="${socialANavClass(active, 'home')}" href="#/comunita" data-link data-social-home${socialAAriaCurrent(active, 'home')}>${Icon('home', { size: 19 })}<span>${t('social.home')}</span></a>
+        <a class="${socialANavClass(active, 'search')}" href="#/comunita/cerca" data-link${socialAAriaCurrent(active, 'search')}>${Icon('search', { size: 19 })}<span>${t('social.search')}</span></a>
+      </nav>
+      <button type="button" class="socialA-topbar-create" data-social-open-create>${Icon('plus', { size: 19 })}<span>${t('social.create')}</span></button>
+      <a class="${socialANavClass(active, 'profile', 'socialA-topbar-profile')}" href="#/comunita/profilo" data-link aria-label="${t('social.myProfile')} · ${esc(profileName)}"${socialAAriaCurrent(active, 'profile')}>${socialAvatar(user, 'avatar small socialA-avatar')}</a>
+    </div>
+  </header>`;
+}
 function socialALeftRail(active, user) {
   const link = (item, icon, label) => `<a class="${socialANavClass(active, item, 'nav-item socialA-nav-item')}" href="${SOCIAL_A_ROUTE_HREFS[item]}" data-link${item === 'home' ? ' data-social-home' : ''}${socialAAriaCurrent(active, item)}>${Icon(icon, { size: 22 })}<span>${label}</span></a>`;
   return `<aside class="left-rail socialA-rail" aria-label="${t('nav.primary')}">
@@ -1175,9 +1197,9 @@ function socialARightRail(social, user) {
 }
 function socialAShell({ active, center, social = socialState(), user = currentUser() || {}, screenClass = '', centerClass = '', right = true }) {
   return `<div class="screen social-screen socialA-screen ${screenClass}">
+    ${socialATopbar(active, user)}
     ${socialAMobileHeader(active)}
     <div class="scroll socialA-scroll"><div class="app-shell socialA-shell">
-      ${socialALeftRail(active, user)}
       <main class="feed-shell socialA-center ${centerClass}">${center}</main>
       ${right ? socialARightRail(social, user) : ''}
     </div></div>
@@ -1186,6 +1208,18 @@ function socialAShell({ active, center, social = socialState(), user = currentUs
 }
 function socialABindChrome(el) {
   el.querySelectorAll('[data-social-open-create]').forEach(button => button.onclick = () => socialAOpenCreate(el, 'post', button));
+  el.querySelectorAll('[data-social-global-search]').forEach(form => form.onsubmit = event => {
+    event.preventDefault();
+    const input = form.querySelector('input');
+    socialASearchQuery = String(input && input.value || '').slice(0, 80);
+    if (location.hash !== '#/comunita/cerca') { location.hash = '#/comunita/cerca'; return; }
+    const pageInput = el.querySelector('[data-social-search-input]');
+    if (!pageInput) return;
+    pageInput.value = socialASearchQuery;
+    pageInput.dispatchEvent(new Event('input', { bubbles: true }));
+    pageInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    pageInput.focus({ preventScroll: true });
+  });
   el.querySelectorAll('[data-social-home]').forEach(link => link.onclick = event => {
     if (!socialAIsFeedRoute()) return;
     event.preventDefault();
@@ -1505,16 +1539,27 @@ function socialARunSearch(el, { immediate = false } = {}) {
 export function ComunitaCerca() {
   const center = `<header class="socialA-subpage-head"><span>${t('social.networkName')}</span><h1 id="social-search-title">${t('social.searchTitle')}</h1><p>${t('social.searchSubtitle')}</p></header><div class="socialA-search-box">${Icon('search', { size: 20 })}<label class="sr-only" for="social-search-input">${t('social.searchLabel')}</label><input id="social-search-input" type="search" value="${esc(socialASearchQuery)}" maxlength="80" autocomplete="off" enterkeyhint="search" placeholder="${t('social.searchPlaceholder')}" data-social-search-input><button type="button" data-social-search-clear aria-label="${t('social.searchClear')}"${socialASearchQuery ? '' : ' hidden'}>${Icon('x', { size: 18 })}</button></div><div class="socialA-search-output" data-social-search-results>${socialASearchResultsMarkup()}</div>`;
   return {
-    html: socialAShell({ active: 'search', center, right: false, screenClass: 'socialA-subpage socialA-search-screen', centerClass: 'socialA-subpage-center' }),
+    html: socialAShell({ active: 'search', center, screenClass: 'socialA-subpage socialA-search-screen', centerClass: 'socialA-subpage-center' }),
     onMount(el) {
       socialABindChrome(el); socialACancelSearch();
       const input = el.querySelector('[data-social-search-input]'), clear = el.querySelector('[data-social-search-clear]');
       if (input) {
-        input.oninput = () => { socialASearchQuery = input.value; if (clear) clear.hidden = !input.value; socialARunSearch(el); };
+        input.oninput = () => {
+          socialASearchQuery = input.value;
+          const globalInput = el.querySelector('[data-social-global-search] input');
+          if (globalInput && globalInput !== input) globalInput.value = input.value;
+          if (clear) clear.hidden = !input.value;
+          socialARunSearch(el);
+        };
         input.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); socialASearchQuery = input.value; socialARunSearch(el, { immediate: true }); } };
         requestAnimationFrame(() => { if (input.isConnected) input.focus({ preventScroll: true }); });
       }
-      if (clear) clear.onclick = () => { socialASearchQuery = ''; input.value = ''; clear.hidden = true; socialARunSearch(el); input.focus(); };
+      if (clear) clear.onclick = () => {
+        socialASearchQuery = ''; input.value = ''; clear.hidden = true;
+        const globalInput = el.querySelector('[data-social-global-search] input');
+        if (globalInput) globalInput.value = '';
+        socialARunSearch(el); input.focus();
+      };
       if (socialASearchQuery.trim().length >= socialASearchState.minChars) socialARunSearch(el, { immediate: socialASearchState.status !== 'ready' });
       else socialAPaintSearch(el);
       window.addEventListener('hashchange', socialACancelSearch, { once: true });
@@ -1533,7 +1578,7 @@ export function ComunitaProfilo() {
   const displayName = user.name || (user.email ? user.email.split('@')[0] : t('social.member'));
   const center = `<header class="socialA-subpage-head"><span>${t('social.networkName')}</span><h1 id="social-profile-title">${t('social.profileTitle')}</h1><p>${t('social.profileSubtitle')}</p></header><section class="socialA-profile-card" aria-labelledby="social-profile-title"><div class="socialA-profile-photo"><div data-social-profile-avatar>${socialAvatar(user, 'socialA-avatar')}</div><button type="button" data-social-profile-photo>${Icon('camera', { size: 17 })}<span>${t('profile.changePhoto')}</span></button><input type="file" accept="image/png,image/jpeg,image/webp" data-social-profile-file hidden></div><form data-social-profile-form><label><span>${t('profile.name')}</span><input name="name" maxlength="80" required value="${esc(user.name || '')}" placeholder="${t('profile.namePlaceholder')}" autocomplete="name"></label><label><span>${t('profile.city')}</span><input name="city" maxlength="120" value="${esc(user.city || '')}" placeholder="${t('profile.cityPlaceholder')}" autocomplete="address-level2"></label><label><span>${t('profile.phone')}</span><input name="phone" maxlength="40" value="${esc(user.phone || '')}" placeholder="${t('profile.add')}" inputmode="tel" autocomplete="tel"></label><label class="is-readonly"><span>${t('profile.email')}</span><input value="${esc(user.email || '')}" readonly aria-readonly="true"></label><button class="socialA-territory-button" type="button" data-open-auth="zone">${Icon('map-pin', { size: 18 })}<span><small>${t('social.profileTerritory')}</small><strong>${esc(socialAProfileZoneLabel())}</strong></span>${Icon('chevron-right', { size: 18 })}</button><p class="socialA-profile-note">${t('social.profileSyncNote')}</p><p class="socialA-profile-feedback" role="status" aria-live="polite" data-social-profile-feedback></p><button class="socialA-profile-save" type="submit" data-social-profile-save>${t('social.profileSave')}</button></form></section>`;
   return {
-    html: socialAShell({ active: 'profile', center, user, right: false, screenClass: 'socialA-subpage socialA-profile-screen', centerClass: 'socialA-subpage-center' }),
+    html: socialAShell({ active: 'profile', center, user, screenClass: 'socialA-subpage socialA-profile-screen', centerClass: 'socialA-subpage-center' }),
     onMount(el) {
       socialABindChrome(el);
       const form = el.querySelector('[data-social-profile-form]'), feedback = el.querySelector('[data-social-profile-feedback]'), save = el.querySelector('[data-social-profile-save]');
@@ -1577,7 +1622,7 @@ export function ComunitaProfilo() {
             await uploadAvatar(reader.result);
             const avatar = el.querySelector('[data-social-profile-avatar]');
             if (avatar) avatar.innerHTML = socialAvatar(currentUser() || { name: displayName }, 'socialA-avatar');
-            el.querySelectorAll('.socialA-rail-profile .social-avatar').forEach(node => { node.outerHTML = socialAvatar(currentUser() || { name: displayName }, 'avatar small socialA-avatar'); });
+            el.querySelectorAll('.socialA-rail-profile .social-avatar,.socialA-topbar-profile .social-avatar').forEach(node => { node.outerHTML = socialAvatar(currentUser() || { name: displayName }, 'avatar small socialA-avatar'); });
             flash(t('social.profileSaved'));
           } catch (_) { flash(t('profile.photoError'), false); }
           finally { pick.disabled = false; }
@@ -1591,7 +1636,7 @@ export function ComunitaProfilo() {
 function socialAEmptySubpage(active, icon, titleKey, bodyKey, actions) {
   const center = `<header class="socialA-subpage-head"><span>${t('social.networkName')}</span><h1>${t(titleKey)}</h1></header><section class="socialA-subpage-state socialA-empty-panel">${Icon(icon, { size: 42 })}<h2>${t(titleKey)}</h2><p>${t(bodyKey)}</p><div class="socialA-empty-actions">${actions}</div></section>`;
   return {
-    html: socialAShell({ active, center, right: false, screenClass: `socialA-subpage socialA-${active}-screen`, centerClass: 'socialA-subpage-center' }),
+    html: socialAShell({ active, center, screenClass: `socialA-subpage socialA-${active}-screen`, centerClass: 'socialA-subpage-center' }),
     onMount(el) { socialABindChrome(el); },
   };
 }

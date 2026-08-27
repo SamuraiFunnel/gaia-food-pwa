@@ -68,11 +68,11 @@ async function shot(file) {
   try { const s = await rpc('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(file, Buffer.from(s.data, 'base64')); return file; } catch { return null; }
 }
 async function auditSocialViewport(width, height, rootSelector, name) {
-  const mobile = width < 821;
+  const mobile = width < 1024;
   await rpc('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: mobile ? 2 : 1, mobile });
   await sleep(260);
-  const report = await ev(`(()=>{const root=document.querySelector(${JSON.stringify(rootSelector)}),center=root?.querySelector('.socialA-subpage-center'),rail=root?.querySelector('.socialA-rail'),nav=root?.querySelector('.socialA-mobile-nav');if(!root||!center||!rail||!nav)return null;const rr=root.getBoundingClientRect(),cr=center.getBoundingClientRect(),lr=rail.getBoundingClientRect();return {innerWidth,scrollWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),root:{left:rr.left,right:rr.right},center:{left:cr.left,right:cr.right,width:cr.width},railVisible:getComputedStyle(rail).display!=='none'&&lr.width>0,mobileNavVisible:getComputedStyle(nav).display!=='none',railRight:lr.right};})()`);
-  if (!report || report.scrollWidth > width + 1 || report.root.left < -1 || report.root.right > width + 1 || report.center.left < -1 || report.center.right > width + 1 || (mobile ? (!report.mobileNavVisible || report.railVisible) : (report.mobileNavVisible || !report.railVisible || report.railRight > report.center.left))) {
+  const report = await ev(`(()=>{const root=document.querySelector(${JSON.stringify(rootSelector)}),center=root?.querySelector('.socialA-center'),shell=root?.querySelector('.socialA-shell'),topbar=root?.querySelector('.socialA-topbar'),topframe=root?.querySelector('.socialA-topbar-frame'),nav=root?.querySelector('.socialA-mobile-nav');if(!root||!center||!shell||!topbar||!topframe||!nav)return null;const rr=root.getBoundingClientRect(),cr=center.getBoundingClientRect(),sr=shell.getBoundingClientRect(),tr=topframe.getBoundingClientRect();return {innerWidth,scrollWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),root:{left:rr.left,right:rr.right},center:{left:cr.left,right:cr.right,width:cr.width},shell:{left:sr.left,right:sr.right,width:sr.width},topframe:{left:tr.left,right:tr.right,width:tr.width},topbarVisible:getComputedStyle(topbar).display!=='none'&&tr.height>0,mobileNavVisible:getComputedStyle(nav).display!=='none'};})()`);
+  if (!report || report.scrollWidth > width + 1 || report.root.left < -1 || report.root.right > width + 1 || report.center.left < -1 || report.center.right > width + 1 || report.shell.left < -1 || report.shell.right > width + 1 || (mobile ? (!report.mobileNavVisible || report.topbarVisible) : (report.mobileNavVisible || !report.topbarVisible))) {
     throw new Error(`layout social ${name} non valido a ${width}px: ` + JSON.stringify(report));
   }
   await shot(path.join(os.tmpdir(), `gf-e2e-social-${name}-${width}.png`));
@@ -372,12 +372,18 @@ async function main() {
   await assertNoAtlas('rerender Home Community');
   ok('Home Community: scroll-to-top e refresh reale, senza loader nello stesso realm');
 
-  // 7-b) Cerca è una sottoroute, non un salto all'app. Prima rispetta la soglia minima,
-  // poi trova davvero il contenuto pubblicato senza esporre email, telefono o id interni.
-  await ev(`document.querySelector('.socialA-mobile-nav a[href="#/comunita/cerca"]').click()`);
+  // 7-b) La chrome desktop scelta ha Cerca al centro: il form è reale e conduce alla
+  // sottoroute senza uscire dalla Community. Prima rispetta la soglia minima, poi trova
+  // davvero il contenuto pubblicato senza esporre email, telefono o id interni.
+  await rpc('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  await sleep(260);
+  const topbarContract = await ev(`(()=>{const bar=document.querySelector('[data-social-topbar]'),rail=document.querySelector('.socialA-rail'),form=document.querySelector('[data-social-global-search]');return {bar:!!bar&&getComputedStyle(bar).display!=='none',rail:!!rail,form:!!form,create:!!bar?.querySelector('[data-social-open-create]'),profile:!!bar?.querySelector('a[href="#/comunita/profilo"]')};})()`);
+  if (!topbarContract.bar || topbarContract.rail || !topbarContract.form || !topbarContract.create || !topbarContract.profile) {
+    throw new Error('topbar Cerca al centro incompleta: ' + JSON.stringify(topbarContract));
+  }
+  await ev(`(()=>{const f=document.querySelector('[data-social-global-search]'),i=f.querySelector('input');i.value='E';f.requestSubmit();})()`);
   await waitFor(`location.hash==='#/comunita/cerca' && document.querySelector('[data-social-search-input]')`, 'Cerca Community');
   await assertNoAtlas('Feed → Cerca Community');
-  await ev(`(()=>{const i=document.querySelector('[data-social-search-input]');i.value='E';i.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await waitFor(`location.hash==='#/comunita/cerca' && document.querySelector('.socialA-search-hint') && !document.querySelector('[data-social-search-post]')`, 'soglia minima della ricerca');
   const searchQuery = 'cibo sano';
   await ev(`(()=>{const i=document.querySelector('[data-social-search-input]');i.value=${JSON.stringify('cibo sano')};i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));})()`);
@@ -389,9 +395,13 @@ async function main() {
   await auditSocialViewport(390, 844, '.socialA-search-screen', 'search');
   await auditSocialViewport(1024, 844, '.socialA-search-screen', 'search');
   await auditSocialViewport(1440, 900, '.socialA-search-screen', 'search');
+  await ev(`document.querySelector('[data-social-topbar] [data-social-open-create]').click()`);
+  await waitFor(`document.querySelector('.socialA-modal-backdrop.open [data-social-modal-draft]')`, 'Crea dalla topbar Community');
+  await ev(`document.querySelector('.socialA-modal [data-social-close]').click()`);
+  await waitFor(`!document.querySelector('.socialA-modal-backdrop')`, 'chiusura composer dalla topbar');
   await rpc('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await sleep(200);
-  ok('Cerca Community: route stabile, soglia minima, risultati reali e privacy-safe');
+  ok('Cerca al centro: topbar social reale, route stabile, Crea, risultati e privacy verificati');
 
   // La query è stato sensibile alla sessione: un logout/login su un altro account deve
   // cancellare sia il testo sia i risultati prima che la schermata venga rimontata.
@@ -531,6 +541,13 @@ async function main() {
   if (returnAppDuration < 2250 || returnAppDuration > 3000) throw new Error('durata ritorno Gaia Food non conforme ad Atlante B: ' + returnAppDuration);
   await waitFor(`location.hash === '#/home'`, 'Torna all\'app conduce alla Home');
   await waitFor(`document.querySelector('.screen.home.home-directory')`, 'Home prima del rientro social');
+  await rpc('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  await sleep(260);
+  const mainDesktopFrame = await ev(`(()=>{const rail=document.querySelector('#rail').getBoundingClientRect(),app=document.querySelector('#app').getBoundingClientRect();return {left:rail.left,right:app.right,width:app.right-rail.left,railWidth:rail.width,appWidth:app.width,scrollWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth)};})()`);
+  if (Math.abs(mainDesktopFrame.left - 80) > 1 || Math.abs(mainDesktopFrame.width - 1280) > 1 || mainDesktopFrame.scrollWidth > 1441) {
+    throw new Error('frame desktop Gaia Food non stabile: ' + JSON.stringify(mainDesktopFrame));
+  }
+  await shot(path.join(os.tmpdir(), 'gf-e2e-main-frame-1440.png'));
   const externalPost = await ev(`fetch('/api/social/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:${JSON.stringify(reentryText)},kind:'question'})}).then(r=>r.json()).then(d=>d.post&&d.post.id)`, true);
   if (!externalPost) throw new Error('creazione esterna per test rientro fallita');
   await ev(`document.querySelector('.bottomnav a[href="#/comunita"]').click()`);
@@ -538,7 +555,14 @@ async function main() {
   await finishAtlasAudit(reentryCommunityAtlas);
   await waitFor(`document.querySelector('.socialA-shell')`, 'Community dopo il rientro Atlante');
   await waitFor(`[...document.querySelectorAll('[data-social-post]')].some(p=>[...p.querySelectorAll('.social-post-text,.text-card blockquote,.caption')].some(n=>n.textContent.includes(${JSON.stringify(reentryText)})))`, 'feed aggiornato al rientro SPA');
-  ok('Community ↔ Gaia Food: Atlante coerente, ritorno breve e feed rivalidata');
+  const socialDesktopFrame = await ev(`(()=>{const top=document.querySelector('.socialA-topbar-frame').getBoundingClientRect(),shell=document.querySelector('.socialA-shell').getBoundingClientRect();return {left:top.left,right:top.right,width:top.width,shellLeft:shell.left,shellRight:shell.right,scrollWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth)};})()`);
+  if (Math.abs(socialDesktopFrame.left - mainDesktopFrame.left) > 1 || Math.abs(socialDesktopFrame.right - mainDesktopFrame.right) > 1 || Math.abs(socialDesktopFrame.width - mainDesktopFrame.width) > 1 || socialDesktopFrame.scrollWidth > 1441) {
+    throw new Error('frame Community disallineato da Gaia Food: ' + JSON.stringify({ mainDesktopFrame, socialDesktopFrame }));
+  }
+  await shot(path.join(os.tmpdir(), 'gf-e2e-community-frame-1440.png'));
+  await rpc('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+  await sleep(200);
+  ok('Community ↔ Gaia Food: stesso frame 1280px, Atlante coerente, ritorno breve e feed rivalidata');
 
   // Salta deve completare semanticamente il 100% e ripristinare focus/shell.
   await ev(`document.querySelector('[data-social-back-app],.socialA-back-app').click()`);

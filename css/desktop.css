@@ -959,3 +959,216 @@ body.app-social .socialA-right-foot br{
     white-space:nowrap;
   }
 }
+
+/* ===========================================================
+   DOPPIA NAVIGAZIONE · variante 4 "Cerca al centro"
+   - Gaia Food conserva il rail verticale.
+   - Community usa una topbar orizzontale con ricerca reale.
+   - Il frame esterno resta 1280px in ogni route.
+   =========================================================== */
+@media (min-width:1024px){
+  body:not(.app-social):not(.app-bare):not(.app-splash){
+    justify-content:center;
+  }
+  body:not(.app-social):not(.app-bare):not(.app-splash) #rail{
+    flex:0 0 236px;
+  }
+  body:not(.app-social):not(.app-bare):not(.app-splash) #app{
+    flex:1 1 0;
+    min-width:0;
+    width:auto;
+    max-width:1044px;
+  }
+
+  body.app-social .socialA-topbar{
+    position:relative;
+    z-index:70;
+    display:block;
+    flex:none;
+    min-height:76px;
+    border-bottom:1px solid var(--bd2);
+    background:color-mix(in srgb,var(--bianco) 94%,transparent);
+    -webkit-backdrop-filter:blur(20px) saturate(1.08);
+    backdrop-filter:blur(20px) saturate(1.08);
+  }
+  body.app-social .socialA-topbar-frame{
+    width:min(calc(100% - 40px),1280px);
+    min-height:76px;
+    display:grid;
+    grid-template-columns:minmax(205px,270px) minmax(230px,1fr) auto auto auto;
+    align-items:center;
+    gap:12px;
+    margin:0 auto;
+  }
+  body.app-social .socialA-topbar-start{
+    min-width:0;
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  body.app-social .socialA-topbar-back,
+  body.app-social .socialA-topbar-brand,
+  body.app-social .socialA-topbar-nav>a,
+  body.app-social .socialA-topbar-create,
+  body.app-social .socialA-topbar-profile{
+    min-height:44px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:var(--r-btn);
+  }
+  body.app-social .socialA-topbar-back{
+    flex:none;
+    gap:7px;
+    padding:0 10px;
+    color:var(--muted);
+    font-size:11px;
+    font-weight:700;
+  }
+  body.app-social .socialA-topbar-back:hover,
+  body.app-social .socialA-topbar-nav>a:hover,
+  body.app-social .socialA-topbar-profile:hover{ background:var(--carta-scura); }
+  body.app-social .socialA-topbar-brand{
+    min-width:0;
+    justify-content:flex-start;
+    gap:10px;
+    padding:0 4px;
+  }
+  body.app-social .socialA-topbar-brand .gf-lockup{ flex:none;font-size:18px; }
+  body.app-social .socialA-topbar-brand small{
+    min-width:0;
+    overflow:hidden;
+    color:var(--verde);
+    font-size:9px;
+    font-weight:800;
+    letter-spacing:.09em;
+    text-overflow:ellipsis;
+    text-transform:uppercase;
+    white-space:nowrap;
+  }
+  body.app-social .socialA-topbar-search{
+    width:100%;
+    max-width:430px;
+    min-height:48px;
+    justify-self:center;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:0 15px;
+    border:1px solid var(--bd2);
+    border-radius:var(--r-input);
+    background:var(--carta-scura);
+    color:var(--muted);
+    transition:border-color .18s ease,background .18s ease,box-shadow .18s ease;
+  }
+  body.app-social .socialA-topbar-search:focus-within{
+    border-color:var(--verde);
+    background:var(--bianco);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--celeste) 24%,transparent);
+  }
+  body.app-social .socialA-topbar-search input{
+    min-width:0;
+    width:100%;
+    height:44px;
+    border:0;
+    outline:0;
+    background:transparent;
+    color:var(--ink);
+    font:600 13px/1 var(--sans);
+  }
+  body.app-social .socialA-topbar-search input::placeholder{ color:var(--muted2);font-weight:550; }
+  body.app-social .socialA-topbar-nav{ display:flex;align-items:center;gap:4px; }
+  body.app-social .socialA-topbar-nav>a{
+    gap:7px;
+    padding:0 11px;
+    color:var(--ink-soft);
+    font-size:12px;
+    font-weight:750;
+  }
+  body.app-social .socialA-topbar-nav>a.is-active,
+  body.app-social .socialA-topbar-nav>a[aria-current=page]{
+    color:var(--verde-deep);
+    background:var(--carta-scura);
+    box-shadow:inset 0 -2px 0 var(--verde);
+  }
+  body.app-social .socialA-topbar-create{
+    gap:7px;
+    padding:0 15px;
+    color:var(--bianco);
+    background:var(--verde);
+    font-size:12px;
+    font-weight:800;
+    box-shadow:0 10px 22px -15px var(--verde-deep);
+  }
+  body.app-social .socialA-topbar-create:hover{ background:var(--verde-deep); }
+  body.app-social .socialA-topbar-profile{
+    width:44px;
+    min-width:44px;
+    padding:3px;
+  }
+  body.app-social .socialA-topbar-profile[aria-current=page]{
+    box-shadow:0 0 0 2px var(--verde);
+  }
+  body.app-social .socialA-topbar-profile .social-avatar{
+    width:36px;
+    height:36px;
+    flex:0 0 36px;
+  }
+
+  body.app-social .socialA-mobile-head,
+  body.app-social .socialA-mobile-nav{ display:none; }
+  body.app-social .socialA-rail{ display:none!important; }
+  body.app-social .socialA-scroll{
+    min-height:0;
+    flex:1;
+  }
+  body.app-social .socialA-shell,
+  body.app-social .socialA-subpage .socialA-shell{
+    width:min(calc(100% - 40px),1280px);
+    min-height:calc(100vh - 76px);
+    min-height:calc(100dvh - 76px);
+    display:grid;
+    grid-template-columns:minmax(0,680px);
+    justify-content:center;
+    gap:32px;
+    margin:0 auto;
+    padding:0;
+  }
+  body.app-social .socialA-center,
+  body.app-social .socialA-subpage .socialA-subpage-center{
+    width:100%;
+    max-width:680px;
+    padding-top:24px;
+  }
+  body.app-social .socialA-subpage .socialA-subpage-center{ padding-top:36px; }
+  body.app-social .socialA-right{ display:none; }
+}
+
+@media (min-width:1024px) and (max-width:1139px){
+  body.app-social .socialA-topbar-frame{
+    grid-template-columns:190px minmax(220px,1fr) auto auto auto;
+    gap:8px;
+  }
+  body.app-social .socialA-topbar-back span{ display:none; }
+  body.app-social .socialA-topbar-brand small{ display:none; }
+  body.app-social .socialA-topbar-nav>a span{ display:none; }
+  body.app-social .socialA-topbar-nav>a{ width:44px;padding:0; }
+}
+
+@media (min-width:1280px){
+  body.app-social .socialA-shell,
+  body.app-social .socialA-subpage .socialA-shell{
+    grid-template-columns:minmax(0,680px) 300px;
+    gap:32px;
+  }
+  body.app-social .socialA-right{
+    display:block;
+    position:sticky;
+    top:0;
+    height:auto;
+    max-height:calc(100vh - 76px);
+    max-height:calc(100dvh - 76px);
+    padding:24px 0;
+    overflow-y:auto;
+  }
+}
